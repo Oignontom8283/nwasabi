@@ -101,3 +101,39 @@ pub enum Addr {
     Literal { offset: i32 },
 }
 
+/// Extensions d'octets ou de demi-mots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtKind {
+    Sxtb,
+    Sxth,
+    Uxtb,
+    Uxth,
+    Sxtb16,
+    Uxtb16,
+}
+
+/// Opérations arithmétiques sur plusieurs petites valeurs à la fois (SIMD sur 32 bits).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParallelOp {
+    Uadd8,
+    Uqadd8,
+    Uqsub8,
+    Uqadd16,
+    Uqsub16,
+    Sadd8,
+    Ssub8,
+    Usub8,
+    Uadd16,
+    Usub16,
+    Sadd16,
+    Ssub16,
+}
+
+/// Réorganisations d'octets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevKind {
+    Rev,
+    Rev16,
+    Revsh,
+}
+
