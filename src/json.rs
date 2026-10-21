@@ -500,3 +500,29 @@ pub fn hex_decode(text: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_writes_back_the_same_compact_text() {
+        let text = r#"{"a":1,"b":[true,false,null],"c":"x\ny","d":-2.5,"e":{}}"#;
+        let v = parse(text).unwrap();
+        assert_eq!(v.to_string(), text);
+        assert_eq!(v.get("a").and_then(Value::as_i64), Some(1));
+        assert_eq!(v.get("d").and_then(Value::as_f64), Some(-2.5));
+    }
+
+    #[test]
+    fn keeps_key_order_and_the_last_duplicate() {
+        let v = parse(r#"{"z":1,"a":2,"z":3}"#).unwrap();
+        assert_eq!(v.to_string(), r#"{"z":3,"a":2}"#);
+    }
+
+    #[test]
+    fn strings_handle_escapes_unicode_and_surrogates() {
+        let v = parse(r#""éé😀\t\"""#).unwrap();
+        assert_eq!(v.as_str(), Some("éé😀\t\""));
+        assert_eq!(Value::from("a\u{1}b").to_string(), r#""a\u0001b""#);
+    }
+
