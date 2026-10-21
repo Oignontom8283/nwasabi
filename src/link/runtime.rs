@@ -45,6 +45,9 @@ pub const EADK_EXTENDED_SVC: &[(&str, u8)] = &[
     ("eadk_usb_is_plugged", 52),
 ];
 
+/// Appel système privé de nwasabi : fonction `drawString` du userland (texte à l'écran), joignable
+/// par la table de vecteurs que le `UserlandHeader` publie. Elle n'est pas liée à l'application.
+pub const SVC_DRAW_STRING: u8 = 0x80;
 /// Appel système privé de nwasabi : `_sbrk` (agrandissement du tas).
 pub const SVC_SBRK: u8 = 0x81;
 /// Appel système privé de nwasabi : `_write` (affichage de texte).
@@ -265,7 +268,7 @@ mod tests {
             .chain(EADK_EXTENDED_SVC)
             .map(|&(_, n)| n)
             .collect();
-        numbers.extend([SVC_SBRK, SVC_WRITE]);
+        numbers.extend([SVC_DRAW_STRING, SVC_SBRK, SVC_WRITE]);
         let count = numbers.len();
         numbers.sort_unstable();
         numbers.dedup();

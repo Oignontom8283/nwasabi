@@ -9,5 +9,10 @@
 #![forbid(unsafe_code)]
 
 pub mod cpu;
+pub mod device;
 pub mod elf;
+pub mod inspect;
 pub mod link;
+pub mod memory;
+pub mod profile;
+pub mod structures;
