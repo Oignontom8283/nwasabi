@@ -172,3 +172,10 @@ fn memory_can_be_read_written_and_followed() {
     );
 }
 
+#[test]
+fn running_without_an_app_is_an_error() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    assert!(error(&mut s, r#"{"cmd":"run"}"#).contains("aucune application"));
+}
+
