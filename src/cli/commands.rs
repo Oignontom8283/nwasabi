@@ -586,3 +586,20 @@ pub fn session(raw: &[String]) -> Outcome {
     Ok(0)
 }
 
+// ---- keys ----------------------------------------------------------------------------------------
+
+pub fn keys(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json"])?;
+    let list: Vec<Value> = Key::ALL
+        .iter()
+        .map(|k| Value::object().with("name", k.name()).with("bit", k.bit()))
+        .collect();
+    print(&args, &Value::object().with("keys", list), || {
+        Key::ALL
+            .iter()
+            .map(|k| format!("{:>2}  {}", k.bit(), k.name()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    Ok(0)
+}
