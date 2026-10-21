@@ -108,3 +108,9 @@ impl Registers {
         self.set_it_state(next);
     }
 
+    /// Numéro d'exception en cours (0 : mode thread).
+    pub fn ipsr(&self) -> u32 {
+        self.xpsr & 0x1ff
+    }
+}
+
