@@ -389,3 +389,116 @@ pub fn fs_cmd(raw: &[String]) -> Outcome {
     Ok(0)
 }
 
+// ---- survey --------------------------------------------------------------------------------------
+
+fn collect_apps(paths: &[String]) -> Result<Vec<String>, String> {
+    let mut files = Vec::new();
+    for p in paths {
+        let path = Path::new(p);
+        if path.is_dir() {
+            let entries = fs::read_dir(path).map_err(|e| format!("{p} : {e}"))?;
+            let mut found: Vec<String> = entries
+                .filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "nwa"))
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            found.sort();
+            files.extend(found);
+        } else {
+            files.push(p.clone());
+        }
+    }
+    Ok(files)
+}
+
+/// Lance chaque application sans touche et résume ce qui s'est passé (comme le test du corpus).
+pub fn survey(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json"])?;
+    let files = collect_apps(&args.positional)?;
+    if files.is_empty() {
+        return Err("aucun fichier .nwa (donner des fichiers ou un dossier)".to_owned());
+    }
+    let budget = args.number("instructions")?.unwrap_or(40_000_000);
+    let mut results = Vec::new();
+    let mut faults = 0;
+    for path in &files {
+        let nwa = read_file(path)?;
+        let attempt = |model: &str, data: Option<&[u8]>| -> Result<Value, String> {
+            let mut s = Session::new();
+            let mut load = Value::object()
+                .with("cmd", "load")
+                .with("model", model)
+                .with("nwa_base64", json::base64_encode(&nwa));
+            if let Some(d) = data {
+                load.set("data_base64", json::base64_encode(d));
+            }
+            call(&mut s, load)?;
+            let ran = call(
+                &mut s,
+                Value::object()
+                    .with("cmd", "run")
+                    .with("instructions", budget),
+            )?;
+            let screen = call(&mut s, Value::object().with("cmd", "screen"))?;
+            Ok(Value::object()
+                .with("model", model)
+                .with("stop", ran.get("stop").cloned())
+                .with("frames", ran.get("frames").cloned())
+                .with("instructions", ran.get("instructions").cloned())
+                .with("screen_crc32", screen.get("crc32").cloned()))
+        };
+        let mut result = attempt("n0110", None).or_else(|_| attempt("n0110", Some(&[])));
+        // Une application faite pour le N0120 sonde la RAM à 0x24000000.
+        let wants_n0120 = result
+            .as_ref()
+            .ok()
+            .and_then(|r| r.get("stop"))
+            .is_some_and(|s| {
+                s.get("kind").and_then(Value::as_str) == Some("fault")
+                    && s.get("address")
+                        .and_then(Value::as_u32)
+                        .is_some_and(|a| a >> 24 == 0x24)
+            });
+        if wants_n0120 {
+            result = attempt("n0120", None).or_else(|_| attempt("n0120", Some(&[])));
+        }
+        let name = Path::new(path)
+            .file_name()
+            .map_or(path.clone(), |n| n.to_string_lossy().into_owned());
+        let entry = match result {
+            Ok(r) => r,
+            Err(e) => Value::object().with("error", e),
+        };
+        let kind = entry
+            .get("stop")
+            .and_then(|s| s.get("kind"))
+            .and_then(Value::as_str);
+        if kind == Some("fault") || kind.is_none() {
+            faults += 1;
+        }
+        results.push(entry.with("app", name));
+    }
+    if args.flag("json") {
+        println!("{}", Value::object().with("apps", results));
+    } else {
+        for r in &results {
+            let stop = r
+                .get("stop")
+                .and_then(|s| s.get("kind"))
+                .and_then(Value::as_str)
+                .unwrap_or("erreur");
+            println!(
+                "{:42} {:10} images={:<8} instructions={:<10} écran={}",
+                r.get("app").and_then(Value::as_str).unwrap_or(""),
+                stop,
+                r.get("frames").map_or(String::new(), |v| v.to_string()),
+                r.get("instructions")
+                    .map_or(String::new(), |v| v.to_string()),
+                r.get("screen_crc32").and_then(Value::as_str).unwrap_or("-"),
+            );
+        }
+    }
+    Ok(i32::from(faults > 0) * 3)
+}
+
