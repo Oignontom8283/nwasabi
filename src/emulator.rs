@@ -12,7 +12,7 @@ use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
 use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
 use crate::link::{LinkError, LinkOptions, LinkedApp, link};
-use crate::memory::WatchHit;
+use crate::memory::{WatchHit, access};
 use crate::profile::{FirmwareProfile, Model};
 use crate::storage::{Fs, Storage};
 
@@ -216,5 +216,56 @@ impl Emulator {
             Stop::Breakpoint { imm8 } => RunStop::Fault(Fault::Breakpoint { imm8 }),
             Stop::WaitForInterrupt => RunStop::Fault(Fault::WaitForInterrupt),
         }
+    }
+}
+
+/// Une plage d'adresses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    pub start: u32,
+    pub end: u32,
+}
+
+/// Utilisation de la mémoire par l'application depuis son lancement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Usage {
+    /// Plage réservée au tas, limite actuelle du programme (`brk`) et plus haute adresse écrite.
+    pub heap: Span,
+    pub heap_break: u32,
+    pub heap_high_water: Option<u32>,
+    /// Plage réservée à la pile (la pile descend depuis `end`) et adresse la plus basse écrite.
+    pub stack: Span,
+    pub stack_low_water: Option<u32>,
+    /// Pile actuelle.
+    pub sp: u32,
+}
+
+impl Emulator {
+    /// Mesure l'utilisation du tas et de la pile d'après les accès du programme (au grain de 32
+    /// octets). `None` tant qu'aucune application n'est installée.
+    pub fn usage(&self) -> Option<Usage> {
+        let app = self.app.as_ref()?;
+        let profile = &self.device.profile;
+        let heap = Span {
+            start: app.heap.address,
+            end: app.heap.address + app.heap.size,
+        };
+        let stack = Span {
+            start: profile.apps_ram.1,
+            end: profile.process_stack_start,
+        };
+        let memory = &self.device.memory;
+        Some(Usage {
+            heap,
+            heap_break: self.kernel.program_break(),
+            heap_high_water: memory
+                .access_extent(heap.start, heap.end, access::WRITE)
+                .map(|(_, high)| high),
+            stack,
+            stack_low_water: memory
+                .access_extent(stack.start, stack.end, access::WRITE)
+                .map(|(low, _)| low),
+            sp: self.cpu.regs.sp,
+        })
     }
 }
