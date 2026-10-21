@@ -49,3 +49,77 @@ const LINKER_SYMBOLS: [&str; 9] = [
     ls::APP_END,
 ];
 
+// === 1. Résolution des symboles ===
+
+/// Comment un symbole utilisé par une relocation se résout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Resolved {
+    /// Défini dans un objet (celui qui l'utilise ou un autre).
+    Def(SymRef),
+    /// Défini par l'éditeur de liens (adresses de `.data`, du tas…).
+    Linker,
+    /// Faible et défini nulle part : vaut 0.
+    UndefinedWeak,
+    /// Défini nulle part : erreur si quelqu'un l'utilise vraiment.
+    Undefined,
+}
+
+/// Force d'une définition : un symbole fort l'emporte sur un faible, qui l'emporte sur un commun.
+fn rank(sym: &Symbol) -> u8 {
+    match (sym.section, sym.bind) {
+        (SymbolSection::Common, _) => 0,
+        (_, SymbolBind::Weak) => 1,
+        _ => 2,
+    }
+}
+
+/// Table des définitions globales. À force égale, la première définition gagne
+/// (équivalent de `--allow-multiple-definition`).
+fn build_globals<'a>(objects: &'a [Obj<'_>]) -> HashMap<&'a str, SymRef> {
+    let mut globals: HashMap<&str, SymRef> = HashMap::new();
+    for (o, obj) in objects.iter().enumerate() {
+        for (i, sym) in obj.elf.symbols.iter().enumerate().skip(1) {
+            let global = matches!(sym.bind, SymbolBind::Global | SymbolBind::Weak);
+            if !global || !sym.is_defined() || sym.name.is_empty() {
+                continue;
+            }
+            if matches!(sym.kind, SymbolKind::Section | SymbolKind::File) {
+                continue;
+            }
+            let new = SymRef { obj: o, index: i };
+            match globals.get(sym.name.as_str()) {
+                None => {
+                    globals.insert(&sym.name, new);
+                }
+                Some(old) => {
+                    let old_sym = &objects[old.obj].elf.symbols[old.index];
+                    let better = rank(sym) > rank(old_sym)
+                        || (rank(sym) == 0 && rank(old_sym) == 0 && sym.size > old_sym.size);
+                    if better {
+                        globals.insert(&sym.name, new);
+                    }
+                }
+            }
+        }
+    }
+    globals
+}
+
+fn resolve(objects: &[Obj<'_>], globals: &HashMap<&str, SymRef>, r: SymRef) -> Resolved {
+    let sym = &objects[r.obj].elf.symbols[r.index];
+    if sym.bind == SymbolBind::Local {
+        return Resolved::Def(r);
+    }
+    if let Some(def) = globals.get(sym.name.as_str()) {
+        return Resolved::Def(*def);
+    }
+    if LINKER_SYMBOLS.contains(&sym.name.as_str()) {
+        return Resolved::Linker;
+    }
+    if sym.is_weak() {
+        Resolved::UndefinedWeak
+    } else {
+        Resolved::Undefined
+    }
+}
+
