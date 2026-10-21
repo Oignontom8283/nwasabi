@@ -44,6 +44,14 @@ clippy:
 test:
     cargo test --all-features
 
+# Lance les tests natifs avec un corpus d'applications .nwa (dossier de fichiers .nwa).
+test-corpus corpus:
+    NWASABI_CORPUS={{corpus}} cargo test --all-features
+
+# Régénère les résultats de référence de l'édition de liens après un changement voulu.
+update-golden corpus:
+    NWASABI_UPDATE_GOLDEN=1 NWASABI_CORPUS={{corpus}} cargo test --test link_corpus
+
 # Séquence complète avant de proposer un changement : formatage, clippy, tests, WebAssembly.
 ci: fmt-check clippy test build-wasm
 
