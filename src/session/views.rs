@@ -179,3 +179,38 @@ pub fn usage(u: &Usage) -> Value {
         .with("sp", u.sp)
 }
 
+pub fn listing(l: &Listing) -> Value {
+    Value::object()
+        .with(
+            "files",
+            Value::Array(
+                l.files
+                    .iter()
+                    .map(|f| {
+                        Value::object()
+                            .with("name", f.name.as_str())
+                            .with(
+                                "kind",
+                                match &f.kind {
+                                    FileKind::Python => "python".to_owned(),
+                                    FileKind::System => "system".to_owned(),
+                                    FileKind::Other(ext) => format!("other:{ext}"),
+                                },
+                            )
+                            .with("size", f.size)
+                            .with("offset", f.offset)
+                    })
+                    .collect(),
+            ),
+        )
+        .with("corrupt_at", l.corrupt_at)
+}
+
+pub fn stats(s: &Stats) -> Value {
+    Value::object()
+        .with("total", s.total)
+        .with("used", s.used)
+        .with("free", s.free)
+        .with("records", s.records)
+}
+
