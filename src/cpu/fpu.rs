@@ -683,3 +683,45 @@ impl Cpu {
                 };
                 self.regs.s[d as usize] = result;
             }
+            FpInstr::MovImm { d, bits } => self.regs.s[d as usize] = bits,
+            FpInstr::Cmp { d, m, signal_nan } => {
+                let (a, b) = (f(self, d), m.map_or(0.0, |m| f(self, m)));
+                let flags = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .compare(a, b, signal_nan);
+                self.regs.fpscr = (self.regs.fpscr & 0x0fff_ffff) | (flags << 28);
+            }
+            FpInstr::ToInt {
+                signed,
+                round_zero,
+                d,
+                m,
+            } => {
+                let rounding = if round_zero {
+                    3
+                } else {
+                    (self.regs.fpscr >> FPSCR_RMODE_SHIFT) & 3
+                };
+                let x = f(self, m);
+                let value = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .convert_to_int(x, signed, rounding);
+                self.regs.s[d as usize] = value;
+            }
+            FpInstr::FromInt { signed, d, m } => {
+                let raw = self.regs.s[m as usize];
+                let (result, exact) = if signed {
+                    let v = raw as i32;
+                    let r = v as f32;
+                    (r, r as f64 == f64::from(v))
+                } else {
+                    let r = raw as f32;
+                    (r, r as f64 == f64::from(raw))
+                };
+                if !exact {
+                    self.regs.fpscr |= FPSCR_IXC;
+                }
+                self.regs.s[d as usize] = result.to_bits();
+            }
