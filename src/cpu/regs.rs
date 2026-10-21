@@ -14,3 +14,32 @@ pub struct Registers {
     pub fpscr: u32,
 }
 
+const N: u32 = 1 << 31;
+const Z: u32 = 1 << 30;
+const C: u32 = 1 << 29;
+const V: u32 = 1 << 28;
+const Q: u32 = 1 << 27;
+/// Bit « Thumb » de xPSR : toujours à 1 sur un Cortex-M.
+pub const XPSR_T: u32 = 1 << 24;
+
+impl Registers {
+    pub fn n(&self) -> bool {
+        self.xpsr & N != 0
+    }
+
+    pub fn z(&self) -> bool {
+        self.xpsr & Z != 0
+    }
+
+    pub fn c(&self) -> bool {
+        self.xpsr & C != 0
+    }
+
+    pub fn v(&self) -> bool {
+        self.xpsr & V != 0
+    }
+
+    pub fn q(&self) -> bool {
+        self.xpsr & Q != 0
+    }
+
