@@ -75,3 +75,32 @@ impl fmt::Display for DeviceError {
 
 impl std::error::Error for DeviceError {}
 
+/// Un appareil : mémoire, profil et prochain emplacement libre pour une application.
+pub struct DeviceImage {
+    pub memory: Memory,
+    pub profile: FirmwareProfile,
+    /// Prochain emplacement où l'outil de flashage écrirait une application.
+    next_app: u32,
+}
+
+impl DeviceImage {
+    /// Construit l'appareil décrit par `profile` avec les réglages par défaut.
+    pub fn new(profile: FirmwareProfile) -> Result<Self, DeviceError> {
+        Self::with_options(profile, DeviceOptions::default())
+    }
+
+    pub fn with_options(
+        profile: FirmwareProfile,
+        options: DeviceOptions,
+    ) -> Result<Self, DeviceError> {
+        profile.validate().map_err(DeviceError::Profile)?;
+        let mut memory = build_memory(&profile, options.ram_fill)?;
+        write_structures(&mut memory, &profile)?;
+        let next_app = profile.slot_a.apps_flash.0;
+        Ok(Self {
+            memory,
+            profile,
+            next_app,
+        })
+    }
+
