@@ -194,3 +194,18 @@ impl Cpu {
             Instr::Adr { rd, offset } => {
                 self.write(rd, (ctx.pc4 & !3).wrapping_add(offset as u32));
             }
+            Instr::Mul { rd, rn, rm, flags } => {
+                let result = self.read(ctx, rn).wrapping_mul(self.read(ctx, rm));
+                if Self::sets_flags(flags, ctx) {
+                    self.regs.set_nz(result);
+                }
+                self.write(rd, result);
+            }
+            Instr::Mla { rd, rn, rm, ra } => {
+                let product = self.read(ctx, rn).wrapping_mul(self.read(ctx, rm));
+                self.write(rd, product.wrapping_add(self.read(ctx, ra)));
+            }
+            Instr::Mls { rd, rn, rm, ra } => {
+                let product = self.read(ctx, rn).wrapping_mul(self.read(ctx, rm));
+                self.write(rd, self.read(ctx, ra).wrapping_sub(product));
+            }
