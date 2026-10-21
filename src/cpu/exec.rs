@@ -93,6 +93,11 @@ impl Cpu {
 
     /// Exécute une instruction à l'adresse `regs.pc`.
     pub fn step<B: Bus, H: Hooks>(&mut self, bus: &mut B, hooks: &mut H) -> Result<(), Stop> {
+        self.step_inline(bus, hooks)
+    }
+
+    #[inline(always)]
+    fn step_inline<B: Bus, H: Hooks>(&mut self, bus: &mut B, hooks: &mut H) -> Result<(), Stop> {
         let addr = self.regs.pc;
         let epoch = bus.code_epoch();
         let (instr, size) = match self.cache.lookup(addr, epoch) {
@@ -116,7 +121,7 @@ impl Cpu {
         let ctx = Ctx {
             addr,
             pc4: addr.wrapping_add(4),
-            in_it: self.regs.it_state() != 0,
+            in_it: self.regs.in_it_block(),
         };
         self.regs.pc = addr.wrapping_add(u32::from(size));
         self.cycles += 1;
@@ -142,7 +147,7 @@ impl Cpu {
         max_instructions: u64,
     ) -> Stop {
         for _ in 0..max_instructions {
-            if let Err(stop) = self.step(bus, hooks) {
+            if let Err(stop) = self.step_inline(bus, hooks) {
                 return stop;
             }
         }
@@ -639,13 +644,12 @@ impl Cpu {
             }
         };
         if Self::sets_flags(flags, ctx) {
-            self.regs.set_nz(result);
             match arithmetic {
-                Some((c, v)) => {
-                    self.regs.set_c(c);
-                    self.regs.set_v(v);
+                Some((c, v)) => self.regs.set_nzcv(result, c, v),
+                None => {
+                    self.regs.set_nz(result);
+                    self.regs.set_c(shifter_carry);
                 }
-                None => self.regs.set_c(shifter_carry),
             }
         }
         if op.writes_result() {
