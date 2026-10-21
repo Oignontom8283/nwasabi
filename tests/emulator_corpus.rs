@@ -68,3 +68,13 @@ fn run_app(model: Model, nwa: &[u8]) -> Outcome {
     }
 }
 
+fn kind(stop: &RunStop) -> String {
+    match stop {
+        RunStop::Fault(f) => format!("faute({f:?})"),
+        RunStop::Exited(code) => format!("fin({code})"),
+        RunStop::WaitEvent { .. } => "attend-evenement".to_owned(),
+        RunStop::Budget => "budget".to_owned(),
+        other => format!("{other:?}"),
+    }
+}
+
