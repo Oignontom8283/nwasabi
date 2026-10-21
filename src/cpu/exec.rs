@@ -646,3 +646,23 @@ impl Cpu {
         Ok(())
     }
 
+    /// Adresse d'un accès mémoire, et mise à jour éventuelle du registre de base.
+    fn address(&self, ctx: Ctx, addr: Addr) -> (u32, Option<(Reg, u32)>) {
+        match addr {
+            Addr::Imm { rn, offset, mode } => {
+                let base = self.read(ctx, rn);
+                let offset_address = base.wrapping_add(offset as u32);
+                match mode {
+                    IndexMode::Offset => (offset_address, None),
+                    IndexMode::PreIndex => (offset_address, Some((rn, offset_address))),
+                    IndexMode::PostIndex => (base, Some((rn, offset_address))),
+                }
+            }
+            Addr::Reg { rn, rm, shift } => {
+                let offset = self.read(ctx, rm) << shift;
+                (self.read(ctx, rn).wrapping_add(offset), None)
+            }
+            Addr::Literal { offset } => ((ctx.pc4 & !3).wrapping_add(offset as u32), None),
+        }
+    }
+
