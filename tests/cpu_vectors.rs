@@ -17,3 +17,14 @@ const MARKER: u32 = 0x00c0_ffee;
 struct NoHooks;
 impl Hooks for NoHooks {}
 
+fn region(name: &str, base: u32, size: u32) -> RegionSpec {
+    RegionSpec {
+        name: name.into(),
+        base,
+        size,
+        perms: Perms::READ_WRITE_EXECUTE,
+        kind: RegionKind::Ram,
+        fill: 0,
+    }
+}
+
