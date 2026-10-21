@@ -316,3 +316,21 @@ fn svc_raised_as_an_exception_stacks_the_context_and_returns() {
     assert_eq!(cpu.regs.r[5], 5);
 }
 
+#[test]
+fn exception_entry_aligns_the_stack_on_eight_bytes() {
+    let mut bus = Flat::with_halfwords(&[0xdf01]);
+    bus.0[44..48].copy_from_slice(&0x301u32.to_le_bytes());
+    bus.0[0x300..0x302].copy_from_slice(&[0x70, 0x47]);
+    let mut cpu = Cpu::new();
+    cpu.regs.pc = START;
+    cpu.regs.sp = 0x8004; // pas alignée sur 8
+    cpu.msp = 0x8004;
+    cpu.regs.lr = 0x1235;
+    cpu.step(&mut bus, &mut Raise).unwrap();
+    assert_eq!(cpu.regs.sp & 7, 0);
+    cpu.step(&mut bus, &mut Raise).unwrap(); // bx lr
+    assert_eq!(
+        cpu.regs.sp, 0x8004,
+        "le mot de remplissage est retiré au retour"
+    );
+}
