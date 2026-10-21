@@ -669,3 +669,17 @@ impl Cpu {
                 };
                 self.regs.s[d as usize] = result.to_bits();
             }
+            FpInstr::Unary { op, d, m } => {
+                let x = f(self, m);
+                let result = match op {
+                    FpUnary::Vmov => x.to_bits(),
+                    FpUnary::Vabs => x.to_bits() & 0x7fff_ffff,
+                    FpUnary::Vneg => x.to_bits() ^ 0x8000_0000,
+                    FpUnary::Vsqrt => Env {
+                        fpscr: &mut self.regs.fpscr,
+                    }
+                    .sqrt(x)
+                    .to_bits(),
+                };
+                self.regs.s[d as usize] = result;
+            }
