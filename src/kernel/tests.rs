@@ -63,3 +63,15 @@ fn a_bad_pointer_stops_with_a_bus_fault() {
     );
 }
 
+#[test]
+fn vblank_aligns_time_on_the_next_frame_and_counts_it() {
+    let (mut emu, mut cpu) = setup();
+    assert_eq!(call(&mut emu, &mut cpu, 21, &[]), SvcAction::HandledAndStop);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Frame));
+    assert_eq!(cpu.regs.r[0], 1);
+    assert_eq!(emu.kernel.frames, 1);
+    assert_eq!(emu.kernel.micros(cpu.cycles), FRAME_US);
+    call(&mut emu, &mut cpu, 21, &[]);
+    assert_eq!(emu.kernel.micros(cpu.cycles), 2 * FRAME_US);
+}
+
