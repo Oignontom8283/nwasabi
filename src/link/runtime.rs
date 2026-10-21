@@ -98,3 +98,43 @@ const START_POOL: [&str; 5] = [
     linker_symbols::BSS_END_RAM,
 ];
 
+/// `eadk_display_draw_string` : saute à la fonction dont l'adresse est stockée dans la table
+/// du userland (la « trampoline »), exactement comme le runtime officiel.
+///
+/// ```text
+/// 0: ldr.w ip, [pc, #8]    ; ip = _userland_trampoline_address (mot à 0xc)
+/// 4: ldr.w ip, [ip]        ; ip = fonction du userland
+/// 8: bx ip
+/// a: nop
+/// ```
+const DRAW_STRING_CODE: [u16; 6] = [0xf8df, 0xc008, 0xf8dc, 0xc000, 0x4760, 0xbf00];
+
+fn halfwords(code: &[u16]) -> Vec<u8> {
+    code.iter().flat_map(|h| h.to_le_bytes()).collect()
+}
+
+fn add_function(w: &mut ObjectWriter, name: &str, code: &[u8]) -> crate::elf::SectionId {
+    let section = w.add_section(&format!(".text.{name}"), SHF_ALLOC | SHF_EXECINSTR, 4, code);
+    // Bit 0 à 1 : convention ARM pour une fonction Thumb.
+    w.add_symbol(
+        name,
+        1,
+        code.len() as u32,
+        SymbolBind::Global,
+        SymbolKind::Func,
+        SymbolSection::Section(section.0),
+    );
+    section
+}
+
+/// Fonction qui ne fait que renvoyer `value` : `movs r0, #value` ou `mov.w r0, #-1`, puis `bx lr`.
+fn constant_function(w: &mut ObjectWriter, name: &str, value: i32) {
+    let mut code = match value {
+        -1 => halfwords(&[0xf04f, 0x30ff]),
+        0..=255 => halfwords(&[0x2000 | value as u16]),
+        _ => unreachable!("constante non prévue"),
+    };
+    code.extend_from_slice(&0x4770u16.to_le_bytes()); // bx lr
+    add_function(w, name, &code);
+}
+
