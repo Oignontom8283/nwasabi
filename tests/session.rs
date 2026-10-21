@@ -78,3 +78,49 @@ fn files_round_trip_through_the_protocol() {
     assert_eq!(stats.get("total").and_then(Value::as_i64), Some(43008));
 }
 
+#[test]
+fn settings_are_visible_in_the_memory_structures() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    ok(
+        &mut s,
+        r#"{"cmd":"settings_set","name":"version","value":"27.0.1"}"#,
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"settings_set","name":"device_name","value":"Mon appareil"}"#,
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"settings_set","name":"battery","value":{"level":1,"voltage":3.5,"charging":true}}"#,
+    );
+    let inspect = ok(&mut s, r#"{"cmd":"inspect"}"#);
+    let st = inspect.get("structures").unwrap();
+    let kernel = st.get("kernel_header").unwrap();
+    assert_eq!(
+        kernel.get("software_version").and_then(Value::as_str),
+        Some("27.0.1")
+    );
+    assert_eq!(kernel.get("valid"), Some(&Value::Bool(true)));
+    assert_eq!(
+        st.get("device_name").and_then(Value::as_str),
+        Some("Mon appareil")
+    );
+
+    let got = ok(&mut s, r#"{"cmd":"settings_get"}"#);
+    assert_eq!(
+        got.get("battery")
+            .and_then(|b| b.get("level"))
+            .and_then(Value::as_i64),
+        Some(1)
+    );
+    assert!(
+        error(
+            &mut s,
+            r#"{"cmd":"settings_set","name":"serial_number","value":"court"}"#
+        )
+        .contains("serial_number")
+    );
+    assert!(error(&mut s, r#"{"cmd":"settings_set","name":"zzz","value":1}"#).contains("inconnu"));
+}
+
