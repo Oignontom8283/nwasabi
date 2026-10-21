@@ -94,3 +94,12 @@ fn run(code: &[u16], setup: impl FnOnce(&mut Cpu), count: u64) -> (Cpu, Flat, St
 
 impl Hooks for () {}
 
+#[test]
+fn small_arithmetic_program() {
+    // movs r0, #6 ; movs r1, #7 ; muls r0, r1, r0
+    let (cpu, _, stop) = run(&[0x2006, 0x2107, 0x4348], |_| {}, 3);
+    assert_eq!(stop, Stop::Budget);
+    assert_eq!(cpu.regs.r[0], 42);
+    assert_eq!(cpu.regs.pc, START + 6);
+}
+
