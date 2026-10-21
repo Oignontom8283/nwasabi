@@ -85,9 +85,79 @@ impl FirmwareProfile {
         }
     }
 
-    /// Le profil par défaut d'un modèle : Epsilon 26.4.0.
+    /// Un appareil comme ceux relevés sur matériel (Epsilon 23.2.6 à 24.11.0, avant la 26) : le
+    /// `UserlandHeader` est à `slot + 0x10000` sur N0110 et N0115 (pas de copie du bootloader),
+    /// à `slot + 0x20000` sur N0120 ; la zone des applications commence plus tôt (`+0x170000`,
+    /// `+0x190000` sur N0120) et la RAM des applications un peu plus loin. C'est la disposition que
+    /// supposent NumWorks Extapp Storage, eadkp et Nwagyu : leurs applications y retrouvent le
+    /// système de fichiers (voir `default_for`).
+    ///
+    /// Valeurs relevées sur les appareils de l'auteur : versions, commits, RAM et flash des
+    /// applications, slot actif (N0110 : 24.11.0 slot B ; N0115 : 24.3.0 slot A ; N0120 : 23.2.6
+    /// slot B). Valeurs déduites des sources d'Epsilon 23.2.3 : position des en-têtes. Valeurs
+    /// reprises de la 26.4.0 faute de mieux : adresse du système de fichiers, piles, niveau de
+    /// sécurité et taille de la charge signée.
+    pub fn epsilon_24(model: Model) -> Self {
+        let mut profile = Self::epsilon_26_4_0(model);
+        let (version, hash, apps_offset, userland_offset, slot, ram_start, fcc) = match model {
+            Model::N0110 => (
+                "24.11.0",
+                "a58aaa0",
+                0x17_0000,
+                0x1_0000,
+                Slot::B,
+                0x12804,
+                "2ALWP-N0110",
+            ),
+            Model::N0115 => (
+                "24.3.0",
+                "804c50c",
+                0x17_0000,
+                0x1_0000,
+                Slot::A,
+                0x12804,
+                "NA",
+            ),
+            Model::N0120 => (
+                "23.2.6",
+                "22d1daa",
+                0x19_0000,
+                0x2_0000,
+                Slot::B,
+                0x12a40,
+                "2ALWP-N0120",
+            ),
+        };
+        let slot_a = SlotLayout {
+            origin: 0x9000_0000,
+            kernel_header: 0x9000_0008,
+            userland_header: 0x9000_0000 + userland_offset,
+            apps_flash: (0x9000_0000 + apps_offset, 0x903f_0000),
+            device_name: (0x903f_0000, 0x903f_0400),
+            persisting_bytes: (0x903f_0000, 0x9040_0000),
+        };
+        let sram = model.sram_base();
+        profile.provenance = Provenance::Derived {
+            from: "relevés sur appareils (versions, RAM et flash des applications) et sources d'Epsilon 23.2.3",
+        };
+        profile.software_version = version.into();
+        profile.expected_userland_version = version.into();
+        profile.commit_hash = hash.into();
+        profile.slot_a = slot_a;
+        profile.slot_b = slot_a.shifted(SLOT_B_OFFSET);
+        profile.active_slot = slot;
+        profile.apps_ram = (sram + ram_start, sram + 0x37000);
+        profile.fcc_id = fcc.into();
+        profile
+    }
+
+    /// Le profil par défaut d'un modèle : la disposition des appareils relevés (voir
+    /// [`FirmwareProfile::epsilon_24`]). Epsilon 26.4.0 s'obtient avec
+    /// [`FirmwareProfile::epsilon_26_4_0`] : sur N0110 et N0115 son `UserlandHeader` est à
+    /// `0x90020000`, ce qui trompe la détection du modèle d'eadkp (les applications qui s'en
+    /// servent plantent alors en lisant la RAM du N0120).
     pub fn default_for(model: Model) -> Self {
-        Self::epsilon_26_4_0(model)
+        Self::epsilon_24(model)
     }
 }
 
@@ -105,9 +175,9 @@ mod tests {
     }
 
     #[test]
-    fn every_preset_is_measured_in_an_official_firmware() {
+    fn every_26_4_0_preset_is_measured_in_an_official_firmware() {
         for model in Model::ALL {
-            let p = FirmwareProfile::default_for(model);
+            let p = FirmwareProfile::epsilon_26_4_0(model);
             assert!(
                 matches!(p.provenance, Provenance::Measured { .. }),
                 "{}",
@@ -189,7 +259,7 @@ mod tests {
 
     #[test]
     fn the_active_slot_selects_the_published_layout() {
-        let mut p = FirmwareProfile::default_for(Model::N0110);
+        let mut p = FirmwareProfile::epsilon_26_4_0(Model::N0110);
         assert_eq!(p.active().userland_header, 0x9002_0000);
         assert_eq!(p.apps_flash(), (0x9020_0000, 0x903f_0000));
         p.active_slot = Slot::B;
@@ -197,6 +267,38 @@ mod tests {
         assert_eq!(p.apps_flash(), (0x9060_0000, 0x907f_0000));
         assert_eq!(p.trampoline_address(), 0x9042_0038);
         assert_eq!(p.validate(), Ok(()));
+    }
+
+    #[test]
+    fn the_default_is_the_layout_of_the_surveyed_devices() {
+        let n0110 = FirmwareProfile::default_for(Model::N0110);
+        assert_eq!(n0110, FirmwareProfile::epsilon_24(Model::N0110));
+        assert_eq!(
+            (n0110.software_version.as_str(), n0110.commit_hash.as_str()),
+            ("24.11.0", "a58aaa0")
+        );
+        assert_eq!(n0110.active_slot, Slot::B);
+        // Relevés : RAM des applications et fin de la zone de flash (slot B).
+        assert_eq!(n0110.apps_ram, (0x2001_2804, 0x2003_7000));
+        assert_eq!(n0110.apps_flash(), (0x9057_0000, 0x907f_0000));
+        // Pas de copie du bootloader : l'en-tête du userland est à 0x90410000 (slot B).
+        assert_eq!(n0110.active().userland_header, 0x9041_0000);
+        assert_eq!(n0110.slot(Slot::A).userland_header, 0x9001_0000);
+
+        let n0115 = FirmwareProfile::epsilon_24(Model::N0115);
+        assert_eq!(n0115.apps_flash(), (0x9017_0000, 0x903f_0000));
+        assert_eq!(n0115.software_version, "24.3.0");
+
+        let n0120 = FirmwareProfile::epsilon_24(Model::N0120);
+        assert_eq!(n0120.apps_ram, (0x2401_2a40, 0x2403_7000));
+        assert_eq!(n0120.apps_flash(), (0x9059_0000, 0x907f_0000));
+        assert_eq!(n0120.active().userland_header, 0x9042_0000);
+        assert_eq!(n0120.software_version, "23.2.6");
+        for model in Model::ALL {
+            let p = FirmwareProfile::epsilon_24(model);
+            assert!(matches!(p.provenance, Provenance::Derived { .. }));
+            assert_eq!(p.validate(), Ok(()), "{}", model.name());
+        }
     }
 
     #[test]
