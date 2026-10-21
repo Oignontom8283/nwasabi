@@ -79,3 +79,6 @@ impl Cpu {
         cpu
     }
 }
+
+#[cfg(test)]
+mod tests;
