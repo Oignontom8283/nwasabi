@@ -175,3 +175,22 @@ impl Cpu {
                 }
                 self.write_result(rd, result);
             }
+            Instr::Movw { rd, imm } => self.write(rd, u32::from(imm)),
+            Instr::Movt { rd, imm } => {
+                let low = self.read(ctx, rd) & 0xffff;
+                self.write(rd, (u32::from(imm) << 16) | low);
+            }
+            Instr::AddSubImm12 { rd, rn, imm, sub } => {
+                let base = self.read(ctx, rn);
+                self.write(
+                    rd,
+                    if sub {
+                        base.wrapping_sub(imm)
+                    } else {
+                        base.wrapping_add(imm)
+                    },
+                );
+            }
+            Instr::Adr { rd, offset } => {
+                self.write(rd, (ctx.pc4 & !3).wrapping_add(offset as u32));
+            }
