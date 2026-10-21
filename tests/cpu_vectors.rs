@@ -162,3 +162,4 @@ batches! {
     memory_accesses_match_qemu => "06_memory",
     branches_match_qemu => "07_branches",
     system_instructions_match_qemu => "08_system",
+    fp_arithmetic_matches_qemu => "09_fp_arith",
