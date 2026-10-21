@@ -236,3 +236,17 @@ mod tests {
         assert_eq!(p.used, 11);
     }
 
+    #[test]
+    fn write_read_replace_keep_order() {
+        let mut b = write(&empty(), "one.py", b"1").unwrap();
+        b = write(&b, "two.py", b"22").unwrap();
+        b = write(&b, "three.py", b"333").unwrap();
+        b = write(&b, "two.py", b"longer body").unwrap();
+        assert_eq!(names(&b), ["one.py", "two.py", "three.py"]);
+        assert_eq!(read(&b, "two.py").unwrap(), b"longer body");
+        assert_eq!(read(&b, "three.py").unwrap(), b"333");
+        b = write(&b, "two.py", b"").unwrap();
+        assert_eq!(read(&b, "two.py").unwrap(), b"");
+        assert_eq!(read(&b, "three.py").unwrap(), b"333");
+    }
+
