@@ -68,3 +68,36 @@ impl Memory {
         Ok(())
     }
 
+    /// Les zones déclarées, dans l'ordre de création.
+    pub fn regions(&self) -> Vec<RegionInfo> {
+        self.regions
+            .iter()
+            .map(|r| RegionInfo {
+                name: r.spec.name.clone(),
+                base: r.spec.base,
+                size: r.spec.size,
+                perms: r.spec.perms,
+                kind: r.spec.kind,
+            })
+            .collect()
+    }
+
+    /// Indice de la zone qui contient `[address, address + len)`, si elle existe.
+    fn find(&mut self, address: u32, len: u32) -> Option<usize> {
+        if self
+            .regions
+            .get(self.last)
+            .is_some_and(|r| r.contains(address, len))
+        {
+            return Some(self.last);
+        }
+        let found = self.regions.iter().position(|r| r.contains(address, len))?;
+        self.last = found;
+        Some(found)
+    }
+
+    /// Vrai si `address` est dans une zone.
+    pub fn is_mapped(&mut self, address: u32) -> bool {
+        self.find(address, 1).is_some()
+    }
+
