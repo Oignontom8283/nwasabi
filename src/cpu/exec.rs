@@ -310,3 +310,25 @@ impl Cpu {
                 };
                 self.write(rd, value);
             }
+            Instr::Sat {
+                signed,
+                rd,
+                rn,
+                bits,
+                kind,
+                amount,
+            } => {
+                let (operand, _) =
+                    shift_with_carry(self.read(ctx, rn), kind, amount, self.regs.c());
+                let operand = i64::from(operand as i32);
+                let (result, saturated) = if signed {
+                    let (r, s) = signed_saturate(operand, u32::from(bits));
+                    (r as u32, s)
+                } else {
+                    unsigned_saturate(operand, u32::from(bits))
+                };
+                if saturated {
+                    self.regs.set_q();
+                }
+                self.write(rd, result);
+            }
