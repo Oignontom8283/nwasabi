@@ -434,3 +434,43 @@ impl Cpu {
                 self.regs.pc = ctx.pc4.wrapping_add(entry << 1);
             }
 
+            Instr::Load {
+                size,
+                signed,
+                rt,
+                addr,
+            } => {
+                let (address, writeback) = self.address(ctx, addr);
+                let value = match size {
+                    MemSize::Byte => {
+                        let v = u32::from(bus.read8(address).map_err(Stop::BusFault)?);
+                        if signed { sign_extend(v, 8) as u32 } else { v }
+                    }
+                    MemSize::Half => {
+                        let v = u32::from(bus.read16(address).map_err(Stop::BusFault)?);
+                        if signed { sign_extend(v, 16) as u32 } else { v }
+                    }
+                    MemSize::Word => bus.read32(address).map_err(Stop::BusFault)?,
+                };
+                if let Some((rn, new_base)) = writeback {
+                    self.write(rn, new_base);
+                }
+                if rt == 15 {
+                    self.bx_write_pc(ctx, bus, value)?;
+                } else {
+                    self.write(rt, value);
+                }
+            }
+            Instr::Store { size, rt, addr } => {
+                let (address, writeback) = self.address(ctx, addr);
+                let value = self.read(ctx, rt);
+                match size {
+                    MemSize::Byte => bus.write8(address, value as u8),
+                    MemSize::Half => bus.write16(address, value as u16),
+                    MemSize::Word => bus.write32(address, value),
+                }
+                .map_err(Stop::BusFault)?;
+                if let Some((rn, new_base)) = writeback {
+                    self.write(rn, new_base);
+                }
+            }
