@@ -104,3 +104,20 @@ impl DeviceImage {
         })
     }
 
+    /// Adresse où sera écrite la prochaine application installée.
+    pub fn next_app_address(&self) -> u32 {
+        self.next_app
+    }
+
+    /// Zones à donner à l'éditeur de liens pour une application qui sera installée ensuite.
+    pub fn app_layout(&self) -> LayoutParams {
+        let (_, end) = self.profile.slot_a.apps_flash;
+        LayoutParams {
+            flash_start: self.next_app,
+            flash_length: end.saturating_sub(self.next_app),
+            ram_start: self.profile.apps_ram.0,
+            ram_length: self.profile.apps_ram_len(),
+            trampoline_address: self.profile.trampoline_address(),
+        }
+    }
+
