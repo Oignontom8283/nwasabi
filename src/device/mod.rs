@@ -9,7 +9,7 @@ mod fabric;
 mod map;
 
 pub use apps::{AppEntry, list_apps};
-pub use fabric::write_structures;
+pub use fabric::{EXIT_STUB_OFFSET, FCC_ID_OFFSET, FCC_ID_SIZE, write_structures};
 pub use map::build_memory;
 
 use std::fmt;
