@@ -242,3 +242,66 @@ fn a_whole_flash_is_cheap_until_it_is_written() {
     m.write_bytes(0x9020_0000, &[0; 5000]).unwrap();
     assert_eq!(m.allocated_pages("flash"), Some(2));
 }
+
+#[test]
+fn watchpoints_report_matching_accesses_of_the_program_only() {
+    let mut m = sample();
+    let w = m.watch(0x2000_0100, 8, WatchKind::Write, false);
+    m.write32(0x2000_00fc, 1).unwrap(); // juste avant : ignoré
+    m.write32(0x2000_0104, 0xdead_beef).unwrap();
+    m.write8(0x2000_0100, 7).unwrap();
+    m.read32(0x2000_0104).unwrap(); // une lecture ne compte pas pour `Write`
+    m.write_bytes(0x2000_0100, &[1, 2, 3]).unwrap(); // l'hôte non plus
+    let hits = m.take_watch_hits();
+    assert_eq!(hits.len(), 2);
+    assert_eq!(
+        hits[0],
+        WatchHit {
+            id: w,
+            address: 0x2000_0104,
+            width: 4,
+            write: true,
+            value: 0xdead_beef
+        }
+    );
+    assert_eq!((hits[1].width, hits[1].value), (1, 7));
+    assert!(m.take_watch_hits().is_empty());
+}
+
+#[test]
+fn read_watchpoints_report_the_value_read_and_stop_requests_are_remembered() {
+    let mut m = sample();
+    m.write_u32(0x2000_0200, 0x1234_5678).unwrap();
+    let w = m.watch(0x2000_0200, 4, WatchKind::ReadWrite, true);
+    assert!(m.has_stopping_watch());
+    assert_eq!(m.read16(0x2000_0200), Ok(0x5678));
+    let stop = m.take_watch_stop().expect("arrêt demandé");
+    assert_eq!((stop.id, stop.value, stop.write), (w, 0x5678, false));
+    assert_eq!(m.take_watch_stop(), None);
+    assert!(m.unwatch(w));
+    assert!(!m.unwatch(w));
+    m.read16(0x2000_0200).unwrap();
+    assert!(
+        m.take_watch_hits().len() == 1,
+        "plus de nouveau déclenchement"
+    );
+}
+
+#[test]
+fn access_extent_measures_the_used_part_of_a_range() {
+    let mut m = sample();
+    assert_eq!(
+        m.access_extent(0x2000_0000, 0x2000_4000, access::WRITE),
+        None
+    );
+    m.write8(0x2000_0100, 1).unwrap();
+    m.write8(0x2000_0ff0, 1).unwrap();
+    assert_eq!(
+        m.access_extent(0x2000_0000, 0x2000_4000, access::WRITE),
+        Some((0x2000_0100, 0x2000_1000))
+    );
+    assert_eq!(
+        m.access_extent(0x2000_0200, 0x2000_4000, access::WRITE),
+        Some((0x2000_0fe0, 0x2000_1000))
+    );
+}
