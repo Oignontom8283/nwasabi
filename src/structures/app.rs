@@ -60,3 +60,31 @@ impl AppHeader {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_header_round_trips() {
+        let header = AppHeader {
+            header: APP_MAGIC,
+            api_level: 0,
+            name_offset: 0x20,
+            icon_size: 0x15f1,
+            icon_offset: 0x2b,
+            entry_offset: 0x1628,
+            size: 0x1bec,
+            footer: APP_MAGIC,
+        };
+        let bytes = header.encode();
+        assert_eq!(&bytes[..4], [0xba, 0xbe, 0xc0, 0xde]);
+        assert_eq!(AppHeader::decode(&bytes), header);
+        assert!(header.is_valid());
+    }
+
+    #[test]
+    fn missing_magic_makes_an_app_header_invalid() {
+        let blank = AppHeader::decode(&[0xff; APP_HEADER_SIZE]);
+        assert!(!blank.is_valid());
+    }
+}
