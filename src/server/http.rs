@@ -58,3 +58,30 @@ pub fn content_type(path: &str) -> &'static str {
     }
 }
 
+/// Lit la ligne de requête et rend `(méthode, chemin sans paramètres)`. Les en-têtes sont lus
+/// puis ignorés ; leur taille totale est bornée.
+fn read_request(stream: &TcpStream) -> Option<(String, String)> {
+    let mut reader = BufReader::new(stream.try_clone().ok()?);
+    let mut first = String::new();
+    reader.by_ref().take(8192).read_line(&mut first).ok()?;
+    let mut total = 0;
+    loop {
+        let mut line = String::new();
+        let n = reader.by_ref().take(8192).read_line(&mut line).ok()?;
+        total += n;
+        if n == 0 || line == "\r\n" || line == "\n" {
+            break;
+        }
+        if total > 64 * 1024 {
+            return None;
+        }
+    }
+    let mut parts = first.split_whitespace();
+    let method = parts.next()?.to_owned();
+    let target = parts.next()?;
+    let path = target.split(['?', '#']).next()?.to_owned();
+    Some((method, path))
+}
+
+use std::io::Read;
+
