@@ -464,3 +464,27 @@ impl Env<'_> {
         result
     }
 
+    fn add(&mut self, a: f32, b: f32, subtract: bool) -> f32 {
+        let (a, b) = (self.input(a), self.input(b));
+        if let Some(n) = self.process_nans(&[a, b]) {
+            return n;
+        }
+        let b = if subtract { -b } else { b };
+        if a.is_infinite() && b.is_infinite() && a.is_sign_negative() != b.is_sign_negative() {
+            return self.default_nan();
+        }
+        let result = a + b;
+        // Somme sans erreur d'arrondi (TwoSum) dans f64 pour savoir si le résultat est exact.
+        let (x, y) = (f64::from(a), f64::from(b));
+        let sum = x + y;
+        let bb = sum - x;
+        let error = (x - (sum - bb)) + (y - bb);
+        let inexact = f64::from(result) != sum || error != 0.0;
+        let finite = a.is_finite() && b.is_finite();
+        if result == 0.0 && finite && a != 0.0 && !inexact {
+            // Somme exactement nulle : signe selon le mode d'arrondi (+0 en arrondi au plus proche).
+            return if a == -b { 0.0 } else { result };
+        }
+        self.finish(result, inexact && finite, finite)
+    }
+
