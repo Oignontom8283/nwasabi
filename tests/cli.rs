@@ -173,3 +173,35 @@ fn run_is_deterministic_and_matches_the_reference_screen() {
     assert_eq!(&std::fs::read(&png).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
 }
 
+#[test]
+fn link_and_inspect_describe_an_application() {
+    let Some(app) = corpus_file("conway-1.2.3") else {
+        return support::skip_without_corpus();
+    };
+    let app = app.to_str().unwrap();
+    let linked = cli(&["link", app, "--map", "--json"]);
+    let v = json::parse(stdout(&linked).trim()).unwrap();
+    assert_eq!(v.get("name").and_then(Value::as_str), Some("Conway"));
+    let symbols = v.get("symbols").and_then(Value::as_array).unwrap();
+    assert!(
+        symbols
+            .iter()
+            .any(|s| s.get("name").and_then(Value::as_str) == Some("_start"))
+    );
+    assert!(
+        !v.get("sections")
+            .and_then(Value::as_array)
+            .unwrap()
+            .is_empty()
+    );
+
+    let inspect = cli(&["inspect", app]);
+    let v = json::parse(stdout(&inspect).trim()).unwrap();
+    assert_eq!(
+        v.get("app")
+            .and_then(|a| a.get("name"))
+            .and_then(Value::as_str),
+        Some("Conway")
+    );
+}
+
