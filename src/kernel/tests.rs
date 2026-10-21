@@ -233,3 +233,12 @@ fn write_collects_stdout_and_shows_it_on_screen() {
     assert_eq!(emu.kernel.display.get(0, 0), Some(0xffff), "fond blanc");
 }
 
+#[test]
+fn exit_and_reset_stop_the_application() {
+    let (mut emu, mut cpu) = setup();
+    call(&mut emu, &mut cpu, SVC_EXIT, &[7]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Exited(7)));
+    call(&mut emu, &mut cpu, 46, &[]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Reset));
+}
+
