@@ -68,3 +68,36 @@ pub fn encode_branch_offset(hw1: u16, hw2: u16, offset: i32) -> Option<(u16, u16
     Some((new1, new2))
 }
 
+/// Reconnaît `movw` (T3) ou `movt` (T1) : renvoie `Some(true)` pour `movt`, `Some(false)` pour `movw`.
+pub fn classify_mov16(hw1: u16, hw2: u16) -> Option<bool> {
+    if hw2 & 0x8000 != 0 {
+        return None;
+    }
+    match hw1 & 0xfbf0 {
+        0xf240 => Some(false),
+        0xf2c0 => Some(true),
+        _ => None,
+    }
+}
+
+/// Constante 16 bits (`imm4:i:imm3:imm8`) d'un `movw`/`movt`.
+pub fn decode_mov16(hw1: u16, hw2: u16) -> u16 {
+    let imm4 = hw1 & 0xf;
+    let i = (hw1 >> 10) & 1;
+    let imm3 = (hw2 >> 12) & 7;
+    let imm8 = hw2 & 0xff;
+    (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8
+}
+
+/// Remplace la constante 16 bits d'un `movw`/`movt` en gardant le registre et l'opcode.
+pub fn encode_mov16(hw1: u16, hw2: u16, value: u16) -> (u16, u16) {
+    let imm4 = value >> 12;
+    let i = (value >> 11) & 1;
+    let imm3 = (value >> 8) & 7;
+    let imm8 = value & 0xff;
+    (
+        (hw1 & 0xfbf0) | (i << 10) | imm4,
+        (hw2 & 0x8f00) | (imm3 << 12) | imm8,
+    )
+}
+
