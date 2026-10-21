@@ -211,3 +211,91 @@ impl Context<'_, '_> {
     }
 }
 
+// === 3. Placement en flash et en RAM ===
+
+/// Où une section de l'image va.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum Class {
+    ApiLevel,
+    Name,
+    Icon,
+    Text,
+    Rodata,
+    Data,
+    Bss,
+}
+
+impl Class {
+    fn public(self) -> SectionClass {
+        match self {
+            Self::ApiLevel | Self::Name | Self::Icon => SectionClass::Header,
+            Self::Text => SectionClass::Text,
+            Self::Rodata => SectionClass::Rodata,
+            Self::Data => SectionClass::Data,
+            Self::Bss => SectionClass::Bss,
+        }
+    }
+}
+
+/// Famille d'une section d'après son nom, comme le ferait un script de link :
+/// `.text` et `.text.*` vont dans le code, `.rodata*` dans les constantes, etc.
+fn named_class(name: &str) -> Option<(Class, u8)> {
+    for (class, base) in [
+        (Class::Text, ".text"),
+        (Class::Rodata, ".rodata"),
+        (Class::Data, ".data"),
+        (Class::Bss, ".bss"),
+    ] {
+        if name == base {
+            return Some((class, 0));
+        }
+        if name
+            .strip_prefix(base)
+            .is_some_and(|rest| rest.starts_with('.'))
+        {
+            return Some((class, 1));
+        }
+    }
+    None
+}
+
+/// Classe et rang d'une section ; `None` pour une section qui n'occupe pas de mémoire.
+///
+/// Le rang reproduit l'ordre du script de link : d'abord les sections nommées exactement
+/// `.text`, puis `.text.*`, puis les autres sections de même nature (« orphelines »).
+fn classify(section: &Section) -> Result<Option<(Class, u8)>, LinkError> {
+    if !section.is_alloc() {
+        return Ok(None);
+    }
+    if section.flags & SHF_TLS != 0 {
+        return Err(LinkError::Unsupported("sections locales aux threads (TLS)"));
+    }
+    let special = match section.name.as_str() {
+        API_LEVEL_SECTION => Some(Class::ApiLevel),
+        NAME_SECTION => Some(Class::Name),
+        ICON_SECTION => Some(Class::Icon),
+        _ => None,
+    };
+    if let Some(class) = special {
+        return Ok(Some((class, 0)));
+    }
+    // Tables de déroulement de la pile (exceptions C++) : l'éditeur de liens officiel les construit
+    // mais personne ne les lit sur Epsilon ; elles ne sont pas placées.
+    if section.kind == SHT_ARM_EXIDX || section.name.starts_with(".ARM.extab") {
+        return Ok(None);
+    }
+    if let Some(found) = named_class(&section.name) {
+        return Ok(Some(found));
+    }
+    let class = if section.is_executable() {
+        Class::Text
+    } else if section.is_nobits() {
+        Class::Bss
+    } else if section.is_writable() {
+        Class::Data
+    } else {
+        Class::Rodata
+    };
+    Ok(Some((class, 2)))
+}
+
