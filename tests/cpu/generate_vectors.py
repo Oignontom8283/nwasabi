@@ -541,3 +541,46 @@ FPU_ENABLE = f"""
 """
 
 
+def assemble_batch(cases, fp=False, inits=None):
+    lines = [
+        '.syntax unified', '.cpu cortex-m7', '.fpu fpv5-sp-d16', '.thumb',
+        '.section .vectors,"a"', '  .word 0x20020000', '  .word _start+1', '  .rept 14',
+        '  .word fault+1', '  .endr', '.text',
+        '.thumb_func', '_start:', '  b.w .Lenter',
+        '.thumb_func', 'fault:', '  b .',
+        '.align 2', '.Lbufinit:',
+    ]
+    pattern = bytes((i * 7 + 0x13) & 0xff for i in range(64))
+    for k in range(0, 64, 4):
+        lines.append('  .word 0x%08x' % int.from_bytes(pattern[k:k + 4], 'little'))
+    lines += ['.thumb_func', '.Lenter:']
+    if fp:
+        lines.append(FPU_ENABLE)
+    words = FP_CASE_WORDS if fp else CASE_WORDS
+    for i, case in enumerate(cases):
+        lines.append(f'.Lcase{i}:')
+        lines.append((FP_PROLOGUE if fp else PROLOGUE).replace('@I@', str(i)))
+        lines.append(case)
+        lines.append((FP_EPILOGUE if fp else EPILOGUE).replace('@I@', str(i)))
+        lines.append(f'  b.w .Lcase{i + 1}')
+        lines.append('.align 2')
+        lines.append(f'.Linit{i}:')
+        init = [rv() for _ in range(11)] + [BUF, rv() & 0xf80f0000]
+        if fp:
+            init += [random.choice([0, 1 << 24, 1 << 25, 3 << 24])] + [fv() for _ in range(32)]
+        if inits is not None:
+            inits.append(init)
+        for value in init:
+            lines.append('  .word 0x%08x' % value)
+        lines.append('.ltorg')
+    lines += [
+        f'.Lcase{len(cases)}:',
+        f'  ldr r0, ={OUT:#x}+{len(cases)}*{words * 4}',
+        f'  ldr r1, ={MARKER:#x}',
+        '  str r1, [r0]',
+        '  bkpt #0',
+        '.ltorg',
+    ]
+    return '\n'.join(lines) + '\n'
+
+
