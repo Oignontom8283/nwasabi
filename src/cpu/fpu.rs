@@ -946,3 +946,11 @@ mod tests {
         assert_eq!(fpscr & (FPSCR_UFC | FPSCR_IXC), FPSCR_UFC | FPSCR_IXC);
     }
 
+    #[test]
+    fn flush_to_zero_replaces_denormals() {
+        let denormal = f32::from_bits(0x0000_0001);
+        let mut fpscr = FPSCR_FZ;
+        assert_eq!(env(&mut fpscr).add(denormal, 1.0, false), 1.0);
+        assert_eq!(fpscr & FPSCR_IDC, FPSCR_IDC);
+    }
+
