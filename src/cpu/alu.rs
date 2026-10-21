@@ -107,3 +107,34 @@ pub fn thumb_expand_imm(imm12: u32) -> (u32, Option<bool>) {
     }
 }
 
+/// Étend le signe d'une valeur de `bits` bits.
+pub fn sign_extend(value: u32, bits: u32) -> i32 {
+    let shift = 32 - bits;
+    ((value << shift) as i32) >> shift
+}
+
+/// Saturation signée de `value` sur `bits` bits : résultat et indicateur de saturation.
+pub fn signed_saturate(value: i64, bits: u32) -> (i32, bool) {
+    let max = (1i64 << (bits - 1)) - 1;
+    let min = -(1i64 << (bits - 1));
+    if value > max {
+        (max as i32, true)
+    } else if value < min {
+        (min as i32, true)
+    } else {
+        (value as i32, false)
+    }
+}
+
+/// Saturation non signée de `value` sur `bits` bits : résultat et indicateur de saturation.
+pub fn unsigned_saturate(value: i64, bits: u32) -> (u32, bool) {
+    let max = (1i64 << bits) - 1;
+    if value > max {
+        (max as u32, true)
+    } else if value < 0 {
+        (0, true)
+    } else {
+        (value as u32, false)
+    }
+}
+
