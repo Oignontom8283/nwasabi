@@ -137,3 +137,10 @@ fn assemble(capacity: usize, parts: [&[u8]; 3]) -> Result<Vec<u8>, FsError> {
     Ok(out)
 }
 
+/// Corps du fichier `name`.
+pub fn read(buffer: &[u8], name: &str) -> Result<Vec<u8>, FsError> {
+    let parsed = parse(buffer);
+    let record = find(&parsed, name).ok_or_else(|| FsError::NotFound(name.to_owned()))?;
+    Ok(buffer[record.body_offset..record.body_offset + record.body_len].to_vec())
+}
+
