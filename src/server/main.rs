@@ -51,3 +51,24 @@ fn preload_json(p: &Preload) -> String {
         .to_string()
 }
 
+/// Page affichée quand le site n'a pas été construit dans ce binaire.
+fn fallback_page(preload: Option<&Preload>) -> String {
+    let app = match preload {
+        Some(p) => format!(
+            "<p>Application préchargée : <b>{}</b> ({}). Ses octets sont disponibles sur \
+             <a href=\"/__nwasabi/preload\">/__nwasabi/preload</a>.</p>",
+            p.name.replace('<', "&lt;"),
+            p.model
+        ),
+        None => "<p>Aucune application préchargée (option <code>--nwa</code>).</p>".to_owned(),
+    };
+    format!(
+        "<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>nwasabi</title>\
+         <body style=\"font-family:sans-serif;max-width:40em;margin:2em auto;padding:0 1em\">\
+         <h1>nwasabi</h1>\
+         <p>Le serveur fonctionne, mais l'interface web n'est pas incluse dans ce binaire \
+         (dossier <code>web-dist/</code> absent à la compilation).</p>{app}\
+         <p>En attendant, l'outil <code>nwasabi-cli</code> permet de tout essayer en ligne de commande.</p>"
+    )
+}
+
