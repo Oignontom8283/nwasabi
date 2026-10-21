@@ -64,6 +64,7 @@ impl FirmwareProfile {
                 source: facts.source,
             },
             software_version: "26.4.0".into(),
+            expected_userland_version: "26.4.0".into(),
             commit_hash: "cc9262e".into(),
             security_level: 2,
             payload_length: facts.payload_length,
