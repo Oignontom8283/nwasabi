@@ -430,3 +430,28 @@ pub fn decode32(hw1: u16, hw2: u16) -> Option<Instr> {
     }
 }
 
+/// `stm.w`, `ldm.w`, `push.w`, `pop.w`, `stmdb`, `ldmdb`.
+fn decode_ldm_stm(a: u32, b: u32) -> Option<Instr> {
+    let decrement_before = match bits(a, 8, 7) {
+        0b01 => false,
+        0b10 => true,
+        _ => return None,
+    };
+    let (rn, regs, writeback) = (bits(a, 3, 0) as Reg, b as u16, bit(a, 5));
+    Some(if bit(a, 4) {
+        Instr::Ldm {
+            rn,
+            regs,
+            writeback,
+            decrement_before,
+        }
+    } else {
+        Instr::Stm {
+            rn,
+            regs,
+            writeback,
+            decrement_before,
+        }
+    })
+}
+
