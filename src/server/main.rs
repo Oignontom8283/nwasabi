@@ -95,3 +95,20 @@ fn route(path: &str, preload: Option<&Preload>) -> Response {
     }
 }
 
+fn open_browser(url: &str) {
+    let (program, args): (&str, Vec<&str>) = if cfg!(target_os = "macos") {
+        ("open", vec![url])
+    } else if cfg!(target_os = "windows") {
+        ("cmd", vec!["/C", "start", "", url])
+    } else {
+        ("xdg-open", vec![url])
+    };
+    if std::process::Command::new(program)
+        .args(args)
+        .spawn()
+        .is_err()
+    {
+        eprintln!("impossible d'ouvrir le navigateur : ouvrir {url} à la main");
+    }
+}
+
