@@ -111,3 +111,16 @@ pub fn serve_connection(mut stream: TcpStream, route: &dyn Fn(&str) -> Response)
     let _ = stream.flush();
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn content_types_follow_extensions() {
+        assert_eq!(content_type("/app.wasm"), "application/wasm");
+        assert_eq!(content_type("/index.html"), "text/html; charset=utf-8");
+        assert_eq!(content_type("/a/b.js"), "text/javascript; charset=utf-8");
+        assert_eq!(content_type("/inconnu.xyz"), "application/octet-stream");
+        assert_eq!(content_type("/sans-extension"), "application/octet-stream");
+    }
+}
