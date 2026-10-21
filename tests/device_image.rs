@@ -14,7 +14,7 @@ use nwasabi::structures::{
 use support::synthetic_app;
 
 fn device(model: Model) -> DeviceImage {
-    DeviceImage::new(FirmwareProfile::default_for(model)).unwrap()
+    DeviceImage::new(FirmwareProfile::epsilon_26_4_0(model)).unwrap()
 }
 
 fn read<const N: usize>(d: &mut DeviceImage, address: u32) -> [u8; N] {
@@ -147,7 +147,7 @@ fn the_apps_area_and_the_persisting_bytes_start_erased() {
 
 #[test]
 fn a_device_name_is_written_in_the_persisting_bytes() {
-    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     profile.device_name = "Ma calculatrice".into();
     let mut d = DeviceImage::new(profile).unwrap();
     assert_eq!(
@@ -158,7 +158,7 @@ fn a_device_name_is_written_in_the_persisting_bytes() {
 
 #[test]
 fn an_invalid_profile_is_refused() {
-    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     profile.serial_number = "trop court".into();
     assert!(matches!(
         DeviceImage::new(profile),
@@ -186,7 +186,7 @@ fn the_program_cannot_write_flash_or_touch_kernel_ram() {
 #[test]
 fn ram_starts_filled_with_the_requested_value() {
     use nwasabi::device::DeviceOptions;
-    let profile = FirmwareProfile::default_for(Model::N0110);
+    let profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     let mut d = DeviceImage::with_options(profile, DeviceOptions { ram_fill: 0xa5 }).unwrap();
     assert_eq!(d.memory.read32(0x2002_0000).unwrap(), 0xa5a5_a5a5);
 }
@@ -338,7 +338,7 @@ fn a_data_image_that_crosses_a_sector_hides_the_next_app_as_on_the_real_device()
 #[test]
 fn an_app_is_installed_in_the_area_of_the_active_slot() {
     // Sur les appareils relevés, le slot actif est tantôt A, tantôt B : tout suit le slot actif.
-    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     profile.active_slot = nwasabi::profile::Slot::B;
     let mut d = DeviceImage::new(profile).unwrap();
     let info = SlotInfo::decode(&read::<SLOT_INFO_SIZE>(&mut d, 0x2000_0000));

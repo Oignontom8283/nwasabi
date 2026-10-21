@@ -11,7 +11,7 @@ fn external_data() -> Vec<u8> {
 }
 
 fn fresh() -> DeviceImage {
-    DeviceImage::new(FirmwareProfile::default_for(Model::N0110)).unwrap()
+    DeviceImage::new(FirmwareProfile::epsilon_26_4_0(Model::N0110)).unwrap()
 }
 
 #[test]

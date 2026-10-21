@@ -96,6 +96,7 @@ fn preloads_the_given_application() {
     let v = json::parse(&String::from_utf8(body).unwrap()).unwrap();
     assert_eq!(v.get("name").and_then(Value::as_str), Some("demo.nwa"));
     assert_eq!(v.get("model").and_then(Value::as_str), Some("n0120"));
+    assert_eq!(v.get("firmware").and_then(Value::as_str), Some("24"));
     let nwa = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
     assert_eq!(nwa, [1, 2, 3, 250]);
     assert_eq!(v.get("data_base64"), Some(&Value::Null));

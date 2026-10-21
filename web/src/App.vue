@@ -70,6 +70,7 @@ onMounted(async () => {
     const preload = reply.ok ? await reply.json() : null;
     if (preload) {
       state.model = preload.model;
+      state.firmware = preload.firmware ?? state.firmware;
       const decode = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       dataBytes = preload.data_base64 ? decode(preload.data_base64) : null;
       lastApp = { bytes: decode(preload.nwa_base64), name: preload.name };
@@ -111,6 +112,13 @@ onBeforeUnmount(() => {
           <option value="n0110">N0110</option>
           <option value="n0115">N0115</option>
           <option value="n0120">N0120</option>
+        </select>
+      </label>
+      <label title="Disposition du firmware : les applications écrites avec eadkp ne retrouvent le système de fichiers que sur celle des appareils relevés (23–24).">
+        Firmware
+        <select :value="state.firmware" @change="(e) => emulator.changeModel(state.model, e.target.value)">
+          <option value="24">Epsilon 23–24 (appareils relevés)</option>
+          <option value="26.4.0">Epsilon 26.4.0</option>
         </select>
       </label>
       <button :disabled="!state.loaded" @click="state.running ? emulator.stop() : emulator.start()">

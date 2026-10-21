@@ -10,7 +10,7 @@ use nwasabi::profile::{FirmwareProfile, Model};
 use support::synthetic_app;
 
 fn device(model: Model) -> DeviceImage {
-    DeviceImage::new(FirmwareProfile::default_for(model)).unwrap()
+    DeviceImage::new(FirmwareProfile::epsilon_26_4_0(model)).unwrap()
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn a_fresh_device_exposes_every_structure_for_each_model() {
 
 #[test]
 fn installed_apps_and_the_device_name_show_up() {
-    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     profile.device_name = "Salle 12".into();
     let mut d = DeviceImage::new(profile).unwrap();
     let app = link(
@@ -165,7 +165,7 @@ fn probing_flash_addresses_cannot_tell_n0110_26_4_0_from_an_n0120() {
 #[test]
 fn probing_flash_addresses_works_on_a_firmware_with_the_older_layout() {
     // Disposition plus ancienne : pas de copie du bootloader, UserlandHeader à 0x9001_0000.
-    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0110);
     profile.slot_a.userland_header = 0x9001_0000;
     profile.slot_b.userland_header = 0x9041_0000;
     let mut d = DeviceImage::new(profile).unwrap();
@@ -177,7 +177,7 @@ fn probing_flash_addresses_works_on_a_firmware_with_the_older_layout() {
 
 #[test]
 fn the_inspection_follows_the_slot_that_the_slot_info_designates() {
-    let mut profile = FirmwareProfile::default_for(Model::N0120);
+    let mut profile = FirmwareProfile::epsilon_26_4_0(Model::N0120);
     profile.active_slot = nwasabi::profile::Slot::B;
     let mut d = DeviceImage::new(profile).unwrap();
     let s = read_structures(&mut d.memory, false);

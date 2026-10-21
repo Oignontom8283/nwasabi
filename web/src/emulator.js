@@ -18,6 +18,7 @@ export function useEmulator() {
     loaded: false,
     running: false,
     model: "n0110",
+    firmware: "24", // disposition du firmware : "24" (appareils relevés) ou "26.4.0"
     appName: "",
     stop: null, // dernière raison d'arrêt
     frames: 0,
@@ -40,7 +41,7 @@ export function useEmulator() {
 
   async function init() {
     emu.value = await Nwasabi.load(await fetch(wasmUrl));
-    emu.value.call({ cmd: "new", model: state.model });
+    emu.value.call({ cmd: "new", model: state.model, firmware: state.firmware });
     state.ready = true;
   }
 
@@ -83,7 +84,7 @@ export function useEmulator() {
     pressed.clear();
     sampled.clear();
     deferred.clear();
-    const request = { cmd: "load", model: state.model, nwa_base64: toBase64(nwa) };
+    const request = { cmd: "load", model: state.model, firmware: state.firmware, nwa_base64: toBase64(nwa) };
     if (data) request.data_base64 = toBase64(data);
     let reply = call(request);
     if (!reply.ok && !data && /données externes|external/i.test(reply.error)) {
@@ -98,11 +99,12 @@ export function useEmulator() {
     return reply.ok;
   }
 
-  function changeModel(model) {
+  function changeModel(model, firmware = state.firmware) {
     state.model = model;
+    state.firmware = firmware;
     if (nwa) restart();
     else {
-      call({ cmd: "new", model });
+      call({ cmd: "new", model, firmware });
       bump();
     }
   }
