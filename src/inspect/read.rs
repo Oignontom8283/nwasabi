@@ -107,3 +107,19 @@ pub fn read_structures(memory: &mut Memory, exam_mode: bool) -> Structures {
         return out;
     }
 
+    // Système de fichiers : un magic avant le tampon, un autre après.
+    let (address, size) = (userland.storage_address, userland.storage_size);
+    if let (Ok(head), Ok(foot), Ok(first)) = (
+        memory.read_u32(address),
+        memory.read_u32(address.wrapping_add(4).wrapping_add(size)),
+        memory.read_bytes(address.wrapping_add(4), 2),
+    ) {
+        out.storage = Some(StorageView {
+            address,
+            size,
+            header_magic_ok: head == STORAGE_MAGIC,
+            footer_magic_ok: foot == STORAGE_MAGIC,
+            first_record_size: u16::from_le_bytes([first[0], first[1]]),
+        });
+    }
+
