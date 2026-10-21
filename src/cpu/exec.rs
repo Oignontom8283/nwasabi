@@ -332,3 +332,14 @@ impl Cpu {
                 }
                 self.write(rd, result);
             }
+            Instr::Clz { rd, rm } => self.write(rd, self.read(ctx, rm).leading_zeros()),
+            Instr::Rbit { rd, rm } => self.write(rd, self.read(ctx, rm).reverse_bits()),
+            Instr::Rev { kind, rd, rm } => {
+                let v = self.read(ctx, rm);
+                let result = match kind {
+                    RevKind::Rev => v.swap_bytes(),
+                    RevKind::Rev16 => ((v & 0xff00_ff00) >> 8) | ((v & 0x00ff_00ff) << 8),
+                    RevKind::Revsh => sign_extend(u32::from((v as u16).swap_bytes()), 16) as u32,
+                };
+                self.write(rd, result);
+            }
