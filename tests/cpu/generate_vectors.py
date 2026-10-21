@@ -650,3 +650,19 @@ def build_and_run(name, cases, outdir, fp=False):
     print(f'{name}: {len(cases)} cas, programme de {os.path.getsize(binfile)} octets')
 
 
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--out', default='tests/golden/cpu')
+    ap.add_argument('--seed', type=int, default=1)
+    ap.add_argument('--only', default='')
+    args = ap.parse_args()
+    random.seed(args.seed)
+    for n, (fam, fn) in enumerate(FAMILIES):
+        cases = fn()   # toujours générés, pour que le choix de --only ne change pas les valeurs
+        if args.only and args.only not in fam:
+            continue
+        build_and_run('%02d_%s' % (n, fam), cases, args.out, fp=fam.startswith('fp_'))
+
+
+if __name__ == '__main__':
+    main()
