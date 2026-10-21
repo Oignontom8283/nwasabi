@@ -21,10 +21,11 @@ nwasabi — serveur web de démonstration de l'émulateur d'applications NumWork
 
 USAGE :
   nwasabi [--nwa <app.nwa>] [--model n0110|n0115|n0120] [--data <fichier>]
-          [--port <n>] [--host <adresse>] [--open]
+          [--firmware 24|26.4.0] [--port <n>] [--host <adresse>] [--open]
 
   --nwa     application à précharger dans la page
   --model   modèle de calculatrice (défaut : n0110)
+  --firmware  disposition du firmware : 24 (appareils relevés, défaut) ou 26.4.0
   --data    données externes de l'application
   --port    port d'écoute (défaut : 8080 ; 0 : un port libre)
   --host    adresse d'écoute (défaut : 127.0.0.1, accessible depuis cette machine seulement)
@@ -33,6 +34,7 @@ USAGE :
 struct Preload {
     name: String,
     model: String,
+    firmware: String,
     nwa: Vec<u8>,
     data: Option<Vec<u8>>,
 }
@@ -46,6 +48,7 @@ fn preload_json(p: &Preload) -> String {
     Value::object()
         .with("name", p.name.as_str())
         .with("model", p.model.as_str())
+        .with("firmware", p.firmware.as_str())
         .with("nwa_base64", base64_encode(&p.nwa))
         .with("data_base64", p.data.as_deref().map(base64_encode))
         .to_string()
@@ -115,6 +118,7 @@ fn open_browser(url: &str) {
 fn run(args: &[String]) -> Result<(), String> {
     let mut nwa_path = None;
     let (mut model, mut data_path) = ("n0110".to_owned(), None);
+    let mut firmware = "24".to_owned();
     let (mut port, mut host, mut open) = (8080u16, "127.0.0.1".to_owned(), false);
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -127,6 +131,7 @@ fn run(args: &[String]) -> Result<(), String> {
             "--nwa" => nwa_path = Some(value("--nwa")?),
             "--model" => model = value("--model")?,
             "--data" => data_path = Some(value("--data")?),
+            "--firmware" => firmware = value("--firmware")?,
             "--port" => {
                 port = value("--port")?
                     .parse()
@@ -141,6 +146,9 @@ fn run(args: &[String]) -> Result<(), String> {
         return Err(format!("modèle inconnu : {model} (n0110, n0115 ou n0120)"));
     }
 
+    if !["24", "26.4.0"].contains(&firmware.as_str()) {
+        return Err(format!("firmware inconnu : {firmware} (24 ou 26.4.0)"));
+    }
     let preload = match nwa_path {
         Some(path) => {
             let nwa = std::fs::read(&path).map_err(|e| format!("{path} : {e}"))?;
@@ -154,6 +162,7 @@ fn run(args: &[String]) -> Result<(), String> {
             Some(Preload {
                 name,
                 model: model.to_ascii_lowercase(),
+                firmware,
                 nwa,
                 data,
             })
