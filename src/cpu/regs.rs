@@ -43,3 +43,32 @@ impl Registers {
         self.xpsr & Q != 0
     }
 
+    fn set(&mut self, mask: u32, on: bool) {
+        if on {
+            self.xpsr |= mask;
+        } else {
+            self.xpsr &= !mask;
+        }
+    }
+
+    pub fn set_n(&mut self, on: bool) {
+        self.set(N, on);
+    }
+
+    pub fn set_z(&mut self, on: bool) {
+        self.set(Z, on);
+    }
+
+    pub fn set_c(&mut self, on: bool) {
+        self.set(C, on);
+    }
+
+    pub fn set_v(&mut self, on: bool) {
+        self.set(V, on);
+    }
+
+    /// Indicateur de saturation « collant » : une fois levé il reste jusqu'à ce que le programme l'efface.
+    pub fn set_q(&mut self) {
+        self.xpsr |= Q;
+    }
+
