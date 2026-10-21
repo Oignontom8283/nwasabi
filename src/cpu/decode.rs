@@ -63,3 +63,14 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 flags: FlagMode::OutsideIt,
             }
         }
+        // add / sub sur trois registres ou avec une constante de 3 bits.
+        0b00011 => {
+            let op = if bit(h, 9) { DpOp::Sub } else { DpOp::Add };
+            let third = bits(h, 8, 6);
+            let rhs = if bit(h, 10) {
+                imm_rhs(third)
+            } else {
+                reg_rhs(third)
+            };
+            dp(op, low3(0), low3(3), rhs, FlagMode::OutsideIt)
+        }
