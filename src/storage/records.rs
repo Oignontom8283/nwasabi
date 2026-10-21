@@ -250,3 +250,20 @@ mod tests {
         assert_eq!(read(&b, "three.py").unwrap(), b"333");
     }
 
+    #[test]
+    fn remove_and_rename() {
+        let mut b = write(&empty(), "a.py", b"A").unwrap();
+        b = write(&b, "b.py", b"B").unwrap();
+        b = rename(&b, "a.py", "c.txt").unwrap();
+        assert_eq!(names(&b), ["c.txt", "b.py"]);
+        assert_eq!(read(&b, "c.txt").unwrap(), b"A");
+        assert_eq!(
+            rename(&b, "c.txt", "b.py"),
+            Err(FsError::Exists("b.py".into()))
+        );
+        b = remove(&b, "c.txt").unwrap();
+        assert_eq!(names(&b), ["b.py"]);
+        assert_eq!(parse(&b).used, 2 + 2 + 4 + 1);
+        assert_eq!(remove(&b, "zz.py"), Err(FsError::NotFound("zz.py".into())));
+    }
+
