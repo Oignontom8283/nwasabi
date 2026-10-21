@@ -263,7 +263,8 @@ mod tests {
         );
         b = remove(&b, "c.txt").unwrap();
         assert_eq!(names(&b), ["b.py"]);
-        assert_eq!(parse(&b).used, 2 + 2 + 4 + 1);
+        // enregistrement b.py : 2 + 4 + 1 + 1 octets, plus la marque de fin
+        assert_eq!(parse(&b).used, 8 + 2);
         assert_eq!(remove(&b, "zz.py"), Err(FsError::NotFound("zz.py".into())));
     }
 
@@ -321,3 +322,12 @@ mod tests {
         assert_eq!(parse(&[]).corrupt_at, Some(0));
     }
 
+    #[test]
+    fn a_record_cannot_exceed_sixty_five_thousand_bytes() {
+        let big = vec![0u8; 70_000];
+        assert_eq!(
+            write(&vec![0; 100_000], "a.py", &big),
+            Err(FsError::TooLarge)
+        );
+    }
+}
