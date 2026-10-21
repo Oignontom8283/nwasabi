@@ -90,3 +90,15 @@ pub fn list_apps(memory: &mut Memory, start: u32, end: u32, exam_mode: bool) -> 
     apps
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sector_alignment_keeps_aligned_addresses() {
+        assert_eq!(next_sector_aligned(0x9020_0000), 0x9020_0000);
+        assert_eq!(next_sector_aligned(0x9020_0001), 0x9021_0000);
+        assert_eq!(next_sector_aligned(0x9020_ffff), 0x9021_0000);
+        assert_eq!(next_sector_aligned(0x9021_0000), 0x9021_0000);
+    }
+}
