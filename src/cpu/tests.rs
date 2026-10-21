@@ -114,3 +114,21 @@ fn adds_sets_flags_outside_an_it_block() {
     assert!(cpu.regs.z() && cpu.regs.c() && !cpu.regs.n());
 }
 
+#[test]
+fn it_block_runs_the_instructions_whose_condition_holds() {
+    // cmp r0, #0 ; ite eq ; moveq r1, #5 ; movne r1, #9
+    let program = [0x2800, 0xbf0c, 0x2105, 0x2109];
+    let (cpu, ..) = run(&program, |c| c.regs.r[0] = 0, 4);
+    assert_eq!(cpu.regs.r[1], 5);
+    let (cpu, ..) = run(&program, |c| c.regs.r[0] = 1, 4);
+    assert_eq!(cpu.regs.r[1], 9);
+    // Hors du bloc, `movs` met les indicateurs à jour ; dedans, non (ici Z reste celui du cmp).
+    let (cpu, ..) = run(&program, |c| c.regs.r[0] = 0, 3);
+    assert!(
+        cpu.regs.z(),
+        "Z du cmp r0,#0 conservé : movs dans l'IT ne touche pas aux indicateurs"
+    );
+    // `ite eq` valait 0b0000_1100 ; après la première instruction (« then »), il reste le « else ».
+    assert_eq!(cpu.regs.it_state(), 0b0001_1000);
+}
+
