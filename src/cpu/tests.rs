@@ -66,3 +66,16 @@ impl Bus for Flat {
     }
 }
 
+/// Hooks qui enregistrent les `svc` et rendent la main après chacun.
+#[derive(Default)]
+struct RecordingHooks {
+    svcs: Vec<u8>,
+}
+
+impl Hooks for RecordingHooks {
+    fn on_svc(&mut self, imm8: u8, _cpu: &mut Cpu) -> SvcAction {
+        self.svcs.push(imm8);
+        SvcAction::HandledAndStop
+    }
+}
+
