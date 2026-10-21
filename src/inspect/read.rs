@@ -123,3 +123,20 @@ pub fn read_structures(memory: &mut Memory, exam_mode: bool) -> Structures {
         });
     }
 
+    // Nom de l'appareil : chaîne terminée par un zéro dans la zone dédiée ; une flash vierge (0xFF)
+    // signifie « pas de nom ».
+    let (name_start, name_end) = userland.device_name;
+    if name_end > name_start
+        && let Ok(bytes) = memory.read_bytes(name_start, (name_end - name_start).min(1024))
+    {
+        let len = bytes
+            .iter()
+            .position(|&b| b == 0 || b == 0xff)
+            .unwrap_or(bytes.len());
+        out.device_name = Some(String::from_utf8_lossy(&bytes[..len]).into_owned());
+    }
+
+    let (apps_start, apps_end) = userland.external_apps_flash;
+    out.apps = list_apps(memory, apps_start, apps_end, exam_mode);
+    out
+}
