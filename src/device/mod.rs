@@ -154,3 +154,17 @@ impl DeviceImage {
         Ok(address)
     }
 
+    /// Efface la zone des applications externes (comme « supprimer toutes les applications »).
+    pub fn erase_apps(&mut self) -> Result<(), DeviceError> {
+        let (start, end) = self.profile.slot_a.apps_flash;
+        self.memory.fill(start, end - start, 0xff)?;
+        self.next_app = start;
+        Ok(())
+    }
+
+    /// Les applications installées, relues en mémoire (hors mode examen).
+    pub fn apps(&mut self) -> Vec<AppEntry> {
+        let (start, end) = self.profile.slot_a.apps_flash;
+        list_apps(&mut self.memory, start, end, false)
+    }
+}
