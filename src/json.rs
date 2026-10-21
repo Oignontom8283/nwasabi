@@ -429,3 +429,17 @@ impl Parser<'_> {
     }
 }
 
+/// Analyse un document JSON complet.
+pub fn parse(text: &str) -> Result<Value, ParseError> {
+    let mut p = Parser {
+        bytes: text.as_bytes(),
+        pos: 0,
+    };
+    let value = p.value(0)?;
+    p.skip_space();
+    if p.pos != p.bytes.len() {
+        return p.err("texte après la valeur");
+    }
+    Ok(value)
+}
+
