@@ -159,3 +159,4 @@ batches! {
     bitfield_and_saturation_match_qemu => "03_bitfield",
     extend_and_parallel_match_qemu => "04_extend_parallel",
     multiply_and_divide_match_qemu => "05_multiply",
+    memory_accesses_match_qemu => "06_memory",
