@@ -133,3 +133,37 @@ pub enum LinkWarning {
     },
 }
 
+/// Résultat de l'édition de liens.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkedApp {
+    /// Nom de l'application (`.rodata.eadk_app_name`).
+    pub name: String,
+    pub api_level: u32,
+    /// Icône brute, au format NWI.
+    pub icon: Vec<u8>,
+    /// Adresse du début de l'image en flash.
+    pub flash_start: u32,
+    /// Contenu de la flash à partir de `flash_start` (en-tête, code, constantes, copie de `.data`).
+    pub flash: Vec<u8>,
+    /// Adresse de `_start`, bit 0 à 1 (Thumb).
+    pub entry: u32,
+    /// Fin du code et des constantes (`_eadk_app_end`), valeur écrite dans l'en-tête d'application.
+    pub app_end: u32,
+    pub data: DataSegment,
+    pub bss: Region,
+    /// Tas : de la fin de `.bss` jusqu'à la fin de la RAM réservée.
+    pub heap: Region,
+    pub sections: Vec<PlacedSection>,
+    pub symbols: Vec<LinkedSymbol>,
+    pub warnings: Vec<LinkWarning>,
+}
+
+impl LinkedApp {
+    /// Taille occupée en flash une fois l'application installée : l'outil de flashage complète
+    /// jusqu'au secteur suivant, et ajoute un secteur entier quand la taille est déjà alignée.
+    pub fn installed_size(&self) -> u32 {
+        let len = self.flash.len() as u32;
+        len + (APP_SECTOR_SIZE - len % APP_SECTOR_SIZE)
+    }
+}
+
