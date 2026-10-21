@@ -157,3 +157,35 @@ impl Emulator {
         Ok(())
     }
 
+    /// Exécute au plus `max_instructions` instructions de l'application.
+    pub fn run(&mut self, max_instructions: u64) -> RunStop {
+        if self.kernel.keyboard.exit_requested() {
+            self.kernel.keyboard.clear_exit_request();
+            return RunStop::HomePressed;
+        }
+        let stop = self
+            .cpu
+            .run(&mut self.device.memory, &mut self.kernel, max_instructions);
+        match stop {
+            Stop::Budget => RunStop::Budget,
+            Stop::Requested => match self.kernel.take_stop() {
+                Some(KernelStop::Frame) => RunStop::Frame,
+                Some(KernelStop::Sleep { ms }) => RunStop::Sleep { ms },
+                Some(KernelStop::WaitEvent { remaining_ms }) => RunStop::WaitEvent { remaining_ms },
+                Some(KernelStop::Exited(code)) => RunStop::Exited(code),
+                Some(KernelStop::Reset) => RunStop::Reset,
+                Some(KernelStop::HomePressed) => RunStop::HomePressed,
+                Some(KernelStop::BusFault(f)) => RunStop::Fault(Fault::Bus(f)),
+                Some(KernelStop::UnknownSvc(n)) => RunStop::Fault(Fault::UnknownSvc(n)),
+                None => RunStop::Budget,
+            },
+            Stop::BusFault(f) => RunStop::Fault(Fault::Bus(f)),
+            Stop::Unimplemented { pc, halfword } => {
+                RunStop::Fault(Fault::Unimplemented { pc, halfword })
+            }
+            Stop::UsageFault { pc, kind } => RunStop::Fault(Fault::UsageFault { pc, kind }),
+            Stop::Breakpoint { imm8 } => RunStop::Fault(Fault::Breakpoint { imm8 }),
+            Stop::WaitForInterrupt => RunStop::Fault(Fault::WaitForInterrupt),
+        }
+    }
+}
