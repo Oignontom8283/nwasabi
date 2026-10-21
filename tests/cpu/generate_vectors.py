@@ -156,3 +156,37 @@ def cases_it_blocks():
     return out
 
 
+DP_OPS = ['and', 'bic', 'orr', 'orn', 'eor', 'add', 'adc', 'sbc', 'sub', 'rsb']
+
+
+def cases_thumb32_dp():
+    out = []
+    for _ in range(160):
+        op = random.choice(DP_OPS)
+        s = random.choice(['', 's'])
+        rd, rn, rm = reg(), reg(), reg()
+        const = modified_immediate()
+        shift = random.choice(['lsl', 'lsr', 'asr', 'ror'])
+        amount = random.randrange(1, 32)
+        out.append(random.choice([
+            f"{op}{s}.w {rd}, {rn}, #{const}",
+            f"{op}{s}.w {rd}, {rn}, {rm}",
+            f"{op}{s}.w {rd}, {rn}, {rm}, {shift} #{amount}",
+            f"{op}{s}.w {rd}, {rn}, {rm}, rrx",
+            f"{random.choice(['tst', 'teq', 'cmn', 'cmp'])}.w {rn}, #{const}",
+            f"{random.choice(['tst', 'teq', 'cmn', 'cmp'])}.w {rn}, {rm}, {shift} #{amount}",
+            f"mov{s}.w {rd}, #{const}",
+            f"mvn{s}.w {rd}, #{const}",
+            f"mov{s}.w {rd}, {rm}",
+            f"mvn{s}.w {rd}, {rm}, {shift} #{amount}",
+            f"{random.choice(['lsl', 'lsr', 'asr', 'ror'])}{s}.w {rd}, {rm}, #{amount}",
+            f"rrx{s} {rd}, {rm}",
+            f"{random.choice(['lsl', 'lsr', 'asr', 'ror'])}{s}.w {rd}, {rn}, {rm}",
+            f"addw {rd}, {rn}, #{immd(12)}",
+            f"subw {rd}, {rn}, #{immd(12)}",
+            f"movw {rd}, #{immd(16)}",
+            f"movt {rd}, #{immd(16)}",
+        ]))
+    return out
+
+
