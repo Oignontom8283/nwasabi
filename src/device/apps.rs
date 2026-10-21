@@ -57,3 +57,36 @@ fn read_name(
     }
 }
 
+/// Parcourt la zone `[start, end)` comme le fait Epsilon : la première application est au début
+/// de la zone ; la suivante est à la fin de la précédente (taille écrite dans son en-tête)
+/// arrondie au secteur de 64 Kio ; on s'arrête au premier emplacement sans en-tête valide.
+///
+/// En mode examen, Epsilon masque toutes les applications externes.
+///
+/// Particularité reproduite : la taille de l'en-tête n'inclut pas la copie de `.data`. Une
+/// application dont cette copie franchit une limite de secteur fait donc « perdre » la
+/// suivante (voir `LinkWarning::AppSizeMismatch`).
+pub fn list_apps(memory: &mut Memory, start: u32, end: u32, exam_mode: bool) -> Vec<AppEntry> {
+    let mut apps = Vec::new();
+    if exam_mode {
+        return apps;
+    }
+    let mut address = start;
+    while let Some(header) = read_header(memory, address) {
+        let name = read_name(memory, address, &header, start, end);
+        let next = next_sector_aligned(address.wrapping_add(header.size));
+        apps.push(AppEntry {
+            address,
+            header,
+            name,
+        });
+        // Garde-fous : Epsilon boucle sans fin sur une taille nulle ; nous nous arrêtons.
+        let room = u64::from(next) + APP_HEADER_SIZE as u64 <= u64::from(end);
+        if next <= address || next < start || !room {
+            break;
+        }
+        address = next;
+    }
+    apps
+}
+
