@@ -40,3 +40,12 @@ pub enum FpArith {
     Vfnms,
 }
 
+/// Opérations à deux registres qui ne lèvent pas d'exception sur les NaN, ou presque.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FpUnary {
+    Vmov,
+    Vabs,
+    Vneg,
+    Vsqrt,
+}
+
