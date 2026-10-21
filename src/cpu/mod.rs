@@ -9,7 +9,7 @@ mod bus;
 mod hooks;
 mod regs;
 
-pub use bus::{Bus, BusFault, Width};
+pub use bus::{Bus, BusFault, FaultKind, Width};
 pub use hooks::{Hooks, SvcAction};
 pub use regs::Registers;
 
