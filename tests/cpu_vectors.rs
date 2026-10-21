@@ -158,3 +158,4 @@ batches! {
     thumb32_data_processing_matches_qemu => "02_thumb32_dp",
     bitfield_and_saturation_match_qemu => "03_bitfield",
     extend_and_parallel_match_qemu => "04_extend_parallel",
+    multiply_and_divide_match_qemu => "05_multiply",
