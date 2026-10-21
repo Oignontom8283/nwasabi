@@ -852,3 +852,19 @@ impl Cpu {
         Ok(())
     }
 
+    /// Écrit un registre entier (hors PC).
+    fn write_core(&mut self, r: Reg, value: u32) {
+        match r {
+            13 => self.regs.sp = value & !3,
+            14 => self.regs.lr = value,
+            15 => {}
+            n => self.regs.r[n as usize] = value,
+        }
+    }
+}
+
+/// Inverse le signe d'un flottant sans toucher à son contenu (un NaN reste le même NaN).
+fn negate(x: f32) -> f32 {
+    f32::from_bits(x.to_bits() ^ 0x8000_0000)
+}
+
