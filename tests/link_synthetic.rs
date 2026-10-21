@@ -205,3 +205,103 @@ fn files_that_are_not_arm_objects_are_rejected_cleanly() {
     assert!(matches!(err, Err(LinkError::Elf(_))), "{err:?}");
 }
 
+#[test]
+fn data_image_follows_the_constants_without_padding() {
+    let mut app = synthetic_app();
+    let data = app.writer.add_section(
+        ".data.counter",
+        SHF_ALLOC | SHF_WRITE,
+        4,
+        &[0x11, 0x22, 0x33, 0x44],
+    );
+    let counter = app.writer.add_symbol(
+        "counter",
+        0,
+        4,
+        SymbolBind::Global,
+        SymbolKind::Object,
+        SymbolSection::Section(data.0),
+    );
+    // Une constante de 3 octets : la fin des constantes n'est alors pas alignée.
+    let odd = app
+        .writer
+        .add_section(".rodata.odd", SHF_ALLOC, 1, &[1, 2, 3]);
+    let odd = app.writer.add_symbol(
+        "odd",
+        0,
+        3,
+        SymbolBind::Global,
+        SymbolKind::Object,
+        SymbolSection::Section(odd.0),
+    );
+    let slot = app.word_ref(counter);
+    app.word_ref(odd);
+    let linked = link_app(app).unwrap();
+
+    assert_eq!(linked.data.address, 0x2001_18a4); // début de la RAM des applications
+    assert_eq!(linked.data.size, 4);
+    assert_eq!(linked.data.flash_address, linked.app_end);
+    assert_ne!(
+        linked.app_end % 4,
+        0,
+        "le test suppose une fin de constantes non alignée"
+    );
+    assert_eq!(
+        bytes_at(&linked, linked.data.flash_address, 4),
+        [0x11, 0x22, 0x33, 0x44]
+    );
+    // Le pointeur vers `counter` contient son adresse en RAM.
+    let main = symbol(&linked, "main").address & !1;
+    assert_eq!(
+        bytes_at(&linked, main + slot, 4),
+        linked.data.address.to_le_bytes()
+    );
+    assert_eq!(symbol(&linked, "counter").address, linked.data.address);
+}
+
+#[test]
+fn bss_is_in_ram_only_and_commons_follow_it() {
+    let mut app = synthetic_app();
+    let bss = app
+        .writer
+        .add_nobits(".bss.buffer", SHF_ALLOC | SHF_WRITE, 8, 16);
+    let buffer = app.writer.add_symbol(
+        "buffer",
+        0,
+        16,
+        SymbolBind::Global,
+        SymbolKind::Object,
+        SymbolSection::Section(bss.0),
+    );
+    let shared = app.writer.add_symbol(
+        "shared",
+        4,
+        12,
+        SymbolBind::Global,
+        SymbolKind::Common,
+        SymbolSection::Common,
+    );
+    app.word_ref(buffer);
+    app.word_ref(shared);
+    let linked = link_app(app).unwrap();
+
+    assert_eq!(linked.bss.size, 16);
+    assert_eq!(linked.bss.address % 8, 0);
+    assert_eq!(symbol(&linked, "buffer").address, linked.bss.address);
+    // La variable commune est placée juste après la zone mise à zéro, et le tas commence après elle.
+    let common = symbol(&linked, "shared");
+    assert_eq!(common.address, linked.bss.address + linked.bss.size);
+    assert_eq!(linked.heap.address, common.address + 12);
+    assert_eq!(
+        u64::from(linked.heap.address) + u64::from(linked.heap.size),
+        n0110_layout().ram_end()
+    );
+    // Pas d'octets en flash pour .bss.
+    assert!(
+        linked
+            .sections
+            .iter()
+            .any(|s| s.class == SectionClass::Bss && s.flash_address.is_none())
+    );
+}
+
