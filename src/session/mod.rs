@@ -107,3 +107,21 @@ impl Session {
         }
     }
 
+    fn dispatch(&mut self, req: &Value) -> Reply {
+        let cmd = text(req, "cmd")?;
+        match cmd {
+            "help" => Ok(Value::object().with(
+                "commands",
+                vec![
+                    "new",
+                    "load",
+                    "launch",
+                    "run",
+                    "key",
+                    "advance",
+                    "screen",
+                    "stdout",
+                    "cpu",
+                    "inspect",
+                    "regions",
+                    "usage",
