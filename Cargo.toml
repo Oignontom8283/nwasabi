@@ -7,6 +7,8 @@ license = "AGPL-3.0-only"
 
 [lib]
 path = "src/lib.rs"
+# `cdylib` produit le module WebAssembly (feature `wasm`) ; `rlib` sert aux binaires et aux tests.
+crate-type = ["rlib", "cdylib"]
 
 # `nwasabi` : serveur web pour essayer l'émulateur (embarque la page de démonstration et la version WebAssembly).
 [[bin]]
@@ -31,3 +33,11 @@ wasm = []
 # Les tests du corpus exécutent des dizaines de millions d'instructions émulées.
 [profile.test]
 opt-level = 2
+
+# Module WebAssembly livré au navigateur : petit et rapide.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
