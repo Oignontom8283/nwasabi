@@ -543,3 +543,18 @@ impl Cpu {
                 self.exec_stm(ctx, bus, rn, regs, writeback, decrement_before)?;
             }
 
+            Instr::It { firstcond, mask } => self.regs.set_it_state((firstcond << 4) | mask),
+            Instr::Nop | Instr::Barrier => {}
+            Instr::Wfi | Instr::Wfe => return Err(Stop::WaitForInterrupt),
+            Instr::Svc { imm } => match hooks.on_svc(imm, self) {
+                SvcAction::Handled => {}
+                SvcAction::HandledAndStop => return Err(Stop::Requested),
+                SvcAction::Raise => self.take_exception(bus, super::exception::EXC_SVCALL)?,
+            },
+            Instr::Bkpt { imm } => return Err(Stop::Breakpoint { imm8: imm }),
+            Instr::Udf { .. } => {
+                return Err(Stop::UsageFault {
+                    pc: ctx.addr,
+                    kind: UsageFault::UndefinedInstruction,
+                });
+            }
