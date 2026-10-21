@@ -372,3 +372,230 @@ fn to_u32(value: u64) -> u32 {
     u32::try_from(value).expect("adresse vérifiée contre la taille des zones")
 }
 
+fn layout(
+    objects: &[Obj<'_>],
+    reach: &Reachability,
+    params: &LayoutParams,
+) -> Result<Layout, LinkError> {
+    // Sections vivantes, classées puis triées dans l'ordre du script de link.
+    let mut groups: HashMap<Class, Vec<(u8, SecId)>> = HashMap::new();
+    for (o, obj) in objects.iter().enumerate() {
+        for (s, section) in obj.elf.sections.iter().enumerate() {
+            if reach.live[o][s]
+                && let Some((class, rank)) = classify(section)?
+            {
+                groups.entry(class).or_default().push((rank, (o, s)));
+            }
+        }
+    }
+    let mut ids_of = |class: Class| -> Vec<SecId> {
+        let mut list = groups.remove(&class).unwrap_or_default();
+        list.sort();
+        list.into_iter().map(|(_, id)| id).collect()
+    };
+    let api = ids_of(Class::ApiLevel);
+    let names = ids_of(Class::Name);
+    let icons = ids_of(Class::Icon);
+    let text = ids_of(Class::Text);
+    let rodata = ids_of(Class::Rodata);
+    let data = ids_of(Class::Data);
+    let bss = ids_of(Class::Bss);
+
+    let placer = Placer { objects };
+    let flash_start = u64::from(params.flash_start);
+    let mut placements: HashMap<SecId, Placement> = HashMap::new();
+    let mut sections: Vec<PlacedSection> = Vec::new();
+    let mut flash_cursor = flash_start;
+    let mut image_end = flash_start;
+
+    let record = |placements: &mut HashMap<SecId, Placement>,
+                  sections: &mut Vec<PlacedSection>,
+                  id: SecId,
+                  class: Class,
+                  vma: u64,
+                  flash: Option<u64>| {
+        let section = &objects[id.0].elf.sections[id.1];
+        placements.insert(
+            id,
+            Placement {
+                vma: to_u32(vma),
+                flash: flash.map(to_u32),
+                class,
+            },
+        );
+        sections.push(PlacedSection {
+            name: section.name.clone(),
+            origin: objects[id.0].origin,
+            class: class.public(),
+            address: to_u32(vma),
+            flash_address: flash.map(to_u32),
+            size: section.size,
+            alignment: section.alignment(),
+        });
+    };
+
+    // En-tête d'application : 32 octets, dont le niveau d'API (4 octets) juste après le magic.
+    let [api_id] = api[..] else {
+        return Err(match api.first() {
+            None => LinkError::MissingSection(API_LEVEL_SECTION),
+            Some(&id) => LinkError::InvalidApiLevel {
+                size: placer.section(id).size,
+            },
+        });
+    };
+    if placer.section(api_id).size != 4 {
+        return Err(LinkError::InvalidApiLevel {
+            size: placer.section(api_id).size,
+        });
+    }
+    if names.is_empty() {
+        return Err(LinkError::MissingSection(NAME_SECTION));
+    }
+    if icons.is_empty() {
+        return Err(LinkError::MissingSection(ICON_SECTION));
+    }
+    record(
+        &mut placements,
+        &mut sections,
+        api_id,
+        Class::ApiLevel,
+        flash_start + 4,
+        Some(flash_start + 4),
+    );
+    flash_cursor += u64::from(HEADER_SIZE);
+
+    for (class, ids) in [(Class::Name, &names), (Class::Icon, &icons)] {
+        let addresses = placer.place(&mut flash_cursor, ids, 1);
+        for (&id, &at) in ids.iter().zip(&addresses) {
+            record(&mut placements, &mut sections, id, class, at, Some(at));
+        }
+    }
+    // Code puis constantes : tout est chargé depuis la flash.
+    let mut app_end = flash_cursor;
+    for (class, ids) in [(Class::Text, &text), (Class::Rodata, &rodata)] {
+        let addresses = placer.place(&mut flash_cursor, ids, 1);
+        for (&id, &at) in ids.iter().zip(&addresses) {
+            record(&mut placements, &mut sections, id, class, at, Some(at));
+        }
+        if class == Class::Rodata {
+            app_end = flash_cursor;
+        }
+    }
+    image_end = image_end.max(flash_cursor);
+
+    // .data : exécuté en RAM, copie initiale en flash juste après le reste.
+    let data_align = placer.group_align(&data, 4);
+    // La copie initiale suit directement le reste, sans alignement (comme `AT>FLASH` du script de
+    // link) : `_start` la copie octet par octet.
+    let data_flash = flash_cursor;
+    let data_ram = align_up(u64::from(params.ram_start), data_align);
+    let mut ram_cursor = data_ram;
+    let addresses = placer.place(&mut ram_cursor, &data, 4);
+    for (&id, &at) in data.iter().zip(&addresses) {
+        record(
+            &mut placements,
+            &mut sections,
+            id,
+            Class::Data,
+            at,
+            Some(data_flash + (at - data_ram)),
+        );
+    }
+    let data_end = ram_cursor;
+    let data_size = data_end - data_ram;
+    if data_size > 0 {
+        image_end = image_end.max(data_flash + data_size);
+    }
+
+    // .bss puis variables communes : en RAM seulement.
+    let bss_align = placer.group_align(&bss, 4);
+    let bss_start = align_up(data_end, bss_align);
+    ram_cursor = bss_start;
+    let addresses = placer.place(&mut ram_cursor, &bss, 4);
+    for (&id, &at) in bss.iter().zip(&addresses) {
+        record(&mut placements, &mut sections, id, Class::Bss, at, None);
+    }
+    // Le script de link ne prévoit pas `COMMON` : ces variables sont placées après `.bss`, donc hors
+    // de la zone que `_start` met à zéro (comportement observé de l'outil officiel).
+    let bss_end = ram_cursor;
+    let mut commons: HashMap<String, u32> = HashMap::new();
+    let mut common_defs: Vec<(&str, u32, u32, Origin)> = Vec::new(); // nom, taille, alignement, origine
+    for obj in objects {
+        for sym in &obj.elf.symbols {
+            if sym.section == SymbolSection::Common && reach.commons.contains(&sym.name) {
+                match common_defs.iter_mut().find(|c| c.0 == sym.name) {
+                    Some(c) => {
+                        c.1 = c.1.max(sym.size);
+                        c.2 = c.2.max(sym.value);
+                    }
+                    None => common_defs.push((&sym.name, sym.size, sym.value, obj.origin)),
+                }
+            }
+        }
+    }
+    for (name, size, alignment, origin) in common_defs {
+        let at = align_up(ram_cursor, alignment);
+        commons.insert(name.to_owned(), to_u32(at));
+        sections.push(PlacedSection {
+            name: name.to_owned(),
+            origin,
+            class: SectionClass::Common,
+            address: to_u32(at),
+            flash_address: None,
+            size,
+            alignment: alignment.max(1),
+        });
+        ram_cursor = at + u64::from(size);
+    }
+    let commons_end = ram_cursor;
+
+    // Vérifications de capacité.
+    if image_end > params.flash_end() {
+        return Err(LinkError::FlashOverflow {
+            needed: image_end - flash_start,
+            available: params.flash_length,
+        });
+    }
+    if commons_end > params.ram_end() {
+        return Err(LinkError::RamOverflow {
+            needed: commons_end - u64::from(params.ram_start),
+            available: params.ram_length,
+        });
+    }
+    let heap_start = commons_end;
+    let heap_end = params.ram_end();
+
+    let symbols = HashMap::from([
+        (ls::TRAMPOLINE, params.trampoline_address),
+        (ls::HEAP_START, to_u32(heap_start)),
+        (ls::HEAP_END, to_u32(heap_end)),
+        (ls::DATA_START_FLASH, to_u32(data_flash)),
+        (ls::DATA_START_RAM, to_u32(data_ram)),
+        (ls::DATA_END_RAM, to_u32(data_end)),
+        (ls::BSS_START_RAM, to_u32(bss_start)),
+        (ls::BSS_END_RAM, to_u32(bss_end)),
+        (ls::APP_END, to_u32(app_end)),
+    ]);
+    Ok(Layout {
+        placements,
+        symbols,
+        commons,
+        sections,
+        image_len: to_u32(image_end - flash_start),
+        app_end: to_u32(app_end),
+        data: DataSegment {
+            address: to_u32(data_ram),
+            flash_address: to_u32(data_flash),
+            size: to_u32(data_size),
+        },
+        bss: Region {
+            address: to_u32(bss_start),
+            size: to_u32(bss_end - bss_start),
+        },
+        heap: Region {
+            address: to_u32(heap_start),
+            size: to_u32(heap_end - heap_start),
+        },
+    })
+}
+
