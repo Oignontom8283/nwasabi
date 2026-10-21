@@ -45,3 +45,45 @@ SPECIAL = [0, 1, 2, 3, 0x7f, 0x80, 0xff, 0x100, 0x7fff, 0x8000, 0xffff, 0x10000,
            0xdeadbeef, 0x0000ffff, 0xffff0000]
 
 
+def rv():
+    """Valeur initiale de registre : souvent une valeur « limite », parfois aléatoire."""
+    return random.choice(SPECIAL) if random.random() < 0.6 else random.getrandbits(32)
+
+
+def reg(pool=ANY):
+    return 'r%d' % random.choice(pool)
+
+
+def regs_distinct(n, pool=ANY):
+    return ['r%d' % r for r in random.sample(pool, n)]
+
+
+def immd(bits):
+    return random.randrange(1 << bits)
+
+
+def cond():
+    return random.choice(COND)
+
+
+def modified_immediate():
+    """Constante « modifiée » de Thumb-2 : octet, motifs répétés, ou octet tourné."""
+    form = random.randrange(5)
+    b = random.randrange(256)
+    if form == 0:
+        return b
+    if form == 1:
+        return (b << 16) | b
+    if form == 2:
+        return (b << 24) | (b << 8)
+    if form == 3:
+        return (b << 24) | (b << 16) | (b << 8) | b
+    byte = 0x80 | random.randrange(128)
+    rot = random.randrange(8, 32)
+    return ((byte >> rot) | (byte << (32 - rot))) & 0xffffffff
+
+
+# ---------------------------------------------------------------------------------------------
+# Catalogue des cas : chaque fonction renvoie une liste d'extraits d'assembleur
+# ---------------------------------------------------------------------------------------------
+
