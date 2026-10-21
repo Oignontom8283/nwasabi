@@ -274,3 +274,14 @@ mod tests {
         assert_eq!(b, empty());
     }
 
+    #[test]
+    fn running_out_of_space_is_reported_and_changes_nothing() {
+        let b = write(&empty(), "a.py", &[7; 40]).unwrap();
+        let err = write(&b, "b.py", &[8; 40]).unwrap_err();
+        assert!(matches!(err, FsError::NoSpace { .. }));
+        // Exactement plein : 2 (marque de fin) de réserve.
+        let full = write(&empty(), "a.py", &[1; SIZE - 2 - 2 - 5]).unwrap();
+        assert_eq!(parse(&full).used, SIZE);
+        assert!(write(&empty(), "a.py", &[1; SIZE - 2 - 2 - 4]).is_err());
+    }
+
