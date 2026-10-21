@@ -18,3 +18,17 @@ pub enum Stop {
     /// Une instruction que l'émulateur ne gère pas (encore) : son adresse et son premier demi-mot.
     Unimplemented { pc: u32, halfword: u16 },
 }
+
+/// L'état complet du processeur.
+#[derive(Debug, Clone, Default)]
+pub struct Cpu {
+    pub regs: Registers,
+    /// Cycles écoulés depuis la création, selon un modèle de durée simple.
+    pub cycles: u64,
+}
+
+impl Cpu {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
