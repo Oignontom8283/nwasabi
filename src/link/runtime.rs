@@ -246,3 +246,105 @@ pub fn build_external_data(data: &[u8]) -> Vec<u8> {
     w.finish()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::elf::{ElfObject, Limits};
+
+    fn find<'a>(elf: &'a ElfObject<'_>, name: &str) -> &'a crate::elf::Symbol {
+        elf.symbols
+            .iter()
+            .find(|s| s.name == name)
+            .unwrap_or_else(|| panic!("symbole {name} absent"))
+    }
+
+    #[test]
+    fn svc_numbers_are_unique_and_fit_in_svc_immediate() {
+        let mut numbers: Vec<u8> = EADK_SVC
+            .iter()
+            .chain(EADK_EXTENDED_SVC)
+            .map(|&(_, n)| n)
+            .collect();
+        numbers.extend([SVC_SBRK, SVC_WRITE]);
+        let count = numbers.len();
+        numbers.sort_unstable();
+        numbers.dedup();
+        assert_eq!(
+            numbers.len(),
+            count,
+            "deux fonctions partagent un numéro de svc"
+        );
+    }
+
+    #[test]
+    fn runtime_defines_every_eadk_function_as_a_thumb_function() {
+        let bytes = build_runtime(true);
+        let elf = ElfObject::parse(&bytes, &Limits::default()).unwrap();
+        for &(name, number) in EADK_SVC.iter().chain(EADK_EXTENDED_SVC) {
+            let symbol = find(&elf, name);
+            assert!(
+                symbol.is_thumb_function(),
+                "{name} doit être une fonction Thumb"
+            );
+            let section = match symbol.section {
+                SymbolSection::Section(s) => s,
+                other => panic!("{name} : section inattendue {other:?}"),
+            };
+            // svc #N (0xdfNN) puis bx lr (0x4770), en little-endian.
+            assert_eq!(
+                elf.section_data(section),
+                [number, 0xdf, 0x70, 0x47],
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn extended_functions_exist_only_when_requested() {
+        let plain = build_runtime(false);
+        let elf = ElfObject::parse(&plain, &Limits::default()).unwrap();
+        assert!(!elf.symbols.iter().any(|s| s.name == "eadk_battery_level"));
+        let extended = build_runtime(true);
+        let elf = ElfObject::parse(&extended, &Limits::default()).unwrap();
+        assert!(elf.symbols.iter().any(|s| s.name == "eadk_battery_level"));
+    }
+
+    #[test]
+    fn start_calls_main_and_loads_the_five_linker_symbols() {
+        let bytes = build_runtime(false);
+        let elf = ElfObject::parse(&bytes, &Limits::default()).unwrap();
+        let start = match find(&elf, "_start").section {
+            SymbolSection::Section(s) => s,
+            _ => panic!("_start non défini"),
+        };
+        let relocations = elf.relocations(start);
+        let targets: Vec<(u32, u8, &str)> = relocations
+            .iter()
+            .map(|r| {
+                (
+                    r.offset,
+                    r.kind,
+                    elf.symbols[r.symbol as usize].name.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(targets[0], (0x2a, R_ARM_THM_CALL, "main"));
+        let pool: Vec<&str> = targets[1..].iter().map(|t| t.2).collect();
+        assert_eq!(pool, START_POOL);
+        assert!(targets[1..].iter().all(|t| t.1 == R_ARM_ABS32));
+        // Le code occupe 0x30 octets, suivis des cinq mots du pool.
+        assert_eq!(elf.section_data(start).len(), 0x30 + 20);
+    }
+
+    #[test]
+    fn external_data_object_exposes_start_and_size() {
+        let bytes = build_external_data(&[1, 2, 3, 4, 5]);
+        let elf = ElfObject::parse(&bytes, &Limits::default()).unwrap();
+        let start = find(&elf, linker_symbols::EXTERNAL_DATA_START);
+        assert_eq!((start.value, start.size), (0, 5));
+        let size = find(&elf, linker_symbols::EXTERNAL_DATA_SIZE);
+        assert_eq!((size.section, size.value), (SymbolSection::Absolute, 5));
+        let section = elf.section_by_name(".rodata.eadk_external_data").unwrap();
+        assert_eq!(elf.section_data(section), [1, 2, 3, 4, 5]);
+    }
+}
