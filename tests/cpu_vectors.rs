@@ -154,3 +154,4 @@ macro_rules! batches {
 
 batches! {
     thumb16_instructions_match_qemu => "00_thumb16",
+    it_blocks_match_qemu => "01_it_blocks",
