@@ -789,3 +789,63 @@ impl Cpu {
         }
     }
 
+    fn write_sysreg(&mut self, sysreg: SysReg, mask: u8, value: u32) {
+        match sysreg.0 {
+            0..=3 => {
+                if mask & 2 != 0 {
+                    self.regs.set_n(value >> 31 != 0);
+                    self.regs.set_z(value >> 30 & 1 != 0);
+                    self.regs.set_c(value >> 29 & 1 != 0);
+                    self.regs.set_v(value >> 28 & 1 != 0);
+                    if value >> 27 & 1 != 0 {
+                        self.regs.set_q();
+                    } else {
+                        self.regs.xpsr &= !(1 << 27);
+                    }
+                }
+                if mask & 1 != 0 {
+                    self.regs.set_ge(((value >> 16) & 0xf) as u8);
+                }
+            }
+            8 => {
+                if !self.handler_mode && self.control & 2 != 0 {
+                    self.msp = value & !3
+                } else {
+                    self.regs.sp = value & !3
+                }
+            }
+            9 => {
+                if !self.handler_mode && self.control & 2 != 0 {
+                    self.regs.sp = value & !3
+                } else {
+                    self.psp = value & !3
+                }
+            }
+            16 => self.primask = value & 1 != 0,
+            17 => self.basepri = value as u8,
+            18 => {
+                let v = value as u8;
+                if v != 0 && (self.basepri == 0 || v < self.basepri) {
+                    self.basepri = v;
+                }
+            }
+            19 => self.faultmask = value & 1 != 0,
+            20 => {
+                // Changer SPSEL en mode thread échange les piles.
+                let new = value & 7;
+                if !self.handler_mode && (new ^ self.control) & 2 != 0 {
+                    if new & 2 != 0 {
+                        self.msp = self.regs.sp;
+                        self.regs.sp = self.psp;
+                    } else {
+                        self.psp = self.regs.sp;
+                        self.regs.sp = self.msp;
+                    }
+                }
+                self.control = new;
+            }
+            _ => {}
+        }
+    }
+}
+
