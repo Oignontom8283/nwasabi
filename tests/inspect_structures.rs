@@ -174,3 +174,20 @@ fn probing_flash_addresses_works_on_a_firmware_with_the_older_layout() {
     assert_eq!(s.userland_header.unwrap().address, 0x9001_0000);
     assert_eq!(s.model_class, Some(ModelClass::N0110OrN0115));
 }
+
+#[test]
+fn the_inspection_follows_the_slot_that_the_slot_info_designates() {
+    let mut profile = FirmwareProfile::default_for(Model::N0120);
+    profile.active_slot = nwasabi::profile::Slot::B;
+    let mut d = DeviceImage::new(profile).unwrap();
+    let s = read_structures(&mut d.memory, false);
+    assert_eq!(s.model_class, Some(ModelClass::N0120));
+    assert_eq!(s.kernel_header.unwrap().address, 0x9040_0008);
+    let userland = s.userland_header.unwrap();
+    assert_eq!(userland.address, 0x9042_0000);
+    // La zone des applications publiée est celle du slot B (début de zone du N0120 + 4 Mio).
+    assert_eq!(
+        userland.value.external_apps_flash,
+        (0x9058_0000, 0x907f_0000)
+    );
+}
