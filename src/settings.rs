@@ -42,3 +42,17 @@ impl Settings<'_> {
         self.change(|p| p.device_name = name.to_owned())
     }
 
+    /// Identifiant FCC renvoyé par l'appel système `fcc_id` (31 caractères au plus).
+    pub fn set_fcc_id(&mut self, fcc_id: &str) -> Result<(), DeviceError> {
+        self.change(|p| p.fcc_id = fcc_id.to_owned())
+    }
+
+    pub fn set_pcb_version(&mut self, version: u32) -> Result<(), DeviceError> {
+        self.change(|p| p.pcb_version = version)
+    }
+
+    /// Numéro de série : exactement 16 caractères ASCII.
+    pub fn set_serial_number(&mut self, serial: &str) -> Result<(), DeviceError> {
+        self.change(|p| p.serial_number = serial.to_owned())
+    }
+
