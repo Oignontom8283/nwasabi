@@ -145,3 +145,11 @@ fn check(name: &str) {
     );
 }
 
+/// Un test par lot de vecteurs.
+macro_rules! batches {
+    ($($test:ident => $file:literal,)*) => {
+        $(#[test] fn $test() { check($file); })*
+    };
+}
+
+batches! {
