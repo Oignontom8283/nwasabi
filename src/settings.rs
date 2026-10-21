@@ -105,3 +105,22 @@ impl Settings<'_> {
         self.status.usb_plugged = plugged;
     }
 
+    /// Niveau d'autorisation : 0 officiel, 1 applications tierces installées, 2 userland tiers.
+    pub fn set_clearance_level(&mut self, level: u32) {
+        self.status.clearance_level = level;
+    }
+
+    /// Indicateurs de compilation renvoyés par l'appel système 56.
+    pub fn set_compilation_flags(&mut self, flags: u16) {
+        self.status.compilation_flags = flags;
+    }
+
+    pub fn set_bootloader_crc(&mut self, crc: u32) {
+        self.status.bootloader_crc = crc;
+    }
+
+    /// Type du dernier redémarrage : 0 matériel, 1 logiciel.
+    pub fn set_last_reset_type(&mut self, kind: u8) {
+        self.status.last_reset_type = kind;
+    }
+
