@@ -21,10 +21,20 @@ build-cli:
 
 # Compile la bibliothèque en WebAssembly (sans les binaires).
 build-wasm:
-    cargo build --lib --no-default-features --features wasm --target {{wasm_target}}
+    cargo build --lib --release --no-default-features --features wasm --target {{wasm_target}}
 
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
+
+# Prépare la page d'exemple : copie le module WebAssembly et son enveloppe JavaScript.
+example: build-wasm
+    cp target/{{wasm_target}}/release/nwasabi.wasm example/nwasabi.wasm
+    cp web/src/nwasabi.js example/nwasabi.js
+
+# Construit le site web (Vue) dans `web-dist/`, que le serveur `nwasabi` embarque.
+build-web: build-wasm
+    cp target/{{wasm_target}}/release/nwasabi.wasm web/src/nwasabi.wasm
+    cd web && npm install --no-audit --no-fund && npm run build
 
 # --- Lancement --------------------------------------------------------------
 
@@ -57,6 +67,10 @@ test:
 # Lance les tests natifs avec un corpus d'applications .nwa (dossier de fichiers .nwa).
 test-corpus corpus:
     NWASABI_CORPUS={{corpus}} cargo test --all-features
+
+# Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm local/nwa`).
+test-wasm corpus="": build-wasm
+    NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
 
 # Régénère les résultats de référence de l'édition de liens après un changement voulu.
 update-golden corpus:

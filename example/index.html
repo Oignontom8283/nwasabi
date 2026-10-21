@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nwasabi — exemple d'intégration</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 680px; margin: 2em auto; padding: 0 1em; }
+      canvas { width: 640px; max-width: 100%; image-rendering: pixelated; background: #000; display: block; }
+      .keys button { margin: 2px; padding: 6px 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>nwasabi</h1>
+    <p>
+      Choisissez une application <code>.nwa</code> de NumWorks : elle s'exécute dans cette page.
+      <input id="file" type="file" accept=".nwa" />
+    </p>
+    <canvas id="screen" width="320" height="240"></canvas>
+    <p class="keys">
+      <button data-key="left">◀</button><button data-key="up">▲</button><button data-key="down">▼</button
+      ><button data-key="right">▶</button><button data-key="ok">OK</button><button data-key="back">back</button>
+    </p>
+    <p id="status">chargement du module…</p>
+
+    <script type="module">
+      // Les deux fichiers viennent de `just example` (nwasabi.js et nwasabi.wasm, à copier à côté de cette page).
+      import { Nwasabi, toBase64 } from "./nwasabi.js";
+
+      const emu = await Nwasabi.load(await fetch("./nwasabi.wasm"));
+      const canvas = document.getElementById("screen");
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(320, 240);
+      const status = document.getElementById("status");
+      status.textContent = "prêt";
+
+      let running = false;
+      let last = 0;
+
+      function frame(now) {
+        if (!running) return;
+        // Une image : on exécute l'application jusqu'à sa prochaine image (ou 2 millions d'instructions).
+        const reply = emu.call({ cmd: "run", instructions: 2_000_000, frames: 1 });
+        if (reply.stop.kind === "wait_event") {
+          // L'application attend une touche : le temps ne passe que si on le lui donne.
+          emu.call({ cmd: "advance", ms: Math.min(now - last, 250) });
+        } else if (!["frame", "sleep", "budget"].includes(reply.stop.kind)) {
+          running = false; // fin de l'application, faute, touche Home…
+          status.textContent = "arrêt : " + JSON.stringify(reply.stop);
+        }
+        last = now;
+        if (emu.drawTo(image)) context.putImageData(image, 0, 0);
+        requestAnimationFrame(frame);
+      }
+
+      document.getElementById("file").addEventListener("change", async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const nwa = new Uint8Array(await file.arrayBuffer());
+        const reply = emu.request({ cmd: "load", model: "n0110", nwa_base64: toBase64(nwa) });
+        if (!reply.ok) return (status.textContent = reply.error);
+        status.textContent = reply.app.name;
+        running = true;
+        last = performance.now();
+        requestAnimationFrame(frame);
+      });
+
+      for (const button of document.querySelectorAll("[data-key]")) {
+        const key = button.dataset.key;
+        button.addEventListener("pointerdown", () => emu.request({ cmd: "key", key, action: "press" }));
+        button.addEventListener("pointerup", () => emu.request({ cmd: "key", key, action: "release" }));
+      }
+    </script>
+  </body>
+</html>

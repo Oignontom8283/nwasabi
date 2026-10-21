@@ -6,7 +6,10 @@
 //! Le module [`cpu`] est autonome (il n'utilise jamais le reste de ce crate) pour pouvoir être
 //! déplacé plus tard dans un crate séparé.
 
-#![forbid(unsafe_code)]
+// Le cœur n'a pas de code `unsafe`, sauf les quelques fonctions d'échange avec JavaScript du module
+// `wasm` (feature du même nom) : la mémoire d'un module WebAssembly ne se partage que par pointeurs.
+#![cfg_attr(not(feature = "wasm"), forbid(unsafe_code))]
+#![cfg_attr(feature = "wasm", deny(unsafe_code))]
 
 pub mod cpu;
 pub mod device;
@@ -23,3 +26,5 @@ pub mod session;
 pub mod settings;
 pub mod storage;
 pub mod structures;
+#[cfg(feature = "wasm")]
+pub mod wasm;

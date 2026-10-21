@@ -1,0 +1,55 @@
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --text: #1c2330;
+  --muted: #667085;
+  --line: #d8dce3;
+  --accent: #2f7d4f;
+  --accent-text: #ffffff;
+  --danger: #b42318;
+  --key: #e7e9ee;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --panel: #1d2128;
+    --text: #e6e9ef;
+    --muted: #98a1b0;
+    --line: #313744;
+    --accent: #4caf7a;
+    --accent-text: #0b1a12;
+    --danger: #ff8a80;
+    --key: #2a303a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, sans-serif;
+}
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  background: var(--key);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+input, select, textarea {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+code, pre, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12.5px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.muted { color: var(--muted); }
+.error { color: var(--danger); }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 2px 8px 2px 0; vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
