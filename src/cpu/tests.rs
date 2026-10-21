@@ -143,3 +143,36 @@ fn bl_and_bx_lr_form_a_call() {
     assert_eq!(cpu.regs.lr, (START + 4) | 1);
 }
 
+#[test]
+fn push_and_pop_save_and_restore_registers() {
+    // push {r4, lr} ; movs r4, #9 ; pop {r4, pc}
+    let program = [0xb510, 0x2409, 0xbd10];
+    let (cpu, bus, _) = run(
+        &program,
+        |c| {
+            c.regs.r[4] = 0x1234;
+            c.regs.lr = 0x201;
+        },
+        2,
+    );
+    assert_eq!(cpu.regs.sp, 0x8000 - 8);
+    assert_eq!(cpu.regs.r[4], 9);
+    assert_eq!(
+        u32::from_le_bytes(bus.0[0x7ff8..0x7ffc].try_into().unwrap()),
+        0x1234
+    );
+    // Après le pop : r4 restauré et pc = lr (bit 0 ignoré).
+    let (cpu, ..) = run(
+        &program,
+        |c| {
+            c.regs.r[4] = 0x1234;
+            c.regs.lr = 0x201;
+        },
+        3,
+    );
+    assert_eq!(
+        (cpu.regs.r[4], cpu.regs.pc, cpu.regs.sp),
+        (0x1234, 0x200, 0x8000)
+    );
+}
+
