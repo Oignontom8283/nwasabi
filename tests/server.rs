@@ -71,3 +71,23 @@ fn serves_a_fallback_page_and_health() {
     assert_eq!(body, b"null");
 }
 
+#[test]
+fn preloads_the_given_application() {
+    let dir = std::env::temp_dir().join(format!("nwasabi-server-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("demo.nwa");
+    std::fs::write(&file, [1u8, 2, 3, 250]).unwrap();
+    let server = start(&["--nwa", file.to_str().unwrap(), "--model", "N0120"]);
+
+    let (code, body) = get(&server, "/__nwasabi/preload");
+    assert_eq!(code, 200);
+    let v = json::parse(&String::from_utf8(body).unwrap()).unwrap();
+    assert_eq!(v.get("name").and_then(Value::as_str), Some("demo.nwa"));
+    assert_eq!(v.get("model").and_then(Value::as_str), Some("n0120"));
+    let nwa = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
+    assert_eq!(nwa, [1, 2, 3, 250]);
+    assert_eq!(v.get("data_base64"), Some(&Value::Null));
+    let (_, page) = get(&server, "/");
+    assert!(String::from_utf8_lossy(&page).contains("demo.nwa"));
+}
+
