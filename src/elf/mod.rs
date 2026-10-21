@@ -6,6 +6,8 @@
 //! malformée.mod error;
 mod header;
 mod reader;
+mod section;
 
 pub use error::ElfError;
 pub use header::Header;
+pub use section::*;
