@@ -1,0 +1,240 @@
+#0
+bfi r8, r3, #11, #7
+#1
+ssat r2, #22, r9
+#2
+usat r3, #30, r0, asr #21
+#3
+usat r2, #5, r8, lsl #6
+#4
+ssat r6, #30, r10, lsl #20
+#5
+bfc r4, #12, #4
+#6
+clz r8, r7
+#7
+usat r3, #5, r2, asr #19
+#8
+bfi r6, r0, #3, #29
+#9
+usat r8, #27, r9
+#10
+rbit r4, r3
+#11
+usat r1, #10, r7, asr #13
+#12
+bfi r8, r9, #1, #25
+#13
+usat r4, #22, r0, asr #11
+#14
+bfi r3, r6, #20, #9
+#15
+rbit r10, r10
+#16
+usat r2, #6, r8
+#17
+rev.w r10, r2
+#18
+ubfx r2, r9, #23, #8
+#19
+rev.w r3, r8
+#20
+rev16.w r9, r6
+#21
+rev16.w r9, r9
+#22
+usat r7, #0, r0
+#23
+usat r1, #28, r4, asr #5
+#24
+ssat r9, #4, r6, asr #28
+#25
+ssat r9, #14, r6, lsl #24
+#26
+usat r9, #0, r6
+#27
+ubfx r1, r6, #6, #7
+#28
+clz r5, r5
+#29
+ssat r8, #12, r2, asr #23
+#30
+ubfx r4, r6, #12, #17
+#31
+usat r6, #20, r6, lsl #17
+#32
+ubfx r2, r8, #29, #1
+#33
+rev16.w r0, r6
+#34
+usat r8, #26, r10, lsl #26
+#35
+rev.w r9, r1
+#36
+usat r7, #4, r1, lsl #29
+#37
+ssat r6, #13, r3
+#38
+clz r9, r7
+#39
+rev.w r0, r10
+#40
+usat r5, #25, r5, lsl #20
+#41
+revsh.w r3, r10
+#42
+bfi r9, r1, #0, #17
+#43
+rbit r2, r5
+#44
+usat r6, #27, r10, lsl #17
+#45
+rev16.w r6, r6
+#46
+bfc r4, #22, #1
+#47
+rev.w r2, r8
+#48
+usat r10, #10, r1, lsl #11
+#49
+sbfx r4, r0, #14, #3
+#50
+ssat r4, #23, r0
+#51
+usat r4, #11, r5, asr #14
+#52
+ssat r6, #7, r7
+#53
+ubfx r1, r6, #20, #9
+#54
+ssat r2, #8, r6
+#55
+ssat r9, #16, r6, lsl #17
+#56
+sbfx r6, r1, #25, #7
+#57
+rev.w r1, r8
+#58
+clz r10, r7
+#59
+rbit r2, r7
+#60
+sbfx r1, r6, #23, #3
+#61
+usat r0, #26, r9
+#62
+ssat r3, #26, r10
+#63
+sbfx r7, r8, #29, #3
+#64
+usat r0, #14, r10, lsl #21
+#65
+revsh.w r5, r10
+#66
+sbfx r9, r5, #11, #12
+#67
+clz r4, r8
+#68
+rbit r4, r9
+#69
+sbfx r1, r1, #29, #1
+#70
+ssat r3, #1, r9, lsl #23
+#71
+bfc r4, #21, #7
+#72
+rbit r6, r10
+#73
+rev.w r10, r3
+#74
+usat r10, #20, r4, asr #12
+#75
+rev16.w r2, r10
+#76
+ssat r6, #23, r6
+#77
+ssat r0, #28, r3, lsl #14
+#78
+usat r3, #16, r2, lsl #28
+#79
+revsh.w r6, r10
+#80
+sbfx r9, r1, #22, #3
+#81
+ssat r2, #26, r3, asr #25
+#82
+usat r5, #27, r0, asr #23
+#83
+ubfx r2, r6, #4, #15
+#84
+usat r2, #16, r3, asr #15
+#85
+ubfx r9, r0, #10, #5
+#86
+bfc r7, #23, #6
+#87
+rev.w r3, r4
+#88
+revsh.w r1, r2
+#89
+ssat r9, #5, r9
+#90
+bfi r8, r3, #8, #11
+#91
+bfi r4, r2, #12, #7
+#92
+ubfx r8, r1, #7, #20
+#93
+rbit r1, r8
+#94
+revsh.w r9, r4
+#95
+bfc r10, #4, #23
+#96
+rev.w r4, r10
+#97
+bfc r6, #17, #2
+#98
+usat r4, #22, r3, lsl #26
+#99
+ssat r8, #7, r5, asr #24
+#100
+rev16.w r8, r1
+#101
+clz r3, r9
+#102
+usat r1, #24, r8, asr #15
+#103
+ssat r9, #3, r9, lsl #1
+#104
+usat r2, #27, r3, lsl #15
+#105
+usat r2, #23, r4, asr #12
+#106
+usat r4, #0, r4
+#107
+bfc r3, #7, #13
+#108
+bfc r9, #12, #12
+#109
+usat r1, #5, r1, lsl #15
+#110
+ssat r6, #26, r9, lsl #21
+#111
+ssat r4, #30, r10, lsl #30
+#112
+usat r4, #13, r7, lsl #29
+#113
+ubfx r6, r5, #13, #19
+#114
+bfi r9, r5, #3, #21
+#115
+bfc r2, #11, #13
+#116
+revsh.w r7, r7
+#117
+sbfx r1, r4, #17, #8
+#118
+usat r4, #27, r1, asr #14
+#119
+rev16.w r10, r4
