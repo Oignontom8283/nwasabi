@@ -41,3 +41,13 @@ fn escape_json(s: &str) -> String {
     nwasabi::json::Value::from(s).to_string()
 }
 
+fn preload_json(p: &Preload) -> String {
+    use nwasabi::json::{Value, base64_encode};
+    Value::object()
+        .with("name", p.name.as_str())
+        .with("model", p.model.as_str())
+        .with("nwa_base64", base64_encode(&p.nwa))
+        .with("data_base64", p.data.as_deref().map(base64_encode))
+        .to_string()
+}
+
