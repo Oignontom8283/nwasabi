@@ -102,3 +102,44 @@ fn a_filesystem_image_can_be_edited_from_the_command_line() {
     assert!(String::from_utf8_lossy(&bad.stderr).contains("introuvable"));
 }
 
+#[test]
+fn session_talks_json_lines_over_stdio() {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nwasabi-cli"))
+        .args(["session", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(
+            concat!(
+                "{\"cmd\":\"new\",\"model\":\"n0120\",\"id\":1}\n",
+                "\n",
+                "{\"cmd\":\"settings_set\",\"name\":\"device_name\",\"value\":\"Test\"}\n",
+                "{\"cmd\":\"inspect\"}\n",
+                "pas du json\n",
+                "{\"cmd\":\"quit\"}\n",
+                "{\"cmd\":\"help\"}\n",
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let lines: Vec<String> = stdout(&out).lines().map(str::to_owned).collect();
+    assert_eq!(lines.len(), 4, "« quit » arrête la session : {lines:?}");
+    let first = json::parse(&lines[0]).unwrap();
+    assert_eq!(first.get("id").and_then(Value::as_i64), Some(1));
+    assert_eq!(first.get("model").and_then(Value::as_str), Some("N0120"));
+    let inspect = json::parse(&lines[2]).unwrap();
+    let st = inspect.get("structures").unwrap();
+    assert_eq!(st.get("device_name").and_then(Value::as_str), Some("Test"));
+    assert_eq!(
+        st.get("sram_base").and_then(Value::as_i64),
+        Some(0x2400_0000)
+    );
+    assert!(lines[3].contains("\"ok\":false"));
+}
+
