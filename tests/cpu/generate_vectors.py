@@ -454,3 +454,22 @@ def cases_fp_memory():
     return out
 
 
+FAMILIES = [
+    ('thumb16', cases_thumb16),
+    ('it_blocks', cases_it_blocks),
+    ('thumb32_dp', cases_thumb32_dp),
+    ('bitfield', cases_bitfield),
+    ('extend_parallel', cases_extend_parallel),
+    ('multiply', cases_multiply),
+    ('memory', cases_memory),
+    ('branches', cases_branches),
+    ('system', cases_system),
+    ('fp_arith', cases_fp_arith),
+    ('fp_core_and_status', cases_fp_core_and_status),
+    ('fp_memory', cases_fp_memory),
+]
+
+# ---------------------------------------------------------------------------------------------
+# Assemblage des lots, exécution par QEMU
+# ---------------------------------------------------------------------------------------------
+
