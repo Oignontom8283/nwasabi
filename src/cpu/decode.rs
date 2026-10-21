@@ -249,3 +249,15 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 }
             }
         }
+        // adr / add rd, sp, #imm.
+        0b10100 => Instr::Adr {
+            rd: low3(8),
+            offset: (bits(h, 7, 0) << 2) as i32,
+        },
+        0b10101 => Instr::AddSubImm12 {
+            rd: low3(8),
+            rn: 13,
+            imm: bits(h, 7, 0) << 2,
+            sub: false,
+        },
+        0b10110 | 0b10111 => return decode16_misc(h),
