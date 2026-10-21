@@ -163,3 +163,4 @@ batches! {
     branches_match_qemu => "07_branches",
     system_instructions_match_qemu => "08_system",
     fp_arithmetic_matches_qemu => "09_fp_arith",
+    fp_transfers_and_status_match_qemu => "10_fp_core_and_status",
