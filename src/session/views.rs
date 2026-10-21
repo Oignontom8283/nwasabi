@@ -119,3 +119,31 @@ pub fn structures(s: &Structures) -> Value {
     out
 }
 
+pub fn app(app: &LinkedApp) -> Value {
+    Value::object()
+        .with("name", app.name.as_str())
+        .with("api_level", app.api_level)
+        .with("flash_start", app.flash_start)
+        .with("flash_size", app.flash.len())
+        .with("entry", app.entry)
+        .with("app_end", app.app_end)
+        .with(
+            "data",
+            pair(app.data.address, app.data.address + app.data.size),
+        )
+        .with("bss", pair(app.bss.address, app.bss.address + app.bss.size))
+        .with(
+            "heap",
+            pair(app.heap.address, app.heap.address + app.heap.size),
+        )
+        .with(
+            "warnings",
+            Value::Array(
+                app.warnings
+                    .iter()
+                    .map(|w| Value::from(format!("{w:?}")))
+                    .collect(),
+            ),
+        )
+}
+
