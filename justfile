@@ -50,7 +50,7 @@ test-corpus corpus:
 
 # Régénère les résultats de référence de l'édition de liens après un changement voulu.
 update-golden corpus:
-    NWASABI_UPDATE_GOLDEN=1 NWASABI_CORPUS={{corpus}} cargo test --test link_corpus
+    NWASABI_UPDATE_GOLDEN=1 NWASABI_CORPUS={{corpus}} cargo test --test link_corpus --test emulator_corpus
 
 # Séquence complète avant de proposer un changement : formatage, clippy, tests, WebAssembly.
 ci: fmt-check clippy test build-wasm
