@@ -34,3 +34,47 @@ impl SlotHeader {
     }
 }
 
+/// Version et commit du noyau.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KernelHeader {
+    pub header: u32,
+    /// Version d'Epsilon, par exemple `26.4.0`.
+    pub software_version: String,
+    /// Identifiant du commit de compilation.
+    pub commit_hash: String,
+    pub footer: u32,
+}
+
+impl KernelHeader {
+    pub fn new(software_version: &str, commit_hash: &str) -> Self {
+        Self {
+            header: KERNEL_HEADER_MAGIC,
+            software_version: software_version.to_owned(),
+            commit_hash: commit_hash.to_owned(),
+            footer: KERNEL_HEADER_MAGIC,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.header == KERNEL_HEADER_MAGIC && self.footer == KERNEL_HEADER_MAGIC
+    }
+
+    pub fn encode(&self) -> [u8; KERNEL_HEADER_SIZE] {
+        let mut out = [0u8; KERNEL_HEADER_SIZE];
+        put_word(&mut out, 0, self.header);
+        put_text8(&mut out, 4, &self.software_version);
+        put_text8(&mut out, 12, &self.commit_hash);
+        put_word(&mut out, 20, self.footer);
+        out
+    }
+
+    pub fn decode(bytes: &[u8; KERNEL_HEADER_SIZE]) -> Self {
+        Self {
+            header: word(bytes, 0),
+            software_version: text8(bytes, 4),
+            commit_hash: text8(bytes, 12),
+            footer: word(bytes, 20),
+        }
+    }
+}
+
