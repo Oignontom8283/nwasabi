@@ -184,3 +184,60 @@ pub enum Instr {
         offset: i32,
     },
 
+    Mul {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        flags: FlagMode,
+    },
+    Mla {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Reg,
+    },
+    Mls {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Reg,
+    },
+    /// Multiplication 32×32 → 64 bits, éventuellement avec accumulation.
+    MulLong {
+        signed: bool,
+        accumulate: bool,
+        rdlo: Reg,
+        rdhi: Reg,
+        rn: Reg,
+        rm: Reg,
+    },
+    Umaal {
+        rdlo: Reg,
+        rdhi: Reg,
+        rn: Reg,
+        rm: Reg,
+    },
+    Div {
+        signed: bool,
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+    },
+    /// `smulxy` / `smlaxy` : produit de deux demi-mots signés.
+    Smul16 {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Option<Reg>,
+        n_high: bool,
+        m_high: bool,
+    },
+    /// `smmul` / `smmla` : mot de poids fort du produit signé 32×32.
+    Smmul {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Option<Reg>,
+        round: bool,
+    },
+
