@@ -101,3 +101,56 @@ impl Memory {
         self.find(address, 1).is_some()
     }
 
+    // ---- accès directs de l'hôte (ignorent les droits) --------------------------------------
+
+    /// Lit `out.len()` octets sans passer par les droits d'accès ni compter comme une lecture
+    /// du programme.
+    pub fn read_into(&mut self, address: u32, out: &mut [u8]) -> Result<(), MemoryError> {
+        let len = out.len() as u32;
+        let index = self
+            .find(address, len)
+            .ok_or(MemoryError::Unmapped { address })?;
+        let region = &self.regions[index];
+        region.copy_out(address - region.spec.base, out);
+        Ok(())
+    }
+
+    /// Lit `len` octets (accès de l'hôte).
+    pub fn read_bytes(&mut self, address: u32, len: u32) -> Result<Vec<u8>, MemoryError> {
+        let mut out = vec![0; len as usize];
+        self.read_into(address, &mut out)?;
+        Ok(out)
+    }
+
+    /// Lit un mot de 32 bits little-endian (accès de l'hôte).
+    pub fn read_u32(&mut self, address: u32) -> Result<u32, MemoryError> {
+        let mut b = [0u8; 4];
+        self.read_into(address, &mut b)?;
+        Ok(u32::from_le_bytes(b))
+    }
+
+    /// Écrit des octets, même dans une zone en lecture seule (accès de l'hôte, par exemple pour
+    /// « flasher » une application). La modification est datée : voir [`Memory::changes_since`].
+    pub fn write_bytes(&mut self, address: u32, data: &[u8]) -> Result<(), MemoryError> {
+        let index = self
+            .find(address, data.len() as u32)
+            .ok_or(MemoryError::Unmapped { address })?;
+        self.tick += 1;
+        let tick = self.tick;
+        let region = &mut self.regions[index];
+        let offset = address - region.spec.base;
+        region.copy_in(offset, data);
+        region.stamp(offset, data.len() as u32, tick);
+        Ok(())
+    }
+
+    /// Écrit un mot de 32 bits little-endian (accès de l'hôte).
+    pub fn write_u32(&mut self, address: u32, value: u32) -> Result<(), MemoryError> {
+        self.write_bytes(address, &value.to_le_bytes())
+    }
+
+    /// Remplit `[address, address + len)` avec `value` (accès de l'hôte).
+    pub fn fill(&mut self, address: u32, len: u32, value: u8) -> Result<(), MemoryError> {
+        self.write_bytes(address, &vec![value; len as usize])
+    }
+
