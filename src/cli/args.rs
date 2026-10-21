@@ -102,3 +102,21 @@ mod tests {
         assert!(!a.flag("absent"));
     }
 
+    #[test]
+    fn a_missing_value_is_an_error() {
+        assert!(Args::parse(&strings(&["--model"]), &[]).is_err());
+    }
+
+    #[test]
+    fn numbers_accept_hex_and_separators() {
+        let a = Args::parse(
+            &strings(&["--n", "0x10", "--m", "40_000_000", "--bad", "x"]),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(a.number("n"), Ok(Some(16)));
+        assert_eq!(a.number("m"), Ok(Some(40_000_000)));
+        assert_eq!(a.number("absent"), Ok(None));
+        assert!(a.number("bad").is_err());
+    }
+}
