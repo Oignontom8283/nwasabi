@@ -5,6 +5,7 @@
 //! autonome. Il ne contient rien de spécifique à NumWorks : ni carte mémoire, ni appels système.
 //! Tout ce dont il a besoin de l'extérieur passe par les traits [`Bus`] et [`Hooks`].
 
+pub mod alu;
 mod bus;
 mod hooks;
 mod regs;
