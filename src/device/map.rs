@@ -95,3 +95,37 @@ pub fn build_memory(profile: &FirmwareProfile, ram_fill: u8) -> Result<Memory, M
     Ok(memory)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_model_gets_the_expected_regions() {
+        for model in Model::ALL {
+            let profile = FirmwareProfile::default_for(model);
+            let memory = build_memory(&profile, 0).unwrap();
+            let names: Vec<String> = memory.regions().into_iter().map(|r| r.name).collect();
+            assert!(names.contains(&"flash_ext".to_owned()), "{}", model.name());
+            assert!(names.contains(&"sram".to_owned()));
+            assert!(names.contains(&"sram_kernel".to_owned()));
+        }
+    }
+
+    #[test]
+    fn sram_is_split_between_the_application_and_the_kernel() {
+        let profile = FirmwareProfile::default_for(Model::N0110);
+        let memory = build_memory(&profile, 0).unwrap();
+        let find = |name: &str| {
+            memory
+                .regions()
+                .into_iter()
+                .find(|r| r.name == name)
+                .unwrap()
+        };
+        let (app, kernel) = (find("sram"), find("sram_kernel"));
+        assert_eq!((app.base, app.size), (0x2000_0000, 0x3_f000));
+        assert_eq!((kernel.base, kernel.size), (0x2003_f000, 0x1000));
+        assert_eq!(kernel.perms, Perms::NONE);
+        assert_eq!(app.base + app.size, kernel.base);
+    }
+}
