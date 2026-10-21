@@ -66,3 +66,23 @@ fn write_slot(
     Ok(())
 }
 
+/// Écrit tout ce que l'OS laisse en mémoire après son démarrage : les deux slots, le
+/// `SlotInfo` (qui désigne le slot A) et un système de fichiers vide.
+pub fn write_structures(memory: &mut Memory, profile: &FirmwareProfile) -> Result<(), MemoryError> {
+    write_slot(memory, profile, &profile.slot_a)?;
+    write_slot(memory, profile, &profile.slot_b)?;
+
+    let info = SlotInfo::new(profile.slot_a.kernel_header, profile.slot_a.userland_header);
+    let at = profile.slot_info_address();
+    debug_assert_eq!(info.encode().len(), SLOT_INFO_SIZE);
+    memory.write_bytes(at, &info.encode())?;
+
+    // Système de fichiers : un magic avant le tampon, un magic après. Le tampon est vide (le
+    // premier enregistrement a une taille de 0) ; le reste de l'objet reste à zéro.
+    memory.write_u32(profile.storage_address, STORAGE_MAGIC)?;
+    memory.write_u32(
+        profile.storage_address + 4 + profile.storage_size,
+        STORAGE_MAGIC,
+    )?;
+    Ok(())
+}
