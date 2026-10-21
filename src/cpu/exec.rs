@@ -343,3 +343,49 @@ impl Cpu {
                 };
                 self.write(rd, result);
             }
+            Instr::Extend {
+                kind,
+                rd,
+                rm,
+                rotate,
+                rn,
+            } => {
+                let rotated = self.read(ctx, rm).rotate_right(u32::from(rotate));
+                let base = rn.map(|rn| self.read(ctx, rn));
+                self.write(rd, extend(kind, rotated, base));
+            }
+            Instr::Parallel { op, rd, rn, rm } => {
+                let (result, ge) = parallel(op, self.read(ctx, rn), self.read(ctx, rm));
+                if let Some(ge) = ge {
+                    self.regs.set_ge(ge);
+                }
+                self.write(rd, result);
+            }
+            Instr::Sel { rd, rn, rm } => {
+                let (a, b, ge) = (self.read(ctx, rn), self.read(ctx, rm), self.regs.ge());
+                let mut result = 0u32;
+                for i in 0..4 {
+                    let source = if ge & (1 << i) != 0 { a } else { b };
+                    result |= source & (0xff << (8 * i));
+                }
+                self.write(rd, result);
+            }
+            Instr::Pkh {
+                top_bottom,
+                rd,
+                rn,
+                rm,
+                amount,
+            } => {
+                let (a, b) = (self.read(ctx, rn), self.read(ctx, rm));
+                let result = if top_bottom {
+                    let n = if amount == 0 { 32 } else { amount };
+                    let shifted = shift_with_carry(b, ShiftKind::Asr, n, false).0;
+                    (a & 0xffff_0000) | (shifted & 0xffff)
+                } else {
+                    let shifted = shift_with_carry(b, ShiftKind::Lsl, amount, false).0;
+                    (shifted & 0xffff_0000) | (a & 0xffff)
+                };
+                self.write(rd, result);
+            }
+
