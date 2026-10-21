@@ -62,3 +62,36 @@ pub enum RunStop {
     Fault(Fault),
 }
 
+/// Ce qui peut échouer en préparant l'application.
+#[derive(Debug)]
+pub enum EmulatorError {
+    Link(LinkError),
+    Device(DeviceError),
+    /// Aucune application n'est installée.
+    NoApp,
+}
+
+impl fmt::Display for EmulatorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Link(e) => write!(f, "édition de liens : {e}"),
+            Self::Device(e) => write!(f, "{e}"),
+            Self::NoApp => write!(f, "aucune application installée"),
+        }
+    }
+}
+
+impl std::error::Error for EmulatorError {}
+
+impl From<LinkError> for EmulatorError {
+    fn from(e: LinkError) -> Self {
+        Self::Link(e)
+    }
+}
+
+impl From<DeviceError> for EmulatorError {
+    fn from(e: DeviceError) -> Self {
+        Self::Device(e)
+    }
+}
+
