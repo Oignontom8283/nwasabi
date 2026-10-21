@@ -372,3 +372,21 @@ fn decode_core_transfer(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Opti
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Arithmétique flottante à la manière d'ARM
+// ---------------------------------------------------------------------------------------------
+
+const FPSCR_IOC: u32 = 1 << 0;
+const FPSCR_DZC: u32 = 1 << 1;
+const FPSCR_OFC: u32 = 1 << 2;
+const FPSCR_UFC: u32 = 1 << 3;
+const FPSCR_IXC: u32 = 1 << 4;
+const FPSCR_IDC: u32 = 1 << 7;
+/// Mise à zéro des dénormalisés.
+const FPSCR_FZ: u32 = 1 << 24;
+/// Mode « NaN par défaut ».
+const FPSCR_DN: u32 = 1 << 25;
+/// Mode d'arrondi (bits 23-22).
+const FPSCR_RMODE_SHIFT: u32 = 22;
+const DEFAULT_NAN: u32 = 0x7fc0_0000;
+
