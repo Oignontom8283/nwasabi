@@ -37,6 +37,7 @@ const SECTIONS = [
     <template v-for="[key, title] in SECTIONS" :key="key">
       <h2>{{ title }} <span v-if="info.structures[key] && info.structures[key].valid === false" class="error">invalide</span></h2>
       <table v-if="info.structures[key]" class="mono">
+<tbody>
         <tr v-for="(value, name) in info.structures[key]" :key="name">
           <template v-if="typeof value !== 'object'">
             <th>{{ name }}</th><td>{{ fmt(name, value) }}</td>
@@ -45,28 +46,33 @@ const SECTIONS = [
             <th>{{ name }}</th><td>{{ hex(value.start) }} – {{ hex(value.end) }}</td>
           </template>
         </tr>
-      </table>
+      </tbody>
+</table>
       <p v-else class="muted">introuvable</p>
     </template>
     <h2>Nom de l'appareil</h2>
     <p class="mono">{{ info.structures.device_name === "" ? "(aucun)" : info.structures.device_name ?? "—" }}</p>
     <h2>Applications installées</h2>
     <table class="mono">
+<tbody>
       <tr v-for="a in info.structures.apps" :key="a.address">
         <td>{{ a.name }}</td><td>{{ hex(a.address) }}</td><td>API {{ a.api_level }}</td><td>{{ a.size }} octets</td>
       </tr>
       <tr v-if="!info.structures.apps.length"><td class="muted">aucune</td></tr>
-    </table>
+    </tbody>
+</table>
     <template v-if="info.app">
       <h2>Application liée</h2>
       <table class="mono">
+<tbody>
         <tr v-for="(value, name) in info.app" :key="name">
           <th>{{ name }}</th>
           <td v-if="Array.isArray(value)">{{ value.join("; ") || "—" }}</td>
           <td v-else-if="typeof value === 'object'">{{ hex(value.start) }} – {{ hex(value.end) }}</td>
           <td v-else>{{ fmt(name, value) }}</td>
         </tr>
-      </table>
+      </tbody>
+</table>
     </template>
   </div>
 </template>

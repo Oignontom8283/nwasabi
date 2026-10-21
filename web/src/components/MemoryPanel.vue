@@ -64,11 +64,13 @@ onBeforeUnmount(() => clearInterval(timer));
   <div>
     <h2>Zones mémoire</h2>
     <table class="mono">
+<tbody>
       <tr v-for="r in regions" :key="r.name">
         <td>{{ r.name }}</td><td>0x{{ hex(r.base) }}</td><td>{{ (r.size / 1024).toFixed(0) }} Kio</td><td>{{ r.perms }}</td>
         <td><a href="#" @click.prevent="address = '0x' + hex(r.base); readDump()">voir</a></td>
       </tr>
-    </table>
+    </tbody>
+</table>
 
     <template v-if="usage">
       <h2>Utilisation par l'application</h2>
