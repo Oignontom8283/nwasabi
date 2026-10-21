@@ -2,4 +2,6 @@
 //! en mémoire, comme le fait l'outil de flashage officiel avant d'écrire l'application dans la
 //! flash de la calculatrice.
 
+pub mod relocate;
 pub mod runtime;
+pub mod thumb;
