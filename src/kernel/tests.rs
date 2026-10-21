@@ -99,3 +99,13 @@ fn keyboard_scan_returns_the_pressed_keys() {
     assert_eq!(cpu.regs.r[1], 1 << (52 - 32));
 }
 
+#[test]
+fn event_get_returns_queued_events_and_the_remaining_timeout() {
+    let (mut emu, mut cpu) = setup();
+    emu.device.memory.write_u32(SCRATCH, 1000).unwrap();
+    emu.kernel.keyboard.press(Key::Back);
+    assert_eq!(call(&mut emu, &mut cpu, 23, &[SCRATCH]), SvcAction::Handled);
+    assert_eq!(cpu.regs.r[0], 5);
+    assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 1000);
+}
+
