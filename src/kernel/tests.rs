@@ -209,3 +209,17 @@ fn draw_string_reads_text_and_background_from_the_stack() {
     assert!((0..14).any(|y| (0..14).any(|x| emu.kernel.display.get(5 + x, 6 + y) == Some(0xffff))));
 }
 
+#[test]
+fn sbrk_moves_the_program_break_inside_the_heap() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.set_heap(0x2002_0000, 0x2002_1000);
+    call(&mut emu, &mut cpu, SVC_SBRK, &[0x800]);
+    assert_eq!(cpu.regs.r[0], 0x2002_0000);
+    call(&mut emu, &mut cpu, SVC_SBRK, &[0]);
+    assert_eq!(cpu.regs.r[0], 0x2002_0800);
+    call(&mut emu, &mut cpu, SVC_SBRK, &[0x1000]);
+    assert_eq!(cpu.regs.r[0], u32::MAX, "plus de place");
+    call(&mut emu, &mut cpu, SVC_SBRK, &[(-0x800i32) as u32]);
+    assert_eq!(emu.kernel.program_break(), 0x2002_0000);
+}
+
