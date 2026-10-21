@@ -42,3 +42,39 @@ impl Args {
         })
     }
 
+    pub fn flag(&self, name: &str) -> bool {
+        self.options.contains_key(name)
+    }
+
+    pub fn value(&self, name: &str) -> Option<&str> {
+        self.options.get(name)?.last().map(String::as_str)
+    }
+
+    pub fn values(&self, name: &str) -> &[String] {
+        self.options.get(name).map_or(&[], Vec::as_slice)
+    }
+
+    /// Un entier (décimal ou `0x…`) donné en option.
+    pub fn number(&self, name: &str) -> Result<Option<u64>, String> {
+        let Some(text) = self.value(name) else {
+            return Ok(None);
+        };
+        let parsed = match text.strip_prefix("0x") {
+            Some(hex) => u64::from_str_radix(hex, 16),
+            None => text.replace('_', "").parse(),
+        };
+        parsed
+            .map(Some)
+            .map_err(|_| format!("--{name} : « {text} » n'est pas un entier"))
+    }
+
+    /// Le seul argument positionnel attendu.
+    pub fn one_positional(&self, what: &str) -> Result<&str, String> {
+        match self.positional.as_slice() {
+            [one] => Ok(one),
+            [] => Err(format!("{what} manquant")),
+            _ => Err("trop d'arguments".to_owned()),
+        }
+    }
+}
+
