@@ -162,3 +162,22 @@ fn run(args: &[String]) -> Result<(), String> {
         None => None,
     };
 
+    let listener =
+        TcpListener::bind((host.as_str(), port)).map_err(|e| format!("{host}:{port} : {e}"))?;
+    let address = listener.local_addr().map_err(|e| e.to_string())?;
+    let url = format!("http://{address}/");
+    println!("{url}");
+    if open {
+        open_browser(&url);
+    }
+
+    let preload = Arc::new(preload);
+    for stream in listener.incoming().filter_map(Result::ok) {
+        let preload = Arc::clone(&preload);
+        std::thread::spawn(move || {
+            http::serve_connection(stream, &|path| route(path, preload.as_ref().as_ref()));
+        });
+    }
+    Ok(())
+}
+
