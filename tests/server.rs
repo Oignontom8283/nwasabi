@@ -91,3 +91,18 @@ fn preloads_the_given_application() {
     assert!(String::from_utf8_lossy(&page).contains("demo.nwa"));
 }
 
+#[test]
+fn unknown_paths_and_methods_are_refused_and_nothing_is_read_from_disk() {
+    let server = start(&[]);
+    assert_eq!(get(&server, "/inexistant.js").0, 404);
+    assert_eq!(get(&server, "/../Cargo.toml").0, 404);
+    assert_eq!(get(&server, "/%2e%2e/Cargo.toml").0, 404);
+    assert_eq!(
+        request(&server, "POST / HTTP/1.1\r\nHost: x\r\n\r\n").0,
+        405
+    );
+    assert_eq!(request(&server, "\r\n\r\n").0, 400);
+    // Les paramètres d'URL ne changent pas la route.
+    assert_eq!(get(&server, "/__nwasabi/health?x=1").0, 200);
+}
+
