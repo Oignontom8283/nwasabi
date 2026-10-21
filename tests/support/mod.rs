@@ -1,4 +1,8 @@
 //! Outils partagés par les tests d'intégration.
+//!
+//! Chaque fichier de test n'en utilise qu'une partie.
+
+#![allow(dead_code)]
 
 use std::path::PathBuf;
 
@@ -31,3 +35,4 @@ pub fn corpus() -> Option<Vec<(String, Vec<u8>)>> {
 pub fn skip_without_corpus() {
     eprintln!("corpus absent (variable NWASABI_CORPUS non définie) : test ignoré");
 }
+
