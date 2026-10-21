@@ -1,0 +1,1017 @@
+#0
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#1
+movs r1, #1
+tbb [pc, r1]
+.Ltb1:
+.byte (.La1-.Ltb1)/2, (.Lb1-.Ltb1)/2, (.Lc1-.Ltb1)/2, 0
+.align 1
+.La1:
+movs r2, #1
+b.n .Ld1
+.Lb1:
+movs r2, #2
+b.n .Ld1
+.Lc1:
+movs r2, #3
+.Ld1:
+#2
+cbz r4, 1f
+movs r0, #3
+1:
+movs r1, #5
+#3
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#4
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth4:
+.short (.Lta4-.Lth4)/2, (.Ltb4-.Lth4)/2, (.Ltc4-.Lth4)/2
+.align 1
+.Lta4:
+movs r2, #1
+b.n .Ltd4
+.Ltb4:
+movs r2, #2
+b.n .Ltd4
+.Ltc4:
+movs r2, #3
+.Ltd4:
+#5
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#6
+movs r1, #1
+tbb [pc, r1]
+.Ltb6:
+.byte (.La6-.Ltb6)/2, (.Lb6-.Ltb6)/2, (.Lc6-.Ltb6)/2, 0
+.align 1
+.La6:
+movs r2, #1
+b.n .Ld6
+.Lb6:
+movs r2, #2
+b.n .Ld6
+.Lc6:
+movs r2, #3
+.Ld6:
+#7
+cbz r0, 1f
+movs r0, #3
+1:
+movs r1, #5
+#8
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#9
+cmp r8, r7
+bgt.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#10
+cmp r6, r6
+ble.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#11
+cbnz r5, 1f
+movs r0, #3
+1:
+movs r1, #5
+#12
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#13
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#14
+cmp r4, r3
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#15
+cmp r10, r5
+bls.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#16
+movs r1, #0
+tbh [pc, r1, lsl #1]
+.Lth16:
+.short (.Lta16-.Lth16)/2, (.Ltb16-.Lth16)/2, (.Ltc16-.Lth16)/2
+.align 1
+.Lta16:
+movs r2, #1
+b.n .Ltd16
+.Ltb16:
+movs r2, #2
+b.n .Ltd16
+.Ltc16:
+movs r2, #3
+.Ltd16:
+#17
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#18
+cmp r6, r9
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#19
+cbnz r2, 1f
+movs r0, #3
+1:
+movs r1, #5
+#20
+cbz r2, 1f
+movs r0, #3
+1:
+movs r1, #5
+#21
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#22
+movs r1, #2
+tbh [pc, r1, lsl #1]
+.Lth22:
+.short (.Lta22-.Lth22)/2, (.Ltb22-.Lth22)/2, (.Ltc22-.Lth22)/2
+.align 1
+.Lta22:
+movs r2, #1
+b.n .Ltd22
+.Ltb22:
+movs r2, #2
+b.n .Ltd22
+.Ltc22:
+movs r2, #3
+.Ltd22:
+#23
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#24
+cmp r4, r9
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#25
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth25:
+.short (.Lta25-.Lth25)/2, (.Ltb25-.Lth25)/2, (.Ltc25-.Lth25)/2
+.align 1
+.Lta25:
+movs r2, #1
+b.n .Ltd25
+.Ltb25:
+movs r2, #2
+b.n .Ltd25
+.Ltc25:
+movs r2, #3
+.Ltd25:
+#26
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#27
+cmp r8, r0
+bne.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#28
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#29
+movs r1, #0
+tbb [pc, r1]
+.Ltb29:
+.byte (.La29-.Ltb29)/2, (.Lb29-.Ltb29)/2, (.Lc29-.Ltb29)/2, 0
+.align 1
+.La29:
+movs r2, #1
+b.n .Ld29
+.Lb29:
+movs r2, #2
+b.n .Ld29
+.Lc29:
+movs r2, #3
+.Ld29:
+#30
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#31
+movs r1, #2
+tbb [pc, r1]
+.Ltb31:
+.byte (.La31-.Ltb31)/2, (.Lb31-.Ltb31)/2, (.Lc31-.Ltb31)/2, 0
+.align 1
+.La31:
+movs r2, #1
+b.n .Ld31
+.Lb31:
+movs r2, #2
+b.n .Ld31
+.Lc31:
+movs r2, #3
+.Ld31:
+#32
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#33
+cbnz r7, 1f
+movs r0, #3
+1:
+movs r1, #5
+#34
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth34:
+.short (.Lta34-.Lth34)/2, (.Ltb34-.Lth34)/2, (.Ltc34-.Lth34)/2
+.align 1
+.Lta34:
+movs r2, #1
+b.n .Ltd34
+.Ltb34:
+movs r2, #2
+b.n .Ltd34
+.Ltc34:
+movs r2, #3
+.Ltd34:
+#35
+movs r1, #0
+tbh [pc, r1, lsl #1]
+.Lth35:
+.short (.Lta35-.Lth35)/2, (.Ltb35-.Lth35)/2, (.Ltc35-.Lth35)/2
+.align 1
+.Lta35:
+movs r2, #1
+b.n .Ltd35
+.Ltb35:
+movs r2, #2
+b.n .Ltd35
+.Ltc35:
+movs r2, #3
+.Ltd35:
+#36
+cmp r9, r0
+bvc.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#37
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#38
+cmp r1, r3
+beq.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#39
+cbz r2, 1f
+movs r0, #3
+1:
+movs r1, #5
+#40
+movs r1, #2
+tbh [pc, r1, lsl #1]
+.Lth40:
+.short (.Lta40-.Lth40)/2, (.Ltb40-.Lth40)/2, (.Ltc40-.Lth40)/2
+.align 1
+.Lta40:
+movs r2, #1
+b.n .Ltd40
+.Ltb40:
+movs r2, #2
+b.n .Ltd40
+.Ltc40:
+movs r2, #3
+.Ltd40:
+#41
+movs r1, #2
+tbb [pc, r1]
+.Ltb41:
+.byte (.La41-.Ltb41)/2, (.Lb41-.Ltb41)/2, (.Lc41-.Ltb41)/2, 0
+.align 1
+.La41:
+movs r2, #1
+b.n .Ld41
+.Lb41:
+movs r2, #2
+b.n .Ld41
+.Lc41:
+movs r2, #3
+.Ld41:
+#42
+movs r1, #2
+tbh [pc, r1, lsl #1]
+.Lth42:
+.short (.Lta42-.Lth42)/2, (.Ltb42-.Lth42)/2, (.Ltc42-.Lth42)/2
+.align 1
+.Lta42:
+movs r2, #1
+b.n .Ltd42
+.Ltb42:
+movs r2, #2
+b.n .Ltd42
+.Ltc42:
+movs r2, #3
+.Ltd42:
+#43
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#44
+cmp r1, r2
+ble.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#45
+cbz r2, 1f
+movs r0, #3
+1:
+movs r1, #5
+#46
+cmp r0, r2
+bpl.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#47
+cbnz r6, 1f
+movs r0, #3
+1:
+movs r1, #5
+#48
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#49
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#50
+cmp r1, r1
+bcc.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#51
+cmp r3, r9
+bne.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#52
+cmp r9, r7
+bvs.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#53
+cmp r4, r10
+bgt.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#54
+cmp r8, r8
+blt.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#55
+movs r1, #0
+tbh [pc, r1, lsl #1]
+.Lth55:
+.short (.Lta55-.Lth55)/2, (.Ltb55-.Lth55)/2, (.Ltc55-.Lth55)/2
+.align 1
+.Lta55:
+movs r2, #1
+b.n .Ltd55
+.Ltb55:
+movs r2, #2
+b.n .Ltd55
+.Ltc55:
+movs r2, #3
+.Ltd55:
+#56
+cmp r3, r8
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#57
+cmp r3, r0
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#58
+cmp r10, r10
+bvs.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#59
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#60
+cbnz r6, 1f
+movs r0, #3
+1:
+movs r1, #5
+#61
+movs r1, #0
+tbb [pc, r1]
+.Ltb61:
+.byte (.La61-.Ltb61)/2, (.Lb61-.Ltb61)/2, (.Lc61-.Ltb61)/2, 0
+.align 1
+.La61:
+movs r2, #1
+b.n .Ld61
+.Lb61:
+movs r2, #2
+b.n .Ld61
+.Lc61:
+movs r2, #3
+.Ld61:
+#62
+cmp r1, r4
+bhi.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#63
+movs r1, #2
+tbh [pc, r1, lsl #1]
+.Lth63:
+.short (.Lta63-.Lth63)/2, (.Ltb63-.Lth63)/2, (.Ltc63-.Lth63)/2
+.align 1
+.Lta63:
+movs r2, #1
+b.n .Ltd63
+.Ltb63:
+movs r2, #2
+b.n .Ltd63
+.Ltc63:
+movs r2, #3
+.Ltd63:
+#64
+movs r1, #0
+tbb [pc, r1]
+.Ltb64:
+.byte (.La64-.Ltb64)/2, (.Lb64-.Ltb64)/2, (.Lc64-.Ltb64)/2, 0
+.align 1
+.La64:
+movs r2, #1
+b.n .Ld64
+.Lb64:
+movs r2, #2
+b.n .Ld64
+.Lc64:
+movs r2, #3
+.Ld64:
+#65
+movs r1, #2
+tbb [pc, r1]
+.Ltb65:
+.byte (.La65-.Ltb65)/2, (.Lb65-.Ltb65)/2, (.Lc65-.Ltb65)/2, 0
+.align 1
+.La65:
+movs r2, #1
+b.n .Ld65
+.Lb65:
+movs r2, #2
+b.n .Ld65
+.Lc65:
+movs r2, #3
+.Ld65:
+#66
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#67
+cmp r3, r2
+bvc.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#68
+cmp r2, r2
+ble.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#69
+cmp r8, r6
+beq.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#70
+cmp r5, r9
+ble.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#71
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#72
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#73
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#74
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#75
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth75:
+.short (.Lta75-.Lth75)/2, (.Ltb75-.Lth75)/2, (.Ltc75-.Lth75)/2
+.align 1
+.Lta75:
+movs r2, #1
+b.n .Ltd75
+.Ltb75:
+movs r2, #2
+b.n .Ltd75
+.Ltc75:
+movs r2, #3
+.Ltd75:
+#76
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#77
+cmp r7, r2
+beq.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#78
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#79
+movs r1, #2
+tbb [pc, r1]
+.Ltb79:
+.byte (.La79-.Ltb79)/2, (.Lb79-.Ltb79)/2, (.Lc79-.Ltb79)/2, 0
+.align 1
+.La79:
+movs r2, #1
+b.n .Ld79
+.Lb79:
+movs r2, #2
+b.n .Ld79
+.Lc79:
+movs r2, #3
+.Ld79:
+#80
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth80:
+.short (.Lta80-.Lth80)/2, (.Ltb80-.Lth80)/2, (.Ltc80-.Lth80)/2
+.align 1
+.Lta80:
+movs r2, #1
+b.n .Ltd80
+.Ltb80:
+movs r2, #2
+b.n .Ltd80
+.Ltc80:
+movs r2, #3
+.Ltd80:
+#81
+cmp r3, r9
+bls.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#82
+movs r1, #1
+tbb [pc, r1]
+.Ltb82:
+.byte (.La82-.Ltb82)/2, (.Lb82-.Ltb82)/2, (.Lc82-.Ltb82)/2, 0
+.align 1
+.La82:
+movs r2, #1
+b.n .Ld82
+.Lb82:
+movs r2, #2
+b.n .Ld82
+.Lc82:
+movs r2, #3
+.Ld82:
+#83
+movs r1, #2
+tbb [pc, r1]
+.Ltb83:
+.byte (.La83-.Ltb83)/2, (.Lb83-.Ltb83)/2, (.Lc83-.Ltb83)/2, 0
+.align 1
+.La83:
+movs r2, #1
+b.n .Ld83
+.Lb83:
+movs r2, #2
+b.n .Ld83
+.Lc83:
+movs r2, #3
+.Ld83:
+#84
+cmp r0, r3
+bvs.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#85
+movs r1, #2
+tbh [pc, r1, lsl #1]
+.Lth85:
+.short (.Lta85-.Lth85)/2, (.Ltb85-.Lth85)/2, (.Ltc85-.Lth85)/2
+.align 1
+.Lta85:
+movs r2, #1
+b.n .Ltd85
+.Ltb85:
+movs r2, #2
+b.n .Ltd85
+.Ltc85:
+movs r2, #3
+.Ltd85:
+#86
+cmp r10, r4
+beq.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#87
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#88
+cbz r1, 1f
+movs r0, #3
+1:
+movs r1, #5
+#89
+cbz r7, 1f
+movs r0, #3
+1:
+movs r1, #5
+#90
+cmp r10, r7
+bcc.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#91
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#92
+movs r1, #0
+tbb [pc, r1]
+.Ltb92:
+.byte (.La92-.Ltb92)/2, (.Lb92-.Ltb92)/2, (.Lc92-.Ltb92)/2, 0
+.align 1
+.La92:
+movs r2, #1
+b.n .Ld92
+.Lb92:
+movs r2, #2
+b.n .Ld92
+.Lc92:
+movs r2, #3
+.Ld92:
+#93
+movs r1, #2
+tbb [pc, r1]
+.Ltb93:
+.byte (.La93-.Ltb93)/2, (.Lb93-.Ltb93)/2, (.Lc93-.Ltb93)/2, 0
+.align 1
+.La93:
+movs r2, #1
+b.n .Ld93
+.Lb93:
+movs r2, #2
+b.n .Ld93
+.Lc93:
+movs r2, #3
+.Ld93:
+#94
+cbz r6, 1f
+movs r0, #3
+1:
+movs r1, #5
+#95
+cbz r4, 1f
+movs r0, #3
+1:
+movs r1, #5
+#96
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#97
+cmp r3, r3
+bvc.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#98
+cmp r1, r7
+bpl.n 1f
+movs r0, #1
+movs r2, #4
+1:
+#99
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#100
+cmp r5, r5
+bne.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#101
+cbz r4, 1f
+movs r0, #3
+1:
+movs r1, #5
+#102
+movs r1, #1
+tbb [pc, r1]
+.Ltb102:
+.byte (.La102-.Ltb102)/2, (.Lb102-.Ltb102)/2, (.Lc102-.Ltb102)/2, 0
+.align 1
+.La102:
+movs r2, #1
+b.n .Ld102
+.Lb102:
+movs r2, #2
+b.n .Ld102
+.Lc102:
+movs r2, #3
+.Ld102:
+#103
+movs r1, #0
+tbh [pc, r1, lsl #1]
+.Lth103:
+.short (.Lta103-.Lth103)/2, (.Ltb103-.Lth103)/2, (.Ltc103-.Lth103)/2
+.align 1
+.Lta103:
+movs r2, #1
+b.n .Ltd103
+.Ltb103:
+movs r2, #2
+b.n .Ltd103
+.Ltc103:
+movs r2, #3
+.Ltd103:
+#104
+b.w 1f
+movs r0, #9
+movs r2, #8
+1:
+movs r1, #7
+#105
+movs r1, #0
+tbb [pc, r1]
+.Ltb105:
+.byte (.La105-.Ltb105)/2, (.Lb105-.Ltb105)/2, (.Lc105-.Ltb105)/2, 0
+.align 1
+.La105:
+movs r2, #1
+b.n .Ld105
+.Lb105:
+movs r2, #2
+b.n .Ld105
+.Lc105:
+movs r2, #3
+.Ld105:
+#106
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#107
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth107:
+.short (.Lta107-.Lth107)/2, (.Ltb107-.Lth107)/2, (.Ltc107-.Lth107)/2
+.align 1
+.Lta107:
+movs r2, #1
+b.n .Ltd107
+.Ltb107:
+movs r2, #2
+b.n .Ltd107
+.Ltc107:
+movs r2, #3
+.Ltd107:
+#108
+movs r1, #1
+tbh [pc, r1, lsl #1]
+.Lth108:
+.short (.Lta108-.Lth108)/2, (.Ltb108-.Lth108)/2, (.Ltc108-.Lth108)/2
+.align 1
+.Lta108:
+movs r2, #1
+b.n .Ltd108
+.Ltb108:
+movs r2, #2
+b.n .Ltd108
+.Ltc108:
+movs r2, #3
+.Ltd108:
+#109
+cmp r8, r4
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#110
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#111
+cmp r3, r9
+bgt.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#112
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
+#113
+cmp r3, r7
+bne.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#114
+cbnz r2, 1f
+movs r0, #3
+1:
+movs r1, #5
+#115
+b.n 1f
+movs r0, #9
+1:
+movs r1, #7
+#116
+movs r1, #1
+tbb [pc, r1]
+.Ltb116:
+.byte (.La116-.Ltb116)/2, (.Lb116-.Ltb116)/2, (.Lc116-.Ltb116)/2, 0
+.align 1
+.La116:
+movs r2, #1
+b.n .Ld116
+.Lb116:
+movs r2, #2
+b.n .Ld116
+.Lc116:
+movs r2, #3
+.Ld116:
+#117
+cmp r5, r8
+blt.w 1f
+movs r0, #1
+1:
+movs r1, #2
+#118
+cmp r9, r8
+bls.n 1f
+movs r0, #1
+1:
+movs r1, #2
+#119
+bl 1f
+b.n 2f
+1:
+movs r0, #4
+bx lr
+2:
+movs r1, #6
