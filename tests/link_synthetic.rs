@@ -135,3 +135,45 @@ fn a_function_pointer_keeps_the_thumb_bit() {
     assert_eq!(slot, WORD_SLOTS_AT);
 }
 
+#[test]
+fn an_undefined_symbol_is_only_an_error_when_something_uses_it() {
+    // Référencé par une section que personne n'utilise : pas d'erreur.
+    let mut unused = synthetic_app();
+    let missing = undefined(&mut unused.writer, "does_not_exist", SymbolBind::Global);
+    let dead = unused
+        .writer
+        .add_section(".rodata.dead", SHF_ALLOC, 4, &[0; 4]);
+    unused.writer.add_relocation(dead, 0, missing, R_ARM_ABS32);
+    assert!(link_app(unused).is_ok());
+
+    // Référencé depuis `main` : erreur, avec le nom du symbole.
+    let mut used = synthetic_app();
+    let missing = undefined(&mut used.writer, "does_not_exist", SymbolBind::Global);
+    used.word_ref(missing);
+    match link_app(used) {
+        Err(LinkError::UndefinedSymbol {
+            name,
+            referenced_from,
+        }) => {
+            assert_eq!(name, "does_not_exist");
+            assert_eq!(referenced_from, ".text.main");
+        }
+        other => panic!("attendu UndefinedSymbol, obtenu {other:?}"),
+    }
+}
+
+#[test]
+fn a_weak_undefined_symbol_is_zero_and_a_call_to_it_becomes_a_nop() {
+    let mut app = synthetic_app();
+    let weak = undefined(&mut app.writer, "optional_hook", SymbolBind::Weak);
+    let word_slot = app.word_ref(weak);
+    let call_slot = app.call(weak);
+    let linked = link_app(app).unwrap();
+    let main = symbol(&linked, "main").address & !1;
+    assert_eq!(bytes_at(&linked, main + word_slot, 4), [0, 0, 0, 0]);
+    assert_eq!(
+        bytes_at(&linked, main + call_slot, 4),
+        [0xaf, 0xf3, 0x00, 0x80]
+    ); // nop.w
+}
+
