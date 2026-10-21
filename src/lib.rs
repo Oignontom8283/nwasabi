@@ -17,4 +17,5 @@ pub mod kernel;
 pub mod link;
 pub mod memory;
 pub mod profile;
+pub mod storage;
 pub mod structures;
