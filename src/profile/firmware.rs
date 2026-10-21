@@ -90,3 +90,35 @@ impl fmt::Display for ProfileError {
 
 impl std::error::Error for ProfileError {}
 
+impl FirmwareProfile {
+    /// Début de la SRAM (adresse du `SlotInfo`).
+    pub fn sram_base(&self) -> u32 {
+        self.model.sram_base()
+    }
+
+    /// Début de la SRAM du noyau (inaccessible aux applications).
+    pub fn kernel_sram_base(&self) -> u32 {
+        self.sram_base() + self.sram_size - self.kernel_sram_size
+    }
+
+    /// Adresse du `SlotInfo` : la toute première adresse de la SRAM.
+    pub fn slot_info_address(&self) -> u32 {
+        self.sram_base()
+    }
+
+    /// Adresse de la table de fonctions du userland (`UserlandHeader` + 0x38) : l'outil de
+    /// flashage la passe à l'éditeur de liens pour `eadk_display_draw_string`.
+    pub fn trampoline_address(&self) -> u32 {
+        self.slot_a.userland_header + 0x38
+    }
+
+    /// Début et fin de la zone des applications externes du slot actif.
+    pub fn apps_flash(&self) -> (u32, u32) {
+        self.slot_a.apps_flash
+    }
+
+    /// Zone de RAM des applications : début et taille.
+    pub fn apps_ram_len(&self) -> u32 {
+        self.apps_ram.1 - self.apps_ram.0
+    }
+
