@@ -7,12 +7,14 @@
 
 pub mod alu;
 mod bus;
+mod decode;
 mod fpu;
 mod hooks;
 mod instr;
 mod regs;
 
 pub use bus::{Bus, BusFault, FaultKind, Width};
+pub use decode::{decode16, decode32, is_32bit};
 pub use hooks::{Hooks, SvcAction};
 pub use instr::Instr;
 pub use regs::Registers;
