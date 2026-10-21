@@ -76,3 +76,61 @@ impl Cpu {
         Ok(())
     }
 
+    /// Retour d'exception : dépile le contexte désigné par la valeur `EXC_RETURN`.
+    pub(super) fn exception_return<B: Bus>(
+        &mut self,
+        bus: &mut B,
+        exc_return: u32,
+    ) -> Result<(), Stop> {
+        let (to_handler, use_psp) = match exc_return & 0xf {
+            0x1 => (true, false),
+            0x9 => (false, false),
+            0xd => (false, true),
+            _ => {
+                return Err(Stop::UsageFault {
+                    pc: self.regs.pc,
+                    kind: UsageFault::InvalidState,
+                });
+            }
+        };
+        let float = exc_return & 0x10 == 0;
+        let frame = if use_psp { self.psp } else { self.regs.sp };
+        let word = |bus: &mut B, i: u32| {
+            bus.read32(frame.wrapping_add(4 * i))
+                .map_err(Stop::BusFault)
+        };
+        let mut words = [0u32; 8];
+        for (i, w) in words.iter_mut().enumerate() {
+            *w = word(bus, i as u32)?;
+        }
+        if float {
+            for i in 0..16 {
+                self.regs.s[i as usize] = word(bus, 8 + i)?;
+            }
+            self.regs.fpscr = word(bus, 24)?;
+        }
+        let size = FRAME_INTEGER + if float { FRAME_FLOAT } else { 0 };
+        let new_sp = frame.wrapping_add(size) + if words[7] & XPSR_ALIGN != 0 { 4 } else { 0 };
+
+        self.regs.r[..4].copy_from_slice(&words[..4]);
+        self.regs.r[12] = words[4];
+        self.regs.lr = words[5];
+        self.regs.pc = words[6] & !1;
+        self.regs.xpsr = words[7] & !XPSR_ALIGN;
+
+        if use_psp {
+            self.msp = self.regs.sp;
+            self.psp = new_sp;
+            self.regs.sp = new_sp;
+            self.control |= CONTROL_SPSEL;
+        } else {
+            self.regs.sp = new_sp;
+            self.control &= !CONTROL_SPSEL;
+        }
+        if float {
+            self.control |= CONTROL_FPCA;
+        }
+        self.handler_mode = to_handler;
+        Ok(())
+    }
+}
