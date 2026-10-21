@@ -68,3 +68,65 @@ fn case_texts(path: &std::path::Path) -> Vec<String> {
     cases
 }
 
+/// Exécute un lot et renvoie les différences (texte lisible), vide si tout concorde.
+fn run_batch(name: &str) -> Vec<String> {
+    let dir = vectors_dir();
+    let program = fs::read(dir.join(format!("{name}.bin"))).unwrap();
+    let expected = fs::read(dir.join(format!("{name}.expected"))).unwrap();
+    let cases = case_texts(&dir.join(format!("{name}.cases")));
+    let fp = name
+        .split_once('_')
+        .is_some_and(|(_, rest)| rest.starts_with("fp_"));
+    let words = if fp { FP_CASE_WORDS } else { CASE_WORDS };
+    let count = (expected.len() - 4) / (4 * words);
+
+    let mut memory = Memory::new();
+    memory.add_region(region("code", 0, 0x4_0000)).unwrap();
+    memory
+        .add_region(region("ram", 0x2000_0000, 0x4_0000))
+        .unwrap();
+    // Les programmes écrivent CPACR pour activer la FPU : on accepte ces écritures.
+    memory
+        .add_region(region("scs", 0xe000_e000, 0x1000))
+        .unwrap();
+    memory.write_bytes(0, &program).unwrap();
+
+    let mut cpu = Cpu::new();
+    cpu.regs.sp = memory.read_u32(0).unwrap();
+    cpu.regs.pc = memory.read_u32(4).unwrap() & !1;
+    let stop = cpu.run(&mut memory, &mut NoHooks, 20_000_000);
+    let mut problems = Vec::new();
+    if !matches!(stop, Stop::Breakpoint { .. }) {
+        problems.push(format!(
+            "{name}: arrêt inattendu {stop:?} à pc={:#x}",
+            cpu.regs.pc
+        ));
+    }
+
+    let actual = memory.read_bytes(OUT, expected.len() as u32).unwrap();
+    for i in 0..count {
+        let a = &actual[4 * words * i..4 * words * (i + 1)];
+        let e = &expected[4 * words * i..4 * words * (i + 1)];
+        if a != e {
+            let mut text = format!(
+                "{name} cas #{i} :\n{}",
+                cases.get(i).map_or("", String::as_str)
+            );
+            for slot in 0..words {
+                let (got, want) = (word(a, slot), word(e, slot));
+                if got != want {
+                    text += &format!(
+                        "  {} : nwasabi {got:#010x}, QEMU {want:#010x}\n",
+                        slot_name(slot, fp)
+                    );
+                }
+            }
+            problems.push(text);
+        }
+    }
+    if word(&actual, count * words) != MARKER && problems.is_empty() {
+        problems.push(format!("{name}: marqueur de fin absent"));
+    }
+    problems
+}
+
