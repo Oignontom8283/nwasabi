@@ -7,7 +7,9 @@
 mod header;
 mod reader;
 mod section;
+mod symbol;
 
 pub use error::ElfError;
 pub use header::Header;
 pub use section::*;
+pub use symbol::{Symbol, SymbolBind, SymbolKind, SymbolSection};
