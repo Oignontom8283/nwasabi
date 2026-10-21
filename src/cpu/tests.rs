@@ -195,3 +195,25 @@ fn thumb2_movw_movt_build_a_constant() {
     assert_eq!(cpu.regs.pc, START + 8);
 }
 
+#[test]
+fn thirty_two_bit_bl_reaches_its_target() {
+    // bl vers 0x3026 depuis 0x100 : offset = 0x3026 - 0x104 = 0x2f22 ; encodage calculé à la main
+    // par l'assembleur GNU pour le même décalage relatif (voir tests de relocation).
+    let offset = 0x3026i32 - 0x104;
+    let (hw1, hw2) = bl_encoding(offset);
+    let (cpu, ..) = run(&[hw1, hw2], |_| {}, 1);
+    assert_eq!(cpu.regs.pc, 0x3026);
+    assert_eq!(cpu.regs.lr, (START + 4) | 1);
+}
+
+/// Encodage de `bl` pour un décalage donné (champs S, J1, J2, imm10, imm11).
+fn bl_encoding(offset: i32) -> (u16, u16) {
+    let v = offset as u32;
+    let s = (v >> 24) & 1;
+    let (i1, i2) = ((v >> 23) & 1, (v >> 22) & 1);
+    let (j1, j2) = (!(i1 ^ s) & 1, !(i2 ^ s) & 1);
+    let hw1 = 0xf000 | (s << 10) | ((v >> 12) & 0x3ff);
+    let hw2 = 0xd000 | (j1 << 13) | (j2 << 11) | ((v >> 1) & 0x7ff);
+    (hw1 as u16, hw2 as u16)
+}
+
