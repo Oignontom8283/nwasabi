@@ -43,3 +43,18 @@ pub struct StorageView {
     pub first_record_size: u16,
 }
 
+/// Tout ce que l'inspection retrouve en mémoire.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Structures {
+    pub sram_base: Option<u32>,
+    pub model_class: Option<ModelClass>,
+    pub slot_info: Option<Found<SlotInfo>>,
+    pub slot_header: Option<Found<SlotHeader>>,
+    pub kernel_header: Option<Found<KernelHeader>>,
+    pub userland_header: Option<Found<UserlandHeader>>,
+    pub vector_table: Option<Found<VectorTable>>,
+    pub storage: Option<StorageView>,
+    /// Nom de l'appareil, tel qu'écrit en flash (vide si aucun nom n'est défini).
+    pub device_name: Option<String>,
+    pub apps: Vec<AppEntry>,
+}
