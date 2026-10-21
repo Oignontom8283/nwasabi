@@ -7,12 +7,26 @@
 
 pub mod alu;
 mod bus;
+mod fpu;
 mod hooks;
+mod instr;
 mod regs;
 
 pub use bus::{Bus, BusFault, FaultKind, Width};
 pub use hooks::{Hooks, SvcAction};
+pub use instr::Instr;
 pub use regs::Registers;
+
+/// Pourquoi le processeur lève une faute d'utilisation (`UsageFault`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsageFault {
+    /// Instruction que le processeur ne peut pas exécuter (`udf`).
+    UndefinedInstruction,
+    /// Branchement vers une adresse en mode ARM (bit 0 à zéro) : un Cortex-M n'exécute que du Thumb.
+    InvalidState,
+    /// Accès non aligné interdit (`ldm`, `stm`, `ldrd`, `strd`).
+    Unaligned,
+}
 
 /// Raison pour laquelle l'exécution a rendu la main à l'hôte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +39,12 @@ pub enum Stop {
     BusFault(BusFault),
     /// Une instruction que l'émulateur ne gère pas (encore) : son adresse et son premier demi-mot.
     Unimplemented { pc: u32, halfword: u16 },
+    /// Faute d'utilisation à l'adresse `pc`.
+    UsageFault { pc: u32, kind: UsageFault },
+    /// Instruction `bkpt`.
+    Breakpoint { imm8: u8 },
+    /// Instruction `wfi` ou `wfe` : le processeur attend un événement.
+    WaitForInterrupt,
 }
 
 /// L'état complet du processeur.
