@@ -59,3 +59,15 @@ fn get(server: &Server, path: &str) -> (u16, Vec<u8>) {
     request(server, &format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n"))
 }
 
+#[test]
+fn serves_a_fallback_page_and_health() {
+    let server = start(&[]);
+    let (code, body) = get(&server, "/");
+    assert_eq!(code, 200);
+    assert!(String::from_utf8_lossy(&body).contains("nwasabi"));
+    let (code, body) = get(&server, "/__nwasabi/health");
+    assert_eq!((code, body.as_slice()), (200, &b"{\"ok\":true}"[..]));
+    let (_, body) = get(&server, "/__nwasabi/preload");
+    assert_eq!(body, b"null");
+}
+
