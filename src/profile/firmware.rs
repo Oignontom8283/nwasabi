@@ -3,7 +3,7 @@
 use std::fmt;
 
 use super::Model;
-use super::layout::{EXTERNAL_FLASH_BASE, EXTERNAL_FLASH_SIZE, SlotLayout};
+use super::layout::{EXTERNAL_FLASH_BASE, EXTERNAL_FLASH_SIZE, Slot, SlotLayout};
 
 /// Taille d'une chaîne de version ou de commit dans les en-têtes (octets, NUL compris).
 pub const HEADER_STRING_SIZE: usize = 8;
@@ -37,9 +37,12 @@ pub struct FirmwareProfile {
     /// Taille de la charge signée du slot, à partir de l'octet 8.
     pub payload_length: u32,
 
-    /// Slot actif (A) et son double (B).
+    /// Les deux slots (A et B), à des adresses décalées de la moitié de la flash.
     pub slot_a: SlotLayout,
     pub slot_b: SlotLayout,
+    /// Slot que l'appareil exécute : c'est celui que désigne le `SlotInfo` et dont la zone des
+    /// applications est publiée aux applications.
+    pub active_slot: Slot,
 
     /// Taille de la SRAM.
     pub sram_size: u32,
@@ -106,15 +109,28 @@ impl FirmwareProfile {
         self.sram_base()
     }
 
-    /// Adresse de la table de fonctions du userland (`UserlandHeader` + 0x38) : l'outil de
-    /// flashage la passe à l'éditeur de liens pour `eadk_display_draw_string`.
+    /// Disposition du slot demandé.
+    pub fn slot(&self, slot: Slot) -> &SlotLayout {
+        match slot {
+            Slot::A => &self.slot_a,
+            Slot::B => &self.slot_b,
+        }
+    }
+
+    /// Disposition du slot que l'appareil exécute.
+    pub fn active(&self) -> &SlotLayout {
+        self.slot(self.active_slot)
+    }
+
+    /// Adresse de la table de fonctions du userland (`UserlandHeader` + 0x38) du slot actif :
+    /// l'outil de flashage la passe à l'éditeur de liens pour `eadk_display_draw_string`.
     pub fn trampoline_address(&self) -> u32 {
-        self.slot_a.userland_header + 0x38
+        self.active().userland_header + 0x38
     }
 
     /// Début et fin de la zone des applications externes du slot actif.
     pub fn apps_flash(&self) -> (u32, u32) {
-        self.slot_a.apps_flash
+        self.active().apps_flash
     }
 
     /// Zone de RAM des applications : début et taille.
