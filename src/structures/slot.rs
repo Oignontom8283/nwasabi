@@ -60,3 +60,24 @@ impl SlotInfo {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slot_info_layout_matches_the_firmware() {
+        let info = SlotInfo::new(0x9000_0008, 0x9002_0000);
+        let bytes = info.encode();
+        // Magic en little-endian : ba db ee ef.
+        assert_eq!(&bytes[..4], [0xba, 0xdb, 0xee, 0xef]);
+        assert_eq!(SlotInfo::decode(&bytes), info);
+        assert!(info.is_valid());
+    }
+
+    #[test]
+    fn a_damaged_slot_info_is_not_valid() {
+        let mut info = SlotInfo::new(1, 2);
+        info.footer = 0;
+        assert!(!info.is_valid());
+    }
+}
