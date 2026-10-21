@@ -966,3 +966,24 @@ mod tests {
         assert_eq!(fpscr, FPSCR_IOC);
     }
 
+    #[test]
+    fn float_to_integer_saturates() {
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_int(-1.9, true, 3) as i32, -1);
+        assert_eq!(fpscr, FPSCR_IXC);
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_int(3e10, true, 3), 0x7fff_ffff);
+        assert_eq!(fpscr, FPSCR_IOC);
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_int(-5.0, false, 3), 0);
+        assert_eq!(fpscr, FPSCR_IOC);
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_int(f32::NAN, true, 3), 0);
+        assert_eq!(fpscr, FPSCR_IOC);
+        // Arrondi au plus proche (pair) et vers les infinis.
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_int(2.5, true, 0), 2);
+        assert_eq!(env(&mut fpscr).convert_to_int(2.1, true, 1), 3);
+        assert_eq!(env(&mut fpscr).convert_to_int(-2.1, true, 2) as i32, -3);
+    }
+
