@@ -3,3 +3,4 @@
 //! flash de la calculatrice.
 
 pub mod runtime;
+pub mod thumb;
