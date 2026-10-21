@@ -106,3 +106,22 @@ fn unknown_paths_and_methods_are_refused_and_nothing_is_read_from_disk() {
     assert_eq!(get(&server, "/__nwasabi/health?x=1").0, 200);
 }
 
+#[test]
+fn bad_arguments_are_reported() {
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--model", "n9999"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("modèle inconnu"));
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--nwa", "/inexistant.nwa"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--data", "x"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--data demande --nwa"));
+}
