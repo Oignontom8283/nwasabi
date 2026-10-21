@@ -725,3 +725,38 @@ impl Cpu {
                 }
                 self.regs.s[d as usize] = result.to_bits();
             }
+            FpInstr::Vmrs { rt } => {
+                if rt == 15 {
+                    self.regs.set_n(self.regs.fpscr >> 31 != 0);
+                    self.regs.set_z(self.regs.fpscr >> 30 & 1 != 0);
+                    self.regs.set_c(self.regs.fpscr >> 29 & 1 != 0);
+                    self.regs.set_v(self.regs.fpscr >> 28 & 1 != 0);
+                } else {
+                    let value = self.regs.fpscr;
+                    self.write_core(rt, value);
+                }
+            }
+            FpInstr::Vmsr { rt } => self.regs.fpscr = read(self, rt),
+            FpInstr::MovCore { to_core, rt, s } => {
+                if to_core {
+                    let value = self.regs.s[s as usize];
+                    self.write_core(rt, value);
+                } else {
+                    self.regs.s[s as usize] = read(self, rt);
+                }
+            }
+            FpInstr::MovTwoCore {
+                to_core,
+                rt,
+                rt2,
+                first,
+            } => {
+                if to_core {
+                    let (lo, hi) = (self.regs.s[first as usize], self.regs.s[first as usize + 1]);
+                    self.write_core(rt, lo);
+                    self.write_core(rt2, hi);
+                } else {
+                    self.regs.s[first as usize] = read(self, rt);
+                    self.regs.s[first as usize + 1] = read(self, rt2);
+                }
+            }
