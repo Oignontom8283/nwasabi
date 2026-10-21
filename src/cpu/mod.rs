@@ -31,12 +31,27 @@ pub enum Stop {
 #[derive(Debug, Clone, Default)]
 pub struct Cpu {
     pub regs: Registers,
-    /// Cycles écoulés depuis la création, selon un modèle de durée simple.
+    /// Cycles écoulés depuis la création, selon un modèle de durée simple (un par instruction).
     pub cycles: u64,
+    /// Pile principale et pile de processus, quand elles ne sont pas la pile active (`regs.sp`).
+    pub msp: u32,
+    pub psp: u32,
+    /// Registre `CONTROL` : bit 0 `nPRIV`, bit 1 `SPSEL` (pile de processus), bit 2 `FPCA`.
+    pub control: u32,
+    /// Vrai pendant le traitement d'une exception.
+    pub handler_mode: bool,
+    /// Adresse de la table des vecteurs d'exceptions.
+    pub vtor: u32,
+    pub primask: bool,
+    pub faultmask: bool,
+    pub basepri: u8,
 }
 
 impl Cpu {
     pub fn new() -> Self {
-        Self::default()
+        let mut cpu = Self::default();
+        // Le bit « Thumb » de xPSR vaut toujours 1 sur un Cortex-M.
+        cpu.regs.xpsr = regs::XPSR_T;
+        cpu
     }
 }
