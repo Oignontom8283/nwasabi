@@ -524,3 +524,16 @@ impl Env<'_> {
         self.finish(result, inexact, finite)
     }
 
+    fn sqrt(&mut self, a: f32) -> f32 {
+        let a = self.input(a);
+        if let Some(n) = self.process_nans(&[a]) {
+            return n;
+        }
+        if a < 0.0 {
+            return self.default_nan();
+        }
+        let result = a.sqrt();
+        let inexact = a.is_finite() && f64::from(result) * f64::from(result) != f64::from(a);
+        self.finish(result, inexact, true)
+    }
+
