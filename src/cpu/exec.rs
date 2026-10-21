@@ -757,3 +757,35 @@ impl Cpu {
         Ok(())
     }
 
+    fn read_sysreg(&self, sysreg: SysReg) -> u32 {
+        let xpsr = self.regs.xpsr;
+        // Les bits d'état d'exécution (EPSR : Thumb et IT) se lisent toujours comme zéro avec `mrs`.
+        let apsr = xpsr & 0xf80f_0000;
+        let ipsr = xpsr & 0x1ff;
+        match sysreg.0 {
+            0 | 2 => apsr,        // APSR, EAPSR
+            1 | 3 => apsr | ipsr, // IAPSR, XPSR
+            5 | 7 => ipsr,        // IPSR, IEPSR
+            6 => 0,               // EPSR
+            8 => {
+                if !self.handler_mode && self.control & 2 != 0 {
+                    self.msp
+                } else {
+                    self.regs.sp
+                }
+            }
+            9 => {
+                if !self.handler_mode && self.control & 2 != 0 {
+                    self.regs.sp
+                } else {
+                    self.psp
+                }
+            }
+            16 => u32::from(self.primask),
+            17 | 18 => u32::from(self.basepri),
+            19 => u32::from(self.faultmask),
+            20 => self.control,
+            _ => 0,
+        }
+    }
+
