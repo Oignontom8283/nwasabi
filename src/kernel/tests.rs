@@ -257,3 +257,10 @@ fn unknown_svc_stops_in_strict_mode_and_is_counted_otherwise() {
     assert_eq!(emu.kernel.svc_counts[0x70], 2);
 }
 
+#[test]
+fn home_key_ends_the_application_at_the_next_call() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Home);
+    call(&mut emu, &mut cpu, 34, &[]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::HomePressed));
+}
