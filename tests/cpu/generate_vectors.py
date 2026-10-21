@@ -499,3 +499,45 @@ EPILOGUE = f"""
 """
 
 
+FP_PROLOGUE = f"""
+  ldr r12, =.Lbufinit
+  ldr r11, ={BUF:#x}
+  ldmia r12!, {{r0-r7}}
+  stmia r11!, {{r0-r7}}
+  ldmia r12!, {{r0-r7}}
+  stmia r11!, {{r0-r7}}
+  ldr r12, =.Linit@I@
+  ldr r0, [r12, #48]
+  msr APSR_nzcvqg, r0
+  ldr r0, [r12, #52]
+  vmsr fpscr, r0
+  add r0, r12, #56
+  vldmia r0, {{s0-s31}}
+  ldmia r12, {{r0-r11}}
+"""
+
+FP_EPILOGUE = f"""
+  ldr r12, ={OUT:#x}+@I@*{FP_CASE_WORDS * 4}
+  stmia r12!, {{r0-r11}}
+  mrs r0, apsr
+  str r0, [r12], #4
+  vmrs r0, fpscr
+  str r0, [r12], #4
+  vstmia r12!, {{s0-s31}}
+  ldr r0, ={BUF:#x}
+  ldmia r0!, {{r1-r8}}
+  stmia r12!, {{r1-r8}}
+  ldmia r0!, {{r1-r8}}
+  stmia r12!, {{r1-r8}}
+"""
+
+FPU_ENABLE = f"""
+  ldr r0, =0xe000ed88
+  ldr r1, [r0]
+  orr r1, r1, #0xf00000
+  str r1, [r0]
+  dsb
+  isb
+"""
+
+
