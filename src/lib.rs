@@ -17,6 +17,7 @@ pub mod json;
 pub mod kernel;
 pub mod link;
 pub mod memory;
+pub mod png;
 pub mod profile;
 pub mod settings;
 pub mod storage;
