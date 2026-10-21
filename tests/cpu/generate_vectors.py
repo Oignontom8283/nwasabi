@@ -116,3 +116,43 @@ def cases_thumb16():
     return out
 
 
+def cases_it_blocks():
+    out = []
+    patterns = ['', 't', 'e', 'tt', 'te', 'et', 'ee', 'ttt', 'tte', 'tet', 'tee', 'ett', 'ete',
+                'eet', 'eee']
+    for _ in range(80):
+        c = cond()
+        pat = random.choice(patterns)
+        if random.random() < 0.3:
+            lines = [f"cmp {reg()}, #{immd(8)}"]
+        else:
+            lines = [f"cmp {reg()}, {reg()}"]
+        lines.append(f"it{pat} {c}")
+        conds = [c] + [c if ch == 't' else INVERSE[c] for ch in pat]
+        for cc in conds:
+            rd, rm, rn = reg(LOW), reg(LOW), reg(LOW)
+            lines.append(random.choice([
+                f"mov{cc} {rd}, #{immd(8)}",
+                f"add{cc} {rd}, {rn}, {rm}",
+                f"sub{cc} {rd}, {rn}, {rm}",
+                f"add{cc} {rd}, {rn}, #{immd(3)}",
+                f"and{cc} {rd}, {rm}",
+                f"orr{cc} {rd}, {rm}",
+                f"eor{cc} {rd}, {rm}",
+                f"mvn{cc} {rd}, {rm}",
+                f"rsb{cc} {rd}, {rm}, #0",
+                f"lsl{cc} {rd}, {rm}, #{random.randrange(32)}",
+                f"mul{cc} {rd}, {rm}, {rd}",
+                f"adc{cc} {rd}, {rm}",
+                f"sbc{cc} {rd}, {rm}",
+                f"mov{cc}.w {reg()}, #{modified_immediate()}",
+                f"add{cc}.w {reg()}, {reg()}, #{immd(8)}",
+                f"ldr{cc} {rd}, [r11, #{4 * random.randrange(8)}]",
+                f"str{cc} {rd}, [r11, #{4 * random.randrange(8)}]",
+                f"ldrb{cc} {rd}, [r11, #{random.randrange(16)}]",
+                f"uxtb{cc} {rd}, {rm}",
+            ]))
+        out.append('\n'.join(lines))
+    return out
+
+
