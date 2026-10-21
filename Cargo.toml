@@ -5,4 +5,7 @@ edition = "2024"
 description = "Cœur d'émulation des applications externes (.nwa) des calculatrices NumWorks"
 license = "AGPL-3.0-only"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
