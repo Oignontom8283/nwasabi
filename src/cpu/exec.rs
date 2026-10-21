@@ -91,3 +91,38 @@ impl Cpu {
         }
     }
 
+    /// Exécute une instruction à l'adresse `regs.pc`.
+    pub fn step<B: Bus, H: Hooks>(&mut self, bus: &mut B, hooks: &mut H) -> Result<(), Stop> {
+        let addr = self.regs.pc;
+        let hw1 = bus.fetch16(addr).map_err(Stop::BusFault)?;
+        let (decoded, size) = if is_32bit(hw1) {
+            let hw2 = bus.fetch16(addr.wrapping_add(2)).map_err(Stop::BusFault)?;
+            (decode32(hw1, hw2), 4)
+        } else {
+            (decode16(hw1), 2)
+        };
+        let instr = decoded.ok_or(Stop::Unimplemented {
+            pc: addr,
+            halfword: hw1,
+        })?;
+        let ctx = Ctx {
+            addr,
+            pc4: addr.wrapping_add(4),
+            in_it: self.regs.it_state() != 0,
+        };
+        self.regs.pc = addr.wrapping_add(size);
+        self.cycles += 1;
+
+        let is_it = matches!(instr, Instr::It { .. });
+        let skip = ctx.in_it && !is_it && !self.cond_passed(self.regs.it_state() >> 4);
+        let outcome = if skip {
+            Ok(())
+        } else {
+            self.execute(instr, ctx, bus, hooks)
+        };
+        if ctx.in_it && !is_it {
+            self.regs.advance_it();
+        }
+        outcome
+    }
+
