@@ -124,3 +124,45 @@ fn the_filesystem_starts_empty_between_two_magics() {
     );
 }
 
+#[test]
+fn the_apps_area_and_the_persisting_bytes_start_erased() {
+    let mut d = device(Model::N0110);
+    let (start, end) = d.profile.slot_a.apps_flash;
+    assert!(
+        d.memory
+            .read_bytes(start, end - start)
+            .unwrap()
+            .iter()
+            .all(|&b| b == 0xff)
+    );
+    let (name, _) = d.profile.slot_a.device_name;
+    assert!(
+        d.memory
+            .read_bytes(name, 0x1_0000)
+            .unwrap()
+            .iter()
+            .all(|&b| b == 0xff)
+    );
+}
+
+#[test]
+fn a_device_name_is_written_in_the_persisting_bytes() {
+    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    profile.device_name = "Ma calculatrice".into();
+    let mut d = DeviceImage::new(profile).unwrap();
+    assert_eq!(
+        d.memory.read_bytes(0x903f_0000, 16).unwrap(),
+        b"Ma calculatrice\0"
+    );
+}
+
+#[test]
+fn an_invalid_profile_is_refused() {
+    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    profile.serial_number = "trop court".into();
+    assert!(matches!(
+        DeviceImage::new(profile),
+        Err(DeviceError::Profile(_))
+    ));
+}
+
