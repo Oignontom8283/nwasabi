@@ -95,6 +95,7 @@ impl Kernel {
         cpu: &mut Cpu,
         bus: &mut B,
     ) -> Result<SvcAction, BusFault> {
+        self.svc_counts[usize::from(number)] += 1;
         let [r0, r1, r2, r3] = [cpu.regs.r[0], cpu.regs.r[1], cpu.regs.r[2], cpu.regs.r[3]];
         if self.keyboard.exit_requested() {
             self.keyboard.clear_exit_request();
