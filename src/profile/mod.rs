@@ -12,7 +12,7 @@ mod presets;
 pub use firmware::{FirmwareProfile, ProfileError, Provenance};
 pub use layout::{
     EXTERNAL_APP_SECTOR, EXTERNAL_FLASH_BASE, EXTERNAL_FLASH_SIZE, PERSISTING_BYTES_SIZE,
-    SLOT_B_OFFSET, SlotLayout,
+    SLOT_B_OFFSET, Slot, SlotLayout,
 };
 
 /// Modèle de calculatrice.

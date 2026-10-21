@@ -11,6 +11,14 @@ pub const EXTERNAL_APP_SECTOR: u32 = 0x1_0000;
 /// Taille de la zone des octets persistants (nom de l'appareil, état du mode examen).
 pub const PERSISTING_BYTES_SIZE: u32 = 0x1_0000;
 
+/// L'un des deux slots d'Epsilon. Un appareil exécute l'un ou l'autre : sur les appareils relevés,
+/// le slot actif varie (voir `docs` : relevés matériel).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Slot {
+    A,
+    B,
+}
+
 /// Où se trouvent les structures d'un slot (A ou B) du firmware.
 ///
 /// Un slot contient, dans cet ordre : un en-tête de 8 octets (niveau de sécurité, taille), le
