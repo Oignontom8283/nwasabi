@@ -398,3 +398,26 @@ def cases_fp_arith():
     return out
 
 
+def cases_fp_core_and_status():
+    out = []
+    for _ in range(120):
+        a, b = regs_distinct(2, list(range(0, 11)))
+        first = 2 * random.randrange(8)
+        out.append(random.choice([
+            f"vmov {a}, {sreg(32)}",
+            f"vmov {sreg(32)}, {a}",
+            f"vmov {a}, {b}, s{first}, s{first + 1}",
+            f"vmov s{first}, s{first + 1}, {a}, {b}",
+            f"vmov {dreg()}, {a}, {b}",
+            f"vmov {a}, {b}, {dreg()}",
+            f"vmrs {a}, fpscr",
+            f"ldr r12, =0x0300009f\nand {a}, {a}, r12\nvmsr fpscr, {a}\nvmrs {b}, fpscr",
+            "vmrs APSR_nzcv, fpscr",
+            f"cmp {a}, {b}\nit eq\nvaddeq.f32 s0, s1, s2",
+            f"cmp {a}, {b}\nite eq\nvmuleq.f32 s0, s1, s2\nvsubne.f32 s3, s4, s5",
+            f"cmp {a}, {b}\nit ne\nvmovne {a}, s7",
+            f"cmp {a}, {b}\nit hi\nvmovhi s9, {a}",
+        ]))
+    return out
+
+
