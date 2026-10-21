@@ -1,0 +1,508 @@
+#0
+cmp r0, r6
+itett ls
+addls.w r1, r7, #182
+mulhi r0, r5, r0
+uxtbls r4, r2
+addls r3, r2, r4
+#1
+cmp r8, #198
+itett ne
+rsbne r2, r7, #0
+addeq.w r1, r6, #27
+addne.w r2, r5, #70
+lslne r2, r1, #29
+#2
+cmp r9, r6
+itett lt
+ldrblt r5, [r11, #15]
+addge r5, r7, r5
+sbclt r5, r6
+addlt r5, r3, #5
+#3
+cmp r2, r5
+itete hi
+movhi.w r3, #5505108
+ldrbls r2, [r11, #4]
+movhi r7, #184
+adcls r4, r0
+#4
+cmp r6, r6
+itet ge
+addge r6, r3, r5
+uxtblt r2, r0
+ldrge r0, [r11, #0]
+#5
+cmp r9, r6
+itete ne
+addne r1, r1, #6
+addeq r1, r1, r5
+lslne r0, r4, #17
+rsbeq r2, r5, #0
+#6
+cmp r8, r4
+iteet le
+lslle r2, r1, #28
+orrgt r0, r4
+lslgt r0, r1, #12
+movle.w r9, #4076925696
+#7
+cmp r5, r8
+itee le
+ldrle r2, [r11, #8]
+addgt r0, r4, #4
+movgt r4, #170
+#8
+cmp r2, r6
+itee ge
+movge r2, #198
+mvnlt r1, r5
+sublt r0, r0, r6
+#9
+cmp r5, r4
+it le
+ldrble r1, [r11, #9]
+#10
+cmp r0, r10
+itett pl
+eorpl r7, r4
+submi r2, r7, r0
+lslpl r3, r1, #10
+mvnpl r4, r5
+#11
+cmp r0, #99
+iteet ge
+eorge r2, r0
+strlt r6, [r11, #12]
+ldrblt r0, [r11, #12]
+ldrge r4, [r11, #12]
+#12
+cmp r6, r4
+it cs
+mulcs r0, r2, r0
+#13
+cmp r10, r5
+itttt hi
+uxtbhi r6, r3
+lslhi r7, r0, #29
+lslhi r7, r3, #16
+rsbhi r1, r2, #0
+#14
+cmp r8, r7
+itte eq
+mvneq r5, r0
+moveq.w r7, #280576
+ldrne r6, [r11, #8]
+#15
+cmp r7, r6
+itet mi
+orrmi r6, r4
+addpl r7, r3, r1
+movmi.w r5, #3351758791
+#16
+cmp r6, r9
+iteee lt
+mvnlt r4, r2
+mvnge r5, r2
+subge r2, r6, r3
+mvnge r0, r1
+#17
+cmp r2, r10
+itett ne
+addne r0, r0, #5
+lsleq r6, r6, #26
+sbcne r4, r0
+mvnne r7, r0
+#18
+cmp r1, #55
+ittt gt
+adcgt r1, r0
+uxtbgt r6, r2
+addgt r4, r6, #3
+#19
+cmp r3, r5
+itte pl
+addpl r2, r0, r3
+strpl r4, [r11, #28]
+adcmi r4, r1
+#20
+cmp r4, r9
+itett le
+adcle r2, r0
+movgt.w r10, #2947526575
+movle r3, #144
+lslle r1, r6, #25
+#21
+cmp r10, #155
+itete mi
+orrmi r7, r2
+addpl r4, r5, r4
+mulmi r4, r0, r4
+lslpl r0, r7, #13
+#22
+cmp r3, #170
+iteee vs
+rsbvs r6, r7, #0
+orrvc r0, r4
+subvc r4, r2, r3
+orrvc r2, r6
+#23
+cmp r8, r8
+itt cc
+eorcc r5, r4
+rsbcc r0, r1, #0
+#24
+cmp r2, r7
+it vs
+addvs r6, r5, r4
+#25
+cmp r7, #106
+itte ne
+lslne r7, r4, #0
+sbcne r1, r1
+mvneq r2, r2
+#26
+cmp r8, #6
+ite gt
+eorgt r0, r5
+andle r2, r6
+#27
+cmp r9, r5
+itte hi
+addhi.w r9, r1, #222
+eorhi r6, r5
+sbcls r7, r4
+#28
+cmp r4, r4
+ittee cc
+ldrcc r3, [r11, #8]
+orrcc r5, r6
+mvncs r7, r2
+uxtbcs r7, r3
+#29
+cmp r5, #45
+itete eq
+adceq r2, r7
+eorne r0, r4
+adceq r0, r0
+andne r4, r7
+#30
+cmp r2, r5
+itttt gt
+rsbgt r1, r3, #0
+adcgt r5, r0
+andgt r4, r7
+ldrbgt r6, [r11, #10]
+#31
+cmp r1, r6
+itttt hi
+mulhi r5, r2, r5
+lslhi r6, r5, #12
+uxtbhi r6, r2
+subhi r3, r6, r7
+#32
+cmp r5, r8
+itett ls
+strls r2, [r11, #0]
+ldrbhi r0, [r11, #1]
+movls.w r10, #2644352413
+addls.w r3, r4, #146
+#33
+cmp r1, r4
+itt vs
+ldrvs r7, [r11, #16]
+subvs r5, r1, r1
+#34
+cmp r9, #108
+itett hi
+uxtbhi r7, r4
+andls r7, r4
+lslhi r2, r4, #27
+strhi r6, [r11, #4]
+#35
+cmp r0, r5
+iteet vc
+addvc r5, r0, r4
+strvs r2, [r11, #28]
+movvs r6, #8
+subvc r2, r7, r7
+#36
+cmp r9, #169
+itet vc
+sbcvc r1, r3
+ldrvs r5, [r11, #28]
+andvc r6, r6
+#37
+cmp r10, r0
+itttt vs
+andvs r5, r3
+movvs.w r10, #1711302144
+lslvs r7, r5, #9
+eorvs r2, r7
+#38
+cmp r0, #120
+ite ne
+ldrbne r2, [r11, #9]
+moveq r2, #152
+#39
+cmp r5, r2
+itett mi
+addmi r3, r3, r7
+eorpl r3, r6
+lslmi r5, r1, #24
+orrmi r2, r1
+#40
+cmp r6, #205
+itee cc
+strcc r5, [r11, #16]
+addcs r7, r0, #5
+lslcs r2, r6, #5
+#41
+cmp r0, #239
+ite hi
+mulhi r7, r0, r7
+adcls r0, r2
+#42
+cmp r7, #207
+iteet ge
+andge r5, r4
+movlt.w r5, #2650840576
+addlt.w r4, r8, #252
+ldrge r2, [r11, #16]
+#43
+cmp r7, r6
+itt pl
+strpl r7, [r11, #8]
+movpl r7, #79
+#44
+cmp r4, r3
+itet ls
+mulls r4, r6, r4
+mvnhi r1, r6
+addls.w r10, r10, #106
+#45
+cmp r6, r1
+itttt vc
+addvc.w r2, r3, #35
+andvc r5, r7
+addvc.w r6, r1, #211
+movvc r6, #244
+#46
+cmp r6, #224
+itet pl
+andpl r0, r6
+sbcmi r2, r2
+adcpl r4, r0
+#47
+cmp r10, r8
+itttt vs
+mvnvs r7, r7
+movvs r2, #85
+subvs r4, r2, r7
+andvs r5, r5
+#48
+cmp r0, #29
+itte cc
+mulcc r0, r7, r0
+rsbcc r0, r7, #0
+mvncs r6, r4
+#49
+cmp r9, #255
+itett eq
+mvneq r5, r1
+movne.w r1, #184
+addeq r3, r2, #1
+rsbeq r1, r5, #0
+#50
+cmp r2, #104
+itete pl
+addpl r5, r5, #0
+andmi r5, r3
+sbcpl r6, r5
+sbcmi r6, r2
+#51
+cmp r5, r5
+ittee ls
+eorls r4, r3
+subls r6, r5, r0
+addhi.w r0, r8, #185
+addhi r5, r0, r7
+#52
+cmp r8, #180
+ittee lt
+sublt r5, r4, r6
+mullt r6, r6, r6
+movge.w r2, #241
+andge r7, r4
+#53
+cmp r1, r9
+ittee pl
+movpl r7, #105
+andpl r6, r1
+uxtbmi r1, r3
+ldrbmi r1, [r11, #5]
+#54
+cmp r4, #128
+ittte ne
+eorne r5, r5
+lslne r6, r3, #26
+adcne r2, r6
+streq r7, [r11, #12]
+#55
+cmp r0, r3
+ittte ge
+strge r3, [r11, #12]
+subge r7, r1, r5
+andge r4, r6
+addlt r2, r4, #6
+#56
+cmp r5, #73
+ittee ge
+eorge r7, r6
+ldrge r1, [r11, #0]
+movlt r6, #31
+strlt r4, [r11, #28]
+#57
+cmp r9, #192
+itett cc
+adccc r5, r5
+ldrcs r5, [r11, #20]
+adccc r7, r2
+addcc.w r7, r3, #21
+#58
+cmp r3, r6
+itttt le
+addle r2, r3, #4
+addle r7, r4, #4
+mvnle r1, r6
+uxtble r7, r2
+#59
+cmp r0, #154
+ittte ls
+subls r6, r4, r7
+uxtbls r4, r4
+movls.w r10, #0
+ldrhi r3, [r11, #24]
+#60
+cmp r6, r8
+it ge
+uxtbge r1, r6
+#61
+cmp r3, #72
+itett cs
+rsbcs r7, r6, #0
+uxtbcc r5, r0
+ldrcs r2, [r11, #4]
+uxtbcs r7, r7
+#62
+cmp r7, r9
+ittte cc
+mulcc r2, r1, r2
+ldrbcc r1, [r11, #2]
+orrcc r5, r7
+subcs r0, r3, r6
+#63
+cmp r8, r7
+itt ls
+rsbls r4, r7, #0
+subls r1, r6, r4
+#64
+cmp r3, #248
+itee mi
+addmi r5, r6, r7
+addpl.w r7, r9, #109
+strpl r4, [r11, #4]
+#65
+cmp r3, r8
+itete lt
+strlt r1, [r11, #24]
+sbcge r7, r1
+sbclt r7, r7
+eorge r3, r1
+#66
+cmp r1, r8
+itee hi
+subhi r0, r2, r6
+andls r2, r6
+movls.w r7, #544768
+#67
+cmp r8, #4
+itee hi
+uxtbhi r5, r6
+mvnls r4, r3
+subls r4, r6, r0
+#68
+cmp r3, r5
+iteee gt
+addgt r1, r3, #5
+suble r3, r1, r5
+andle r6, r2
+suble r5, r6, r5
+#69
+cmp r2, r3
+ittt ne
+adcne r3, r5
+andne r2, r2
+ldrbne r6, [r11, #15]
+#70
+cmp r7, r1
+ittt hi
+ldrbhi r3, [r11, #15]
+addhi r2, r0, r7
+strhi r3, [r11, #20]
+#71
+cmp r3, r1
+itttt vs
+uxtbvs r2, r7
+lslvs r0, r3, #17
+addvs r1, r0, r3
+subvs r3, r5, r2
+#72
+cmp r4, #225
+itet pl
+adcpl r2, r7
+rsbmi r2, r3, #0
+addpl r0, r3, r0
+#73
+cmp r3, #55
+iteee hi
+orrhi r5, r6
+orrls r6, r0
+mulls r6, r7, r6
+uxtbls r0, r1
+#74
+cmp r3, #224
+itee eq
+ldreq r1, [r11, #4]
+lslne r0, r6, #29
+addne.w r9, r7, #255
+#75
+cmp r8, r3
+ittt cc
+strcc r2, [r11, #4]
+mvncc r1, r2
+adccc r2, r4
+#76
+cmp r10, #253
+iteet vs
+addvs r4, r4, r1
+movvc.w r4, #117
+mvnvc r3, r7
+sbcvs r5, r4
+#77
+cmp r2, #113
+it gt
+addgt r1, r1, #3
+#78
+cmp r6, r9
+ittt eq
+lsleq r3, r5, #18
+ldrbeq r5, [r11, #4]
+lsleq r1, r2, #27
+#79
+cmp r1, #57
+ittte ls
+addls r3, r7, r5
+andls r1, r2
+rsbls r6, r2, #0
+addhi r0, r0, #3
