@@ -502,3 +502,87 @@ pub fn survey(raw: &[String]) -> Outcome {
     Ok(i32::from(faults > 0) * 3)
 }
 
+// ---- session -------------------------------------------------------------------------------------
+
+/// Remplace les chemins de fichiers d'une requête par leur contenu, et inversement pour la réponse.
+fn read_paths(request: &mut Value) -> Result<(), String> {
+    for (path_key, content_key) in [
+        ("nwa_path", "nwa_base64"),
+        ("data_path", "data_base64"),
+        ("from_path", "base64"),
+    ] {
+        if let Some(path) = request
+            .get(path_key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        {
+            request.set(content_key, json::base64_encode(&read_file(&path)?));
+        }
+    }
+    if request.get("save_png").is_some() {
+        request.set("png", true);
+    }
+    Ok(())
+}
+
+fn write_paths(request: &Value, reply: &mut Value) -> Result<(), String> {
+    if reply.get("ok").and_then(Value::as_bool) != Some(true) {
+        return Ok(());
+    }
+    for (path_key, content_key) in [("save_png", "png_base64"), ("save_path", "base64")] {
+        if let Some(path) = request.get(path_key).and_then(Value::as_str) {
+            let content = reply.get(content_key).and_then(Value::as_str).unwrap_or("");
+            write_file(
+                path,
+                &json::base64_decode(content).ok_or("contenu illisible")?,
+            )?;
+            reply.set("saved", path);
+            if path_key == "save_png"
+                && request.get("png").is_none()
+                && let Value::Object(entries) = reply
+            {
+                entries.retain(|(k, _)| k != content_key);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Une requête JSON par ligne sur l'entrée standard, une réponse par ligne sur la sortie.
+pub fn session(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["stdio"])?;
+    if !args.positional.is_empty() {
+        return Err(
+            "« session » ne prend pas d'argument (requêtes sur l'entrée standard)".to_owned(),
+        );
+    }
+    let mut session = Session::new();
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout().lock();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|e| e.to_string())?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let reply = match json::parse(&line) {
+            Err(e) => Value::object()
+                .with("ok", false)
+                .with("error", e.to_string()),
+            Ok(request) if request.get("cmd").and_then(Value::as_str) == Some("quit") => break,
+            Ok(mut request) => match read_paths(&mut request) {
+                Err(e) => Value::object().with("ok", false).with("error", e),
+                Ok(()) => {
+                    let mut reply = session.handle(&request);
+                    if let Err(e) = write_paths(&request, &mut reply) {
+                        reply = Value::object().with("ok", false).with("error", e);
+                    }
+                    reply
+                }
+            },
+        };
+        writeln!(stdout, "{reply}").map_err(|e| e.to_string())?;
+        stdout.flush().map_err(|e| e.to_string())?;
+    }
+    Ok(0)
+}
+
