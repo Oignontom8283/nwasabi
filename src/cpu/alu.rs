@@ -76,3 +76,14 @@ pub fn shift_with_carry(value: u32, kind: ShiftKind, amount: u32, carry_in: bool
     }
 }
 
+/// Décalage d'un champ immédiat à 5 bits : `LSR #0` et `ASR #0` signifient 32, `ROR #0` signifie RRX.
+pub fn decode_imm_shift(kind_bits: u32, imm5: u32) -> (ShiftKind, u32) {
+    match (ShiftKind::from_bits(kind_bits), imm5) {
+        (ShiftKind::Lsl, n) => (ShiftKind::Lsl, n),
+        (ShiftKind::Lsr, 0) => (ShiftKind::Lsr, 32),
+        (ShiftKind::Asr, 0) => (ShiftKind::Asr, 32),
+        (ShiftKind::Ror, 0) => (ShiftKind::Rrx, 1),
+        (kind, n) => (kind, n),
+    }
+}
+
