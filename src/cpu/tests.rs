@@ -275,3 +275,44 @@ fn bx_to_an_even_address_is_an_invalid_state() {
 struct Raise;
 impl Hooks for Raise {}
 
+#[test]
+fn svc_raised_as_an_exception_stacks_the_context_and_returns() {
+    // Table des vecteurs à 0x0 : SVCall (n° 11) -> gestionnaire à 0x300 (Thumb).
+    // 0x100: svc #1 ; 0x102: movs r5, #5
+    // 0x300: movs r6, #6 ; 0x302: bx lr
+    let mut bus = Flat::with_halfwords(&[0xdf01, 0x2505]);
+    bus.0[44..48].copy_from_slice(&0x301u32.to_le_bytes());
+    bus.0[0x300..0x304].copy_from_slice(&[0x06, 0x26, 0x70, 0x47]);
+    let mut cpu = Cpu::new();
+    cpu.regs.pc = START;
+    cpu.regs.sp = 0x8000;
+    cpu.msp = 0x8000;
+    cpu.regs.r[0] = 0x11;
+    cpu.regs.r[12] = 0x22;
+    cpu.regs.lr = 0x1235;
+    cpu.step(&mut bus, &mut Raise).unwrap(); // svc : entrée d'exception
+    assert!(cpu.handler_mode);
+    assert_eq!(cpu.regs.pc, 0x300);
+    assert_eq!(cpu.regs.sp, 0x8000 - 0x20);
+    assert_eq!(cpu.regs.lr, 0xffff_fff9);
+    assert_eq!(cpu.regs.ipsr(), 11);
+    // Contexte empilé : r0, r1, r2, r3, r12, lr, adresse de retour, xPSR.
+    let word = |bus: &Flat, i: usize| {
+        u32::from_le_bytes(bus.0[0x7fe0 + 4 * i..0x7fe4 + 4 * i].try_into().unwrap())
+    };
+    assert_eq!(
+        (word(&bus, 0), word(&bus, 4), word(&bus, 5), word(&bus, 6)),
+        (0x11, 0x22, 0x1235, 0x102)
+    );
+    cpu.step(&mut bus, &mut Raise).unwrap(); // movs r6, #6
+    cpu.step(&mut bus, &mut Raise).unwrap(); // bx lr : retour d'exception
+    assert!(!cpu.handler_mode);
+    assert_eq!(
+        (cpu.regs.pc, cpu.regs.sp, cpu.regs.lr, cpu.regs.r[0]),
+        (0x102, 0x8000, 0x1235, 0x11)
+    );
+    assert_eq!(cpu.regs.r[6], 6);
+    cpu.step(&mut bus, &mut Raise).unwrap(); // movs r5, #5
+    assert_eq!(cpu.regs.r[5], 5);
+}
+
