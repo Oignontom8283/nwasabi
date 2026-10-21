@@ -35,3 +35,34 @@ pub fn detect_sram_base(memory: &mut Memory) -> Option<u32> {
         .find(|&base| slot_info_at(memory, base).is_some())
 }
 
+/// Relit toutes les structures de l'OS à partir du `SlotInfo`. Ce qui est absent ou illisible vaut
+/// `None` ; ce qui est présent mais abîmé est renvoyé avec `valid = false`.
+pub fn read_structures(memory: &mut Memory, exam_mode: bool) -> Structures {
+    let mut out = Structures {
+        sram_base: None,
+        model_class: None,
+        slot_info: None,
+        slot_header: None,
+        kernel_header: None,
+        userland_header: None,
+        vector_table: None,
+        storage: None,
+        device_name: None,
+        apps: Vec::new(),
+    };
+    let Some(base) = detect_sram_base(memory) else {
+        return out;
+    };
+    out.sram_base = Some(base);
+    out.model_class = Some(if base == 0x2400_0000 {
+        ModelClass::N0120
+    } else {
+        ModelClass::N0110OrN0115
+    });
+    let info = slot_info_at(memory, base).expect("détecté juste avant");
+    out.slot_info = Some(Found {
+        address: base,
+        value: info,
+        valid: true,
+    });
+
