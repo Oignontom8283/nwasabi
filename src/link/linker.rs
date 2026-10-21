@@ -599,3 +599,246 @@ fn layout(
     })
 }
 
+// === 4. Relocations et assemblage de l'image ===
+
+/// Nom lisible d'un symbole pour un message d'erreur (un symbole de section n'a pas de nom).
+fn display_name(objects: &[Obj<'_>], r: SymRef) -> String {
+    let sym = &objects[r.obj].elf.symbols[r.index];
+    match (sym.name.as_str(), sym.section) {
+        ("", SymbolSection::Section(s)) => objects[r.obj].elf.sections[s].name.clone(),
+        (name, _) => name.to_owned(),
+    }
+}
+
+struct Linked<'a, 'b> {
+    ctx: &'a Context<'a, 'b>,
+    layout: &'a Layout,
+}
+
+impl Linked<'_, '_> {
+    /// Adresse et nature de ce que vise une relocation, vue depuis la section `from`.
+    fn target(&self, from: SecId, r: SymRef) -> Result<Target, LinkError> {
+        let objects = self.ctx.objects;
+        let referenced_from = || objects[from.0].elf.sections[from.1].name.clone();
+        match self.ctx.resolve(r) {
+            Resolved::UndefinedWeak => Ok(Target {
+                address: 0,
+                thumb: false,
+                weak_undefined: true,
+            }),
+            Resolved::Undefined => {
+                let name = display_name(objects, r);
+                if name == ls::EXTERNAL_DATA_START || name == ls::EXTERNAL_DATA_SIZE {
+                    return Err(LinkError::MissingExternalData);
+                }
+                Err(LinkError::UndefinedSymbol {
+                    name,
+                    referenced_from: referenced_from(),
+                })
+            }
+            Resolved::Linker => {
+                let name = &objects[r.obj].elf.symbols[r.index].name;
+                let address = self.layout.symbols[name.as_str()];
+                Ok(Target {
+                    address,
+                    thumb: false,
+                    weak_undefined: false,
+                })
+            }
+            Resolved::Def(def) => {
+                let sym = &objects[def.obj].elf.symbols[def.index];
+                let address = match sym.section {
+                    SymbolSection::Absolute => sym.value,
+                    SymbolSection::Common => self.layout.commons[sym.name.as_str()],
+                    SymbolSection::Section(s) => {
+                        let placement =
+                            self.layout.placements.get(&(def.obj, s)).ok_or_else(|| {
+                                LinkError::DiscardedSection {
+                                    symbol: display_name(objects, def),
+                                    section: objects[def.obj].elf.sections[s].name.clone(),
+                                }
+                            })?;
+                        placement.vma.wrapping_add(sym.value)
+                    }
+                    SymbolSection::Undefined => 0,
+                };
+                Ok(Target {
+                    address,
+                    thumb: sym.is_thumb_function(),
+                    weak_undefined: false,
+                })
+            }
+        }
+    }
+}
+
+/// Lie les objets : suppression des sections inutiles, placement, relocations, en-tête.
+pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedApp, LinkError> {
+    let ctx = Context {
+        objects,
+        globals: build_globals(objects),
+    };
+
+    // Racines : le point d'entrée `_start` et les trois sections que l'en-tête d'application lit.
+    let mut roots: Vec<SecId> = Vec::new();
+    let start = ctx.globals.get("_start").copied();
+    match start.and_then(|r| match objects[r.obj].elf.symbols[r.index].section {
+        SymbolSection::Section(s) => Some((r.obj, s)),
+        _ => None,
+    }) {
+        Some(id) => roots.push(id),
+        None => return Err(LinkError::MissingSection("_start")),
+    }
+    for (o, obj) in objects.iter().enumerate() {
+        for (s, section) in obj.elf.sections.iter().enumerate() {
+            if matches!(
+                section.name.as_str(),
+                API_LEVEL_SECTION | NAME_SECTION | ICON_SECTION
+            ) {
+                roots.push((o, s));
+            }
+        }
+    }
+    let reach = ctx.reachability(&roots);
+    let layout = layout(objects, &reach, params)?;
+    let linked = Linked {
+        ctx: &ctx,
+        layout: &layout,
+    };
+
+    // Image de la flash : on y recopie le contenu de chaque section placée, relocations appliquées.
+    let mut image = vec![0u8; layout.image_len as usize];
+    for (&(o, s), placement) in &layout.placements {
+        let elf = &objects[o].elf;
+        let section = &elf.sections[s];
+        let Some(flash) = placement.flash else {
+            continue;
+        };
+        let mut bytes = elf.section_data(s).to_vec();
+        for reloc in elf.relocations(s) {
+            if reloc.kind == R_ARM_NONE {
+                continue;
+            }
+            let r = SymRef {
+                obj: o,
+                index: reloc.symbol as usize,
+            };
+            let target = linked.target((o, s), r)?;
+            let place = placement.vma.wrapping_add(reloc.offset);
+            relocate::apply(reloc.kind, &mut bytes, reloc.offset, place, target).map_err(
+                |error| LinkError::Relocation {
+                    section: section.name.clone(),
+                    offset: reloc.offset,
+                    symbol: display_name(objects, r),
+                    error,
+                },
+            )?;
+        }
+        let start = (flash - params.flash_start) as usize;
+        image[start..start + bytes.len()].copy_from_slice(&bytes);
+    }
+
+    // En-tête d'application (32 octets) : magic, niveau d'API, décalages, taille, magic.
+    let start_ref = start.expect("_start vérifié plus haut");
+    let entry = linked.target(roots[0], start_ref)?.address;
+    let first_of = |class: Class| -> SecId {
+        layout
+            .placements
+            .iter()
+            .filter(|(_, p)| p.class == class)
+            .map(|(&id, p)| (p.vma, id))
+            .min()
+            .map(|(_, id)| id)
+            .expect("section d'en-tête vérifiée par le placement")
+    };
+    let offset_in_flash = |address: u32| address - params.flash_start;
+    let name_id = first_of(Class::Name);
+    let icon_id = first_of(Class::Icon);
+    let header: [u32; 8] = {
+        let mut words = [0u32; 8];
+        words[0] = MAGIC;
+        words[1] = u32::from_le_bytes(image[4..8].try_into().expect("4 octets"));
+        words[2] = offset_in_flash(layout.placements[&name_id].vma);
+        words[3] = objects[icon_id.0].elf.sections[icon_id.1].size;
+        words[4] = offset_in_flash(layout.placements[&icon_id].vma);
+        // Le script de link GNU lit l'adresse de `_start` sans son bit Thumb : décalage pair.
+        words[5] = offset_in_flash(entry & !1);
+        words[6] = offset_in_flash(layout.app_end);
+        words[7] = MAGIC;
+        words
+    };
+    for (i, word) in header.iter().enumerate() {
+        if i != 1 {
+            image[4 * i..4 * i + 4].copy_from_slice(&word.to_le_bytes());
+        }
+    }
+
+    // Informations lisibles : nom, icône, symboles.
+    let name_bytes = objects[name_id.0].elf.section_data(name_id.1);
+    let name_end = name_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(name_bytes.len());
+    let name = String::from_utf8_lossy(&name_bytes[..name_end]).into_owned();
+    let icon = objects[icon_id.0].elf.section_data(icon_id.1).to_vec();
+
+    let mut symbols = Vec::new();
+    for (o, obj) in objects.iter().enumerate() {
+        for sym in obj.elf.symbols.iter().skip(1) {
+            if sym.name.is_empty()
+                || sym.name.starts_with('$')
+                || matches!(sym.kind, SymbolKind::Section | SymbolKind::File)
+            {
+                continue;
+            }
+            let address = match sym.section {
+                SymbolSection::Section(s) => match layout.placements.get(&(o, s)) {
+                    Some(p) => p.vma.wrapping_add(sym.value),
+                    None => continue,
+                },
+                SymbolSection::Common => match layout.commons.get(&sym.name) {
+                    Some(&a) => a,
+                    None => continue,
+                },
+                _ => continue,
+            };
+            symbols.push(LinkedSymbol {
+                name: sym.name.clone(),
+                address,
+                size: sym.size,
+                kind: sym.kind,
+                origin: obj.origin,
+            });
+        }
+    }
+
+    // Le système retrouve l'application suivante d'après la taille de l'en-tête ; l'outil de
+    // flashage place la suivante d'après la taille réelle de l'image. Si elles diffèrent, avertir.
+    let mut warnings = Vec::new();
+    let system_next = align_up(u64::from(offset_in_flash(layout.app_end)), APP_SECTOR_SIZE);
+    let len = u64::from(layout.image_len);
+    let installed_next = len + (u64::from(APP_SECTOR_SIZE) - len % u64::from(APP_SECTOR_SIZE));
+    if system_next != installed_next {
+        warnings.push(LinkWarning::AppSizeMismatch {
+            system_next_offset: to_u32(system_next),
+            installed_next_offset: to_u32(installed_next),
+        });
+    }
+
+    let api_level = header[1];
+    Ok(LinkedApp {
+        name,
+        api_level,
+        icon,
+        flash_start: params.flash_start,
+        flash: image,
+        entry: entry | 1,
+        app_end: layout.app_end,
+        data: layout.data,
+        bss: layout.bss,
+        heap: layout.heap,
+        sections: layout.sections,
+        symbols,
+        warnings,
+    })
+}
