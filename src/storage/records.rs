@@ -83,3 +83,17 @@ pub fn parse(buffer: &[u8]) -> Parsed {
     }
 }
 
+/// Vérifie qu'un nom complet (`nom.extension`) est acceptable.
+pub fn check_name(name: &str) -> Result<(), FsError> {
+    let dot = name.rfind('.');
+    let ok = !name.is_empty()
+        && !name.contains('\0')
+        && name.len() < 256
+        && dot.is_some_and(|i| i > 0 && i + 1 < name.len());
+    if ok {
+        Ok(())
+    } else {
+        Err(FsError::InvalidName(name.to_owned()))
+    }
+}
+
