@@ -289,3 +289,24 @@ impl Cpu {
                         .wrapping_add(if round { 0x8000_0000 } else { 0 });
                 self.write(rd, (total >> 32) as u32);
             }
+            Instr::Bfi { rd, rn, lsb, width } => {
+                let source = rn.map_or(0, |rn| self.read(ctx, rn));
+                let mask = field_mask(width) << lsb;
+                let old = self.read(ctx, rd);
+                self.write(rd, (old & !mask) | ((source << lsb) & mask));
+            }
+            Instr::Bfx {
+                signed,
+                rd,
+                rn,
+                lsb,
+                width,
+            } => {
+                let field = (self.read(ctx, rn) >> lsb) & field_mask(width);
+                let value = if signed {
+                    sign_extend(field, u32::from(width)) as u32
+                } else {
+                    field
+                };
+                self.write(rd, value);
+            }
