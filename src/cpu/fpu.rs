@@ -932,3 +932,17 @@ mod tests {
         assert_eq!(env(&mut fpscr).add(qnan, 1.0, false).to_bits(), DEFAULT_NAN);
     }
 
+    #[test]
+    fn overflow_and_underflow_flags() {
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).mul(f32::MAX, 2.0), f32::INFINITY);
+        assert_eq!(fpscr, FPSCR_OFC | FPSCR_IXC);
+        let mut fpscr = 0;
+        let tiny = env(&mut fpscr).mul(f32::MIN_POSITIVE, 0.25);
+        assert!(tiny != 0.0 && !tiny.is_normal());
+        assert_eq!(fpscr, 0, "résultat dénormalisé mais exact");
+        let mut fpscr = 0;
+        env(&mut fpscr).mul(f32::MIN_POSITIVE, 0.3);
+        assert_eq!(fpscr & (FPSCR_UFC | FPSCR_IXC), FPSCR_UFC | FPSCR_IXC);
+    }
+
