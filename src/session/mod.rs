@@ -389,3 +389,33 @@ impl Session {
         Ok(Value::object().with("state", emu.kernel.keyboard.state()))
     }
 
+    fn screen(&mut self, req: &Value) -> Reply {
+        let emu = self.emu()?;
+        let display = &emu.kernel.display;
+        let bytes: Vec<u8> = display
+            .pixels()
+            .iter()
+            .flat_map(|p| p.to_le_bytes())
+            .collect();
+        let mut out = Value::object()
+            .with("width", crate::kernel::display::WIDTH)
+            .with("height", crate::kernel::display::HEIGHT)
+            .with("crc32", format!("{:08x}", png::crc32(&bytes)))
+            .with(
+                "lit_pixels",
+                display.pixels().iter().filter(|&&p| p != 0).count(),
+            );
+        if req.get("png").and_then(Value::as_bool) == Some(true) {
+            let image = png::encode_rgba(
+                crate::kernel::display::WIDTH,
+                crate::kernel::display::HEIGHT,
+                &display.to_rgba(),
+            );
+            out.set("png_base64", json::base64_encode(&image));
+        }
+        if req.get("rgb565_base64").and_then(Value::as_bool) == Some(true) {
+            out.set("rgb565_base64", json::base64_encode(&bytes));
+        }
+        Ok(out)
+    }
+
