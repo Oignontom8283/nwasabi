@@ -11,12 +11,14 @@ mod reader;
 mod reloc;
 mod section;
 mod symbol;
+mod writer;
 
 pub use error::ElfError;
 pub use header::Header;
 pub use reloc::*;
 pub use section::*;
 pub use symbol::{Symbol, SymbolBind, SymbolKind, SymbolSection};
+pub use writer::{ObjectWriter, SectionId, SymbolId};
 
 use reader::Reader;
 
