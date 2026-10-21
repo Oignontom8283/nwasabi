@@ -144,3 +144,25 @@ pub fn read(buffer: &[u8], name: &str) -> Result<Vec<u8>, FsError> {
     Ok(buffer[record.body_offset..record.body_offset + record.body_len].to_vec())
 }
 
+/// Crée le fichier à la fin, ou remplace son corps en gardant sa place. Rend le nouveau tampon.
+pub fn write(buffer: &[u8], name: &str, body: &[u8]) -> Result<Vec<u8>, FsError> {
+    check_name(name)?;
+    let parsed = parse(buffer);
+    require_sound(&parsed)?;
+    let record = encode(name, body)?;
+    match find(&parsed, name) {
+        Some(old) => assemble(
+            buffer.len(),
+            [
+                &buffer[..old.offset],
+                &record,
+                &buffer[old.offset + old.size..parsed.used - END_MARK],
+            ],
+        ),
+        None => assemble(
+            buffer.len(),
+            [&buffer[..parsed.used - END_MARK], &record, &[]],
+        ),
+    }
+}
+
