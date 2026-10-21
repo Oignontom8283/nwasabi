@@ -52,6 +52,9 @@ pub const SVC_DRAW_STRING: u8 = 0x80;
 pub const SVC_SBRK: u8 = 0x81;
 /// Appel système privé de nwasabi : `_write` (affichage de texte).
 pub const SVC_WRITE: u8 = 0x82;
+/// Appel système privé de nwasabi : fin de l'application (retour de `main`). Le noyau simulé place
+/// l'adresse d'un stub qui l'exécute dans `lr` au lancement.
+pub const SVC_EXIT: u8 = 0x89;
 
 /// Noms des symboles que définit l'éditeur de liens lui-même (comme le ferait un script de link).
 pub mod linker_symbols {
@@ -268,7 +271,7 @@ mod tests {
             .chain(EADK_EXTENDED_SVC)
             .map(|&(_, n)| n)
             .collect();
-        numbers.extend([SVC_DRAW_STRING, SVC_SBRK, SVC_WRITE]);
+        numbers.extend([SVC_DRAW_STRING, SVC_SBRK, SVC_WRITE, SVC_EXIT]);
         let count = numbers.len();
         numbers.sort_unstable();
         numbers.dedup();

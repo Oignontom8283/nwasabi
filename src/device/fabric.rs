@@ -1,6 +1,6 @@
 //! Fabrication du contenu de l'appareil : écrire en mémoire les structures que l'OS y laisse.
 
-use crate::link::runtime::SVC_DRAW_STRING;
+use crate::link::runtime::{SVC_DRAW_STRING, SVC_EXIT};
 use crate::memory::{Memory, MemoryError};
 use crate::profile::{FirmwareProfile, SlotLayout};
 use crate::structures::{
@@ -13,6 +13,14 @@ const DRAW_STRING_STUB_OFFSET: u32 = 0x40;
 /// Décalage du stub qui sert de point d'entrée du userland : `b .` (boucle infinie ; le userland
 /// n'est jamais exécuté, c'est l'application qui l'est).
 const START_STUB_OFFSET: u32 = 0x44;
+/// Décalage du stub de fin d'application : `svc #0x89 ; b .`. Son adresse est celle où revient
+/// `main` (valeur de `lr` au lancement).
+pub const EXIT_STUB_OFFSET: u32 = 0x48;
+/// Décalage de la chaîne de l'identifiant FCC (terminée par un zéro, 16 octets au plus) : le
+/// noyau simulé en renvoie l'adresse à l'appel système `fcc_id`.
+pub const FCC_ID_OFFSET: u32 = 0x50;
+/// Taille réservée à l'identifiant FCC, zéro final compris.
+pub const FCC_ID_SIZE: u32 = 16;
 
 /// Écrit les structures d'un slot : en-tête de sécurité, `KernelHeader`, `UserlandHeader`, table
 /// de vecteurs (avec ses deux petits stubs) et nom de l'appareil.
@@ -57,6 +65,12 @@ fn write_slot(
         &[SVC_DRAW_STRING, 0xdf, 0x70, 0x47],
     )?;
     memory.write_bytes(at + START_STUB_OFFSET, &[0xfe, 0xe7, 0x00, 0xbf])?;
+    memory.write_bytes(at + EXIT_STUB_OFFSET, &[SVC_EXIT, 0xdf, 0xfe, 0xe7])?;
+    let mut fcc = [0u8; FCC_ID_SIZE as usize];
+    let id = profile.fcc_id.as_bytes();
+    let n = id.len().min(fcc.len() - 1);
+    fcc[..n].copy_from_slice(&id[..n]);
+    memory.write_bytes(at + FCC_ID_OFFSET, &fcc)?;
 
     if !profile.device_name.is_empty() {
         let mut name = profile.device_name.clone().into_bytes();
