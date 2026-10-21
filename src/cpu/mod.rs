@@ -1,4 +1,9 @@
 //! Processeur ARM Cortex-M7 (ARMv7E-M, Thumb-2, virgule flottante FPv5-D16 simple précision).
+//!
+//! Ce module ne doit jamais dépendre du reste de nwasabi (aucun chemin `crate::`, vérifié par
+//! `tests/cpu_independence.rs`) ni de crates externes, afin de pouvoir devenir un crate
+//! autonome. Il ne contient rien de spécifique à NumWorks : ni carte mémoire, ni appels système.
+//! Tout ce dont il a besoin de l'extérieur passe par les traits [`Bus`] et [`Hooks`].
 
 mod bus;
 mod hooks;
