@@ -78,3 +78,27 @@ impl Args {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn options_flags_and_words_are_separated() {
+        let a = Args::parse(
+            &strings(&[
+                "app.nwa", "--model", "n0120", "--json", "--key=ok", "--key", "up",
+            ]),
+            &["json"],
+        )
+        .unwrap();
+        assert_eq!(a.positional, ["app.nwa"]);
+        assert_eq!(a.value("model"), Some("n0120"));
+        assert!(a.flag("json"));
+        assert_eq!(a.values("key"), ["ok", "up"]);
+        assert!(!a.flag("absent"));
+    }
+
