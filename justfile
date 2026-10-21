@@ -26,6 +26,16 @@ build-wasm:
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
 
+# --- Lancement --------------------------------------------------------------
+
+# Lance l'outil de test natif : `just cli run app.nwa --json`.
+cli *args:
+    cargo run --quiet --no-default-features --features cli --bin nwasabi-cli -- {{args}}
+
+# Lance le serveur web : `just serve --nwa app.nwa --port 8080`.
+serve *args:
+    cargo run --quiet --bin nwasabi -- {{args}}
+
 # --- Qualité et tests -------------------------------------------------------
 
 # Vérifie le formatage sans rien modifier.
