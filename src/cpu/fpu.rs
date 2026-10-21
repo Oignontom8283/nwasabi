@@ -488,3 +488,17 @@ impl Env<'_> {
         self.finish(result, inexact && finite, finite)
     }
 
+    fn mul(&mut self, a: f32, b: f32) -> f32 {
+        let (a, b) = (self.input(a), self.input(b));
+        if let Some(n) = self.process_nans(&[a, b]) {
+            return n;
+        }
+        if (a.is_infinite() && b == 0.0) || (a == 0.0 && b.is_infinite()) {
+            return self.default_nan();
+        }
+        let result = a * b;
+        let exact = f64::from(a) * f64::from(b);
+        let finite = a.is_finite() && b.is_finite();
+        self.finish(result, finite && f64::from(result) != exact, finite)
+    }
+
