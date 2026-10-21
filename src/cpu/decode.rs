@@ -386,3 +386,15 @@ fn decode16_misc(h: u32) -> Option<Instr> {
     })
 }
 
+/// Décalage de branchement de 25 bits des instructions `b.w` et `bl` (formes T4 et T1).
+fn branch_offset25(hw1: u32, hw2: u32) -> i32 {
+    let s = bits(hw1, 10, 10);
+    let j1 = bits(hw2, 13, 13);
+    let j2 = bits(hw2, 11, 11);
+    let i1 = !(j1 ^ s) & 1;
+    let i2 = !(j2 ^ s) & 1;
+    let imm =
+        (s << 24) | (i1 << 23) | (i2 << 22) | (bits(hw1, 9, 0) << 12) | (bits(hw2, 10, 0) << 1);
+    sign_extend(imm, 25)
+}
+
