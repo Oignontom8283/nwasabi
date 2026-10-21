@@ -739,3 +739,73 @@ fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
     }
 }
 
+/// `ldr`, `ldrb`, `ldrh`, `ldrsb`, `ldrsh`, `str`, `strb`, `strh` en 32 bits.
+fn decode_load_store_single(a: u32, b: u32) -> Option<Instr> {
+    let signed = bit(a, 8);
+    let imm12_form = bit(a, 7);
+    let size = match bits(a, 6, 5) {
+        0 => MemSize::Byte,
+        1 => MemSize::Half,
+        2 => MemSize::Word,
+        _ => return None,
+    };
+    let load = bit(a, 4);
+    let rn = bits(a, 3, 0) as Reg;
+    let rt = bits(b, 15, 12) as Reg;
+    if !load {
+        if signed {
+            return None;
+        }
+        let addr = if imm12_form {
+            Addr::Imm {
+                rn,
+                offset: bits(b, 11, 0) as i32,
+                mode: IndexMode::Offset,
+            }
+        } else if bit(b, 11) {
+            imm8_addr(rn, b)?
+        } else if bits(b, 11, 6) == 0 {
+            Addr::Reg {
+                rn,
+                rm: bits(b, 3, 0) as Reg,
+                shift: bits(b, 5, 4) as u8,
+            }
+        } else {
+            return None;
+        };
+        return Some(Instr::Store { size, rt, addr });
+    }
+    // Chargement : rt = pc avec un octet ou demi-mot signifie « préchargement » (sans effet).
+    if rt == 15 && size != MemSize::Word {
+        return Some(Instr::Nop);
+    }
+    let addr = if rn == 15 {
+        let offset = bits(b, 11, 0) as i32;
+        Addr::Literal {
+            offset: if bit(a, 7) { offset } else { -offset },
+        }
+    } else if imm12_form {
+        Addr::Imm {
+            rn,
+            offset: bits(b, 11, 0) as i32,
+            mode: IndexMode::Offset,
+        }
+    } else if bit(b, 11) {
+        imm8_addr(rn, b)?
+    } else if bits(b, 11, 6) == 0 {
+        Addr::Reg {
+            rn,
+            rm: bits(b, 3, 0) as Reg,
+            shift: bits(b, 5, 4) as u8,
+        }
+    } else {
+        return None;
+    };
+    Some(Instr::Load {
+        size,
+        signed,
+        rt,
+        addr,
+    })
+}
+
