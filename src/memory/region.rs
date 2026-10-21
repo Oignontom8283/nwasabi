@@ -142,3 +142,31 @@ impl Region {
         }
     }
 
+    /// Indique que les lignes touchées par `[offset, offset + len)` ont reçu l'indicateur `flag`.
+    pub fn mark_access(&mut self, offset: u32, len: u32, flag: u8) {
+        for line in line_range(offset, len) {
+            self.access[line] |= flag;
+        }
+    }
+
+    /// Date l'écriture des lignes touchées par `[offset, offset + len)`.
+    pub fn stamp(&mut self, offset: u32, len: u32, tick: u64) {
+        let lines = (self.spec.size / LINE_SIZE) as usize;
+        let stamps = self.stamps.get_or_insert_with(|| vec![0; lines]);
+        for line in line_range(offset, len) {
+            stamps[line] = tick;
+        }
+    }
+
+    /// Nombre de pages réellement allouées.
+    pub fn allocated_pages(&self) -> usize {
+        self.pages.iter().filter(|p| p.is_some()).count()
+    }
+}
+
+/// Indices des lignes de 32 octets touchées par `[offset, offset + len)`.
+fn line_range(offset: u32, len: u32) -> std::ops::RangeInclusive<usize> {
+    let first = (offset / LINE_SIZE) as usize;
+    let last = ((offset + len.max(1) - 1) / LINE_SIZE) as usize;
+    first..=last
+}
