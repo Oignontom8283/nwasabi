@@ -258,3 +258,53 @@ def cases_multiply():
     return out
 
 
+def cases_memory():
+    out = []
+    for _ in range(200):
+        rt, rt2 = regs_distinct(2)
+        off4 = 4 * random.randrange(15)
+        off = random.randrange(0, 60)
+        neg = random.randrange(1, 40)
+        lst = sorted(random.sample(range(0, 11), random.randrange(1, 6)))
+        rl = ', '.join('r%d' % r for r in lst)
+        size = random.choice(['', 'b', 'h'])
+        sgn = random.choice(['sb', 'sh'])
+        sh = random.randrange(4)
+        out.append(random.choice([
+            f"ldr{size} {rt}, [r11, #{off4 if size == '' else off}]",
+            f"str{size} {rt}, [r11, #{off4 if size == '' else off}]",
+            f"ldr{sgn} {rt}, [r11, #{off}]",
+            f"ldr{size}.w {rt}, [r11, #{off}]",
+            f"movs r12, #{off & ~3}\nldr {rt}, [r11, r12]",
+            f"movs r12, #{random.randrange(0, 14)}\nstr.w {rt}, [r11, r12, lsl #{sh}]",
+            f"movs r12, #{random.randrange(0, 30)}\nldrb {rt}, [r11, r12]",
+            f"movs r12, #{random.randrange(0, 30)}\nldrsh {rt}, [r11, r12]",
+            f"adds r11, #{neg}\nldr {rt}, [r11, #-{neg}]",
+            f"ldr {rt}, [r11, #{off4}]!",
+            f"ldr {rt}, [r11], #{off4}",
+            f"str {rt}, [r11, #{off4}]!",
+            f"str {rt}, [r11], #{off4}",
+            f"strb {rt}, [r11, #{off}]!",
+            f"ldrh {rt}, [r11], #{off}",
+            f"ldrsb {rt}, [r11, #{off}]!",
+            f"ldrd {rt}, {rt2}, [r11, #{off4}]",
+            f"ldrd {rt}, {rt2}, [r11, #{off4}]!",
+            f"ldrd {rt}, {rt2}, [r11], #{off4}",
+            f"strd {rt}, {rt2}, [r11, #{off4}]",
+            f"strd {rt}, {rt2}, [r11, #{off4}]!",
+            f"strd {rt}, {rt2}, [r11], #{off4}",
+            f"ldmia r11, {{{rl}}}",
+            f"ldmia r11!, {{{rl}}}",
+            f"stmia r11, {{{rl}}}",
+            f"stmia r11!, {{{rl}}}",
+            f"adds r11, #32\nstmdb r11!, {{{rl}}}",
+            f"adds r11, #32\nldmdb r11!, {{{rl}}}",
+            f"mov sp, r11\nadd sp, sp, #32\npush {{{rl}}}\nmov r10, sp",
+            f"mov sp, r11\nadd sp, sp, #8\npop {{{rl}}}\nmov r10, sp",
+            f"mov sp, r11\nadd sp, sp, #32\nstr {rt}, [sp, #4]\nldr {rt2}, [sp, #8]\nmov r10, sp",
+            f"ldr {rt}, =0x{random.getrandbits(32):08x}",
+            f"adr.w {rt}, 1f\nnop\n1:",
+        ]))
+    return out
+
+
