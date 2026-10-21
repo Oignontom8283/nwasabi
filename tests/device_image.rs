@@ -334,3 +334,43 @@ fn a_data_image_that_crosses_a_sector_hides_the_next_app_as_on_the_real_device()
     // …mais le système, qui se fie à la taille de l'en-tête, la cherche à 0x9021_0000 et s'arrête.
     assert_eq!(d.apps().len(), 1);
 }
+
+#[test]
+fn an_app_is_installed_in_the_area_of_the_active_slot() {
+    // Sur les appareils relevés, le slot actif est tantôt A, tantôt B : tout suit le slot actif.
+    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    profile.active_slot = nwasabi::profile::Slot::B;
+    let mut d = DeviceImage::new(profile).unwrap();
+    let info = SlotInfo::decode(&read::<SLOT_INFO_SIZE>(&mut d, 0x2000_0000));
+    assert_eq!(
+        (info.kernel_header, info.userland_header),
+        (0x9040_0008, 0x9042_0000)
+    );
+
+    let app = linked_for(&d, synthetic_app());
+    assert_eq!(app.flash_start, 0x9060_0000);
+    assert_eq!(d.install(&app).unwrap(), 0x9060_0000);
+    let apps = d.apps();
+    assert_eq!((apps.len(), apps[0].name.as_deref()), (1, Some("Test")));
+    // La trampoline donnée à l'éditeur de liens est celle du userland du slot B.
+    assert_eq!(d.app_layout().trampoline_address, 0x9042_0038);
+}
+
+#[test]
+fn the_size_of_the_apps_area_depends_on_the_model() {
+    // N0110 et N0115 : 0x1F0000 octets ; N0120 : 0x270000 (userland plus petit).
+    for (model, expected) in [(Model::N0110, 31), (Model::N0115, 31), (Model::N0120, 39)] {
+        let mut d = device(model);
+        let mut count = 0;
+        while let Ok(app) = link(
+            &synthetic_app().finish(),
+            None,
+            &d.app_layout(),
+            &LinkOptions::default(),
+        ) {
+            d.install(&app).unwrap();
+            count += 1;
+        }
+        assert_eq!(count, expected, "{}", model.name());
+    }
+}
