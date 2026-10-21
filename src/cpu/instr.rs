@@ -144,3 +144,22 @@ pub struct SysReg(pub u8);
 /// Instructions de transfert de registres flottants (voir le module `fpu`).
 pub use super::fpu::FpInstr;
 
+/// Une instruction décodée.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Instr {
+    /// Opération arithmétique ou logique.
+    Dp {
+        op: DpOp,
+        rd: Reg,
+        rn: Reg,
+        rhs: Rhs,
+        flags: FlagMode,
+    },
+    /// Décalage ou rotation d'un registre (`mov`, `lsl`, `lsr`, `asr`, `ror`, `rrx`).
+    Shift {
+        kind: ShiftKind,
+        rd: Reg,
+        value: Reg,
+        amount: ShiftAmount,
+        flags: FlagMode,
+    },
