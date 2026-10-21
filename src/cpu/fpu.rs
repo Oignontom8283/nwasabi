@@ -390,3 +390,30 @@ const FPSCR_DN: u32 = 1 << 25;
 const FPSCR_RMODE_SHIFT: u32 = 22;
 const DEFAULT_NAN: u32 = 0x7fc0_0000;
 
+fn is_snan(x: f32) -> bool {
+    x.is_nan() && x.to_bits() & 0x0040_0000 == 0
+}
+
+/// Contexte de calcul : les bits de FPSCR qui influencent le résultat et les drapeaux à lever.
+struct Env<'a> {
+    fpscr: &'a mut u32,
+}
+
+impl Env<'_> {
+    fn raise(&mut self, flags: u32) {
+        *self.fpscr |= flags;
+    }
+
+    fn flush_zero(&self) -> bool {
+        *self.fpscr & FPSCR_FZ != 0
+    }
+
+    /// Opérande d'entrée : un dénormalisé est remplacé par zéro quand `FZ` est actif.
+    fn input(&mut self, x: f32) -> f32 {
+        if self.flush_zero() && x != 0.0 && !x.is_normal() && x.is_finite() {
+            self.raise(FPSCR_IDC);
+            return if x.is_sign_negative() { -0.0 } else { 0.0 };
+        }
+        x
+    }
+
