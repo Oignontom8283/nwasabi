@@ -252,3 +252,10 @@ fn unknown_encodings_stop_with_their_address() {
     );
 }
 
+#[test]
+fn bus_faults_stop_the_processor() {
+    // ldr r0, [r1] avec r1 hors de la mémoire.
+    let (_, _, stop) = run(&[0x6808], |c| c.regs.r[1] = 0x4000_0000, 1);
+    assert!(matches!(stop, Stop::BusFault(f) if f.address == 0x4000_0000 && !f.write));
+}
+
