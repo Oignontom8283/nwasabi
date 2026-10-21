@@ -194,3 +194,18 @@ fn device_information_comes_from_the_profile_and_the_status() {
     assert_eq!(f32::from_bits(cpu.regs.s[0]), 3.5);
 }
 
+#[test]
+fn draw_string_reads_text_and_background_from_the_stack() {
+    let (mut emu, mut cpu) = setup();
+    emu.device.memory.write_bytes(SCRATCH, b"Hi\0").unwrap();
+    emu.device.memory.write_u32(cpu.regs.sp, 0x1234).unwrap();
+    call(
+        &mut emu,
+        &mut cpu,
+        SVC_DRAW_STRING,
+        &[SCRATCH, 5 | 6 << 16, 0, 0xffff],
+    );
+    assert_eq!(emu.kernel.display.get(5, 6), Some(0x1234));
+    assert!((0..14).any(|y| (0..14).any(|x| emu.kernel.display.get(5 + x, 6 + y) == Some(0xffff))));
+}
+
