@@ -68,3 +68,36 @@ pub enum ShiftAmount {
     Reg(Reg),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemSize {
+    Byte,
+    Half,
+    Word,
+}
+
+/// Quand l'adresse de base est mise à jour dans un accès mémoire à base + décalage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexMode {
+    /// Adresse = base + décalage, base inchangée.
+    Offset,
+    /// Adresse = base + décalage, puis base = adresse.
+    PreIndex,
+    /// Adresse = base, puis base += décalage.
+    PostIndex,
+}
+
+/// Façon de calculer l'adresse d'un accès mémoire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Addr {
+    /// Base + constante signée.
+    Imm {
+        rn: Reg,
+        offset: i32,
+        mode: IndexMode,
+    },
+    /// Base + registre décalé à gauche de `shift` bits.
+    Reg { rn: Reg, rm: Reg, shift: u8 },
+    /// PC (aligné sur 4) + constante signée.
+    Literal { offset: i32 },
+}
+
