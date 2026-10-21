@@ -145,3 +145,28 @@ pub fn run(raw: &[String]) -> Outcome {
     Ok(if kind == "fault" { 3 } else { 0 })
 }
 
+// ---- inspect -------------------------------------------------------------------------------------
+
+pub fn inspect(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json"])?;
+    let mut session = Session::new();
+    match args.positional.as_slice() {
+        [] => {
+            call(
+                &mut session,
+                Value::object()
+                    .with("cmd", "new")
+                    .with("model", model_option(&args)?),
+            )?;
+        }
+        [path] => {
+            call(&mut session, load_request(&args, &read_file(path)?)?)?;
+        }
+        _ => return Err("trop d'arguments".to_owned()),
+    }
+    let reply = call(&mut session, Value::object().with("cmd", "inspect"))?;
+    // Toujours en JSON : c'est le format de référence de cette vue.
+    println!("{reply}");
+    Ok(0)
+}
+
