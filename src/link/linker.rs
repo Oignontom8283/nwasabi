@@ -812,3 +812,33 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         }
     }
 
+    // Le système retrouve l'application suivante d'après la taille de l'en-tête ; l'outil de
+    // flashage place la suivante d'après la taille réelle de l'image. Si elles diffèrent, avertir.
+    let mut warnings = Vec::new();
+    let system_next = align_up(u64::from(offset_in_flash(layout.app_end)), APP_SECTOR_SIZE);
+    let len = u64::from(layout.image_len);
+    let installed_next = len + (u64::from(APP_SECTOR_SIZE) - len % u64::from(APP_SECTOR_SIZE));
+    if system_next != installed_next {
+        warnings.push(LinkWarning::AppSizeMismatch {
+            system_next_offset: to_u32(system_next),
+            installed_next_offset: to_u32(installed_next),
+        });
+    }
+
+    let api_level = header[1];
+    Ok(LinkedApp {
+        name,
+        api_level,
+        icon,
+        flash_start: params.flash_start,
+        flash: image,
+        entry: entry | 1,
+        app_end: layout.app_end,
+        data: layout.data,
+        bss: layout.bss,
+        heap: layout.heap,
+        sections: layout.sections,
+        symbols,
+        warnings,
+    })
+}
