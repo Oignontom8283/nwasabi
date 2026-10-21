@@ -166,3 +166,28 @@ fn an_invalid_profile_is_refused() {
     ));
 }
 
+#[test]
+fn the_program_cannot_write_flash_or_touch_kernel_ram() {
+    let mut d = device(Model::N0110);
+    let flash = d.memory.write32(0x9000_0000, 0).unwrap_err();
+    assert_eq!(flash.kind, FaultKind::AccessDenied);
+    let kernel_ram = d.memory.read32(0x2003_f000).unwrap_err();
+    assert_eq!(kernel_ram.kind, FaultKind::AccessDenied);
+    // La RAM des applications est librement utilisable, et le SlotInfo s'y lit.
+    d.memory.write32(0x2001_18a4, 1).unwrap();
+    assert_eq!(d.memory.read32(0x2000_0000).unwrap(), 0xefee_dbba);
+    // Les périphériques ne sont pas (encore) émulés.
+    assert_eq!(
+        d.memory.read32(0x4000_0000).unwrap_err().kind,
+        FaultKind::Unmapped
+    );
+}
+
+#[test]
+fn ram_starts_filled_with_the_requested_value() {
+    use nwasabi::device::DeviceOptions;
+    let profile = FirmwareProfile::default_for(Model::N0110);
+    let mut d = DeviceImage::with_options(profile, DeviceOptions { ram_fill: 0xa5 }).unwrap();
+    assert_eq!(d.memory.read32(0x2002_0000).unwrap(), 0xa5a5_a5a5);
+}
+
