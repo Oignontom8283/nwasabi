@@ -56,3 +56,27 @@ impl Settings<'_> {
         self.change(|p| p.serial_number = serial.to_owned())
     }
 
+    /// Version d'Epsilon dans le `KernelHeader` (7 caractères au plus, ex. `26.4.0`). La version
+    /// attendue du userland n'est pas touchée : voir [`Settings::set_expected_userland_version`].
+    pub fn set_software_version(&mut self, version: &str) -> Result<(), DeviceError> {
+        self.change(|p| p.software_version = version.to_owned())
+    }
+
+    /// Version du userland que le noyau attend (`UserlandHeader`).
+    pub fn set_expected_userland_version(&mut self, version: &str) -> Result<(), DeviceError> {
+        self.change(|p| p.expected_userland_version = version.to_owned())
+    }
+
+    /// Identifiant du commit de compilation (7 caractères au plus).
+    pub fn set_commit_hash(&mut self, hash: &str) -> Result<(), DeviceError> {
+        self.change(|p| p.commit_hash = hash.to_owned())
+    }
+
+    /// Fait des deux versions la même, comme sur un appareil à jour.
+    pub fn set_version(&mut self, version: &str) -> Result<(), DeviceError> {
+        self.change(|p| {
+            p.software_version = version.to_owned();
+            p.expected_userland_version = version.to_owned();
+        })
+    }
+
