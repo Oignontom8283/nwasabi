@@ -205,3 +205,25 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 }
             }
         }
+        // ldrh / strh avec constante de 5 bits.
+        0b10000 | 0b10001 => {
+            let addr = Addr::Imm {
+                rn: low3(3),
+                offset: (bits(h, 10, 6) << 1) as i32,
+                mode: IndexMode::Offset,
+            };
+            if bit(h, 11) {
+                Instr::Load {
+                    size: MemSize::Half,
+                    signed: false,
+                    rt: low3(0),
+                    addr,
+                }
+            } else {
+                Instr::Store {
+                    size: MemSize::Half,
+                    rt: low3(0),
+                    addr,
+                }
+            }
+        }
