@@ -8,6 +8,9 @@
 //! La session ne touche ni au disque ni à l'horloge : les fichiers entrent et sortent en base64
 //! (ou en hexadécimal pour la mémoire), le temps est donné par `advance`.
 //!
+//! `new` et `load` acceptent `"model"` (`n0110`, `n0115`, `n0120`) et `"firmware"` (`"24"`, par
+//! défaut, ou `"26.4.0"`).
+//!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
 //! `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
@@ -18,10 +21,11 @@ mod views;
 use crate::emulator::{Emulator, RunStop};
 use crate::inspect::read_structures;
 use crate::json::{self, Value};
+use crate::kernel::KernelConfig;
 use crate::kernel::Key;
 use crate::memory::WatchKind;
 use crate::png;
-use crate::profile::{Model, Slot};
+use crate::profile::{FirmwareProfile, Model, Slot};
 use crate::storage::PythonSource;
 
 /// Budget d'instructions par défaut d'une commande `run`.
@@ -57,6 +61,17 @@ fn model_of(name: &str) -> Result<Model, String> {
         .into_iter()
         .find(|m| m.name().eq_ignore_ascii_case(name))
         .ok_or_else(|| format!("modèle inconnu : {name} (n0110, n0115 ou n0120)"))
+}
+
+/// Disposition du firmware demandée par `firmware` : `\"24\"` (appareils relevés, par défaut) ou
+/// `\"26.4.0\"` (firmware officiel récent : les applications qui devinent le modèle d'après la
+/// flash, comme celles écrites avec eadkp, s'y trompent sur N0110 et N0115).
+fn profile_of(req: &Value, model: Model) -> Result<FirmwareProfile, String> {
+    match req.get("firmware").and_then(Value::as_str).unwrap_or("24") {
+        "24" => Ok(FirmwareProfile::epsilon_24(model)),
+        "26.4.0" => Ok(FirmwareProfile::epsilon_26_4_0(model)),
+        other => Err(format!("firmware inconnu : {other} (24 ou 26.4.0)")),
+    }
 }
 
 fn key_of(req: &Value) -> Result<Key, String> {
@@ -306,7 +321,10 @@ impl Session {
 
     fn new_device(&mut self, req: &Value) -> Reply {
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
-        self.emu = Some(Emulator::new(model).map_err(|e| e.to_string())?);
+        let profile = profile_of(req, model)?;
+        let emu =
+            Emulator::with_profile(profile, KernelConfig::default()).map_err(|e| e.to_string())?;
+        self.emu = Some(emu);
         self.frames = 0;
         Ok(Value::object().with("model", model.name()))
     }
@@ -318,7 +336,9 @@ impl Session {
             None => None,
         };
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
-        let mut emu = Emulator::new(model).map_err(|e| e.to_string())?;
+        let profile = profile_of(req, model)?;
+        let mut emu =
+            Emulator::with_profile(profile, KernelConfig::default()).map_err(|e| e.to_string())?;
         emu.install_nwa(&nwa, data.as_deref())
             .map_err(|e| e.to_string())?;
         let info = views::app(emu.app().expect("application installée"));
