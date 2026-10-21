@@ -353,3 +353,22 @@ fn decode_extension(a: u32, b: u32, d: u8, m: u8) -> Option<FpInstr> {
     })
 }
 
+/// Transferts entre registres entiers et registres de contrôle ou simples.
+fn decode_core_transfer(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Option<FpInstr> {
+    let rt = bits(b, 15, 12) as Reg;
+    match (bits(a, 7, 4), bits(a, 3, 0)) {
+        // vmov Sn <-> Rt : 1110 1110 000 op Vn / Rt 1010 N 001 0000.
+        (op, vn) if op & 0b1110 == 0 && bits(b, 6, 0) & 0b1011111 == 0b0010000 => {
+            Some(FpInstr::MovCore {
+                to_core: op & 1 == 1,
+                rt,
+                s: single(vn, bits(b, 7, 7)),
+            })
+        }
+        // vmsr fpscr, Rt / vmrs Rt, fpscr.
+        (0b1110, 0b0001) if bits(b, 11, 0) == 0b1010_0001_0000 => Some(FpInstr::Vmsr { rt }),
+        (0b1111, 0b0001) if bits(b, 11, 0) == 0b1010_0001_0000 => Some(FpInstr::Vmrs { rt }),
+        _ => None,
+    }
+}
+
