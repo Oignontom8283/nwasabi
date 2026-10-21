@@ -169,3 +169,28 @@ fn random_is_reproducible_for_a_given_seed() {
     assert_ne!(cpu.regs.r[0], first);
 }
 
+#[test]
+fn device_information_comes_from_the_profile_and_the_status() {
+    let (mut emu, mut cpu) = setup();
+    call(&mut emu, &mut cpu, 39, &[]);
+    assert_eq!(cpu.regs.r[0], emu.device.profile.pcb_version);
+
+    call(&mut emu, &mut cpu, 29, &[]);
+    let fcc = emu.device.memory.read_bytes(cpu.regs.r[0], 16).unwrap();
+    let text: Vec<u8> = fcc.into_iter().take_while(|&b| b != 0).collect();
+    assert_eq!(text, emu.device.profile.fcc_id.as_bytes());
+
+    call(&mut emu, &mut cpu, 47, &[SCRATCH]);
+    let serial = emu.device.memory.read_bytes(SCRATCH, 17).unwrap();
+    assert_eq!(&serial[..16], emu.device.profile.serial_number.as_bytes());
+    assert_eq!(serial[16], 0);
+
+    call(&mut emu, &mut cpu, 2, &[100]);
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 100);
+
+    emu.kernel.status.battery_voltage = 3.5;
+    call(&mut emu, &mut cpu, 5, &[]);
+    assert_eq!(f32::from_bits(cpu.regs.s[0]), 3.5);
+}
+
