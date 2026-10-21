@@ -85,3 +85,59 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 _ => dp(DpOp::Sub, rd, rd, imm, FlagMode::OutsideIt),
             }
         }
+        0b01000 => match bits(h, 10, 8) {
+            0..=3 => {
+                // Opérations entre registres bas : and, eor, lsl, lsr, asr, adc, sbc, ror, tst, rsb, cmp,
+                // cmn, orr, mul, bic, mvn.
+                let (rdn, rm) = (low3(0), low3(3));
+                let reg = Rhs::Reg {
+                    rm,
+                    kind: ShiftKind::Lsl,
+                    amount: 0,
+                };
+                let shift = |kind| Instr::Shift {
+                    kind,
+                    rd: rdn,
+                    value: rdn,
+                    amount: ShiftAmount::Reg(rm),
+                    flags: FlagMode::OutsideIt,
+                };
+                let alu = |op| dp(op, rdn, rdn, reg, FlagMode::OutsideIt);
+                let test = |op| dp(op, 0, rdn, reg, FlagMode::Always);
+                match bits(h, 9, 6) {
+                    0 => alu(DpOp::And),
+                    1 => alu(DpOp::Eor),
+                    2 => shift(ShiftKind::Lsl),
+                    3 => shift(ShiftKind::Lsr),
+                    4 => shift(ShiftKind::Asr),
+                    5 => alu(DpOp::Adc),
+                    6 => alu(DpOp::Sbc),
+                    7 => shift(ShiftKind::Ror),
+                    8 => test(DpOp::Tst),
+                    9 => dp(DpOp::Rsb, rdn, rm, imm_rhs(0), FlagMode::OutsideIt),
+                    10 => test(DpOp::Cmp),
+                    11 => test(DpOp::Cmn),
+                    12 => alu(DpOp::Orr),
+                    13 => Instr::Mul {
+                        rd: rdn,
+                        rn: rm,
+                        rm: rdn,
+                        flags: FlagMode::OutsideIt,
+                    },
+                    14 => alu(DpOp::Bic),
+                    _ => dp(DpOp::Mvn, rdn, 0, reg, FlagMode::OutsideIt),
+                }
+            }
+            // Opérations sur les registres hauts et branchements par registre.
+            op => {
+                let rdn = (bits(h, 7, 7) << 3 | bits(h, 2, 0)) as Reg;
+                let rm = bits(h, 6, 3);
+                match op {
+                    4 => dp(DpOp::Add, rdn, rdn, reg_rhs(rm), FlagMode::Never),
+                    5 => dp(DpOp::Cmp, 0, rdn, reg_rhs(rm), FlagMode::Always),
+                    6 => dp(DpOp::Mov, rdn, 0, reg_rhs(rm), FlagMode::Never),
+                    _ if !bit(h, 7) => Instr::Bx { rm: rm as Reg },
+                    _ => Instr::Blx { rm: rm as Reg },
+                }
+            }
+        },
