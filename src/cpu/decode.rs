@@ -261,3 +261,24 @@ pub fn decode16(hw: u16) -> Option<Instr> {
             sub: false,
         },
         0b10110 | 0b10111 => return decode16_misc(h),
+        // stm / ldm.
+        0b11000 | 0b11001 => {
+            let rn = low3(8);
+            let regs = bits(h, 7, 0) as u16;
+            if bit(h, 11) {
+                let writeback = regs & (1 << rn) == 0;
+                Instr::Ldm {
+                    rn,
+                    regs,
+                    writeback,
+                    decrement_before: false,
+                }
+            } else {
+                Instr::Stm {
+                    rn,
+                    regs,
+                    writeback: true,
+                    decrement_before: false,
+                }
+            }
+        }
