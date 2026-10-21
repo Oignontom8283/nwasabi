@@ -285,3 +285,14 @@ mod tests {
         assert!(write(&empty(), "a.py", &[1; SIZE - 2 - 2 - 4]).is_err());
     }
 
+    #[test]
+    fn invalid_names_are_refused() {
+        for bad in ["", "noext", ".hidden", "a.", "a\0.py"] {
+            assert_eq!(
+                write(&empty(), bad, b""),
+                Err(FsError::InvalidName(bad.to_owned())),
+                "{bad:?}"
+            );
+        }
+    }
+
