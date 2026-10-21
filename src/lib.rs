@@ -19,6 +19,7 @@ pub mod link;
 pub mod memory;
 pub mod png;
 pub mod profile;
+pub mod session;
 pub mod settings;
 pub mod storage;
 pub mod structures;
