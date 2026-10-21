@@ -134,3 +134,33 @@ pub struct PythonSource {
     pub text: String,
 }
 
+/// Où est le système de fichiers, et de quoi se souvenir d'un appel à l'autre.
+#[derive(Debug, Clone)]
+pub struct Storage {
+    /// Adresse du tampon (juste après le magic de tête).
+    buffer_address: u32,
+    size: u32,
+    last_hash: u64,
+    generation: u64,
+}
+
+impl Storage {
+    /// `magic_address` : adresse du magic de tête ; `size` : taille du tampon qui le suit.
+    pub fn new(magic_address: u32, size: u32) -> Self {
+        Self {
+            buffer_address: magic_address + 4,
+            size,
+            last_hash: 0,
+            generation: 0,
+        }
+    }
+
+    /// Donne accès aux opérations, sur la mémoire de l'appareil.
+    pub fn with<'a>(&'a mut self, memory: &'a mut Memory) -> Fs<'a> {
+        Fs {
+            storage: self,
+            memory,
+        }
+    }
+}
+
