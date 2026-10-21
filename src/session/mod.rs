@@ -368,3 +368,24 @@ impl Session {
             .with("time_ms", emu.kernel.micros(emu.cpu.cycles) / 1000))
     }
 
+    fn key(&mut self, req: &Value) -> Reply {
+        let key = key_of(req)?;
+        let action = req.get("action").and_then(Value::as_str).unwrap_or("tap");
+        let emu = self.emu()?;
+        match action {
+            "press" => emu.kernel.keyboard.press(key),
+            "release" => emu.kernel.keyboard.release(key),
+            "tap" => {
+                emu.kernel.keyboard.press(key);
+                let hold = req
+                    .get("instructions")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(2_000_000);
+                emu.run(hold.max(0) as u64);
+                emu.kernel.keyboard.release(key);
+            }
+            other => return Err(format!("action inconnue : {other} (press, release, tap)")),
+        }
+        Ok(Value::object().with("state", emu.kernel.keyboard.state()))
+    }
+
