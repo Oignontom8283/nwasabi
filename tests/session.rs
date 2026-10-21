@@ -34,3 +34,15 @@ fn error(session: &mut Session, request: &str) -> String {
         .to_owned()
 }
 
+#[test]
+fn errors_are_replies_not_failures_and_ids_are_echoed() {
+    let mut s = Session::new();
+    assert!(error(&mut s, "pas du json").contains("JSON invalide"));
+    assert!(error(&mut s, r#"{"cmd":"inconnue"}"#).contains("commande inconnue"));
+    assert!(error(&mut s, r#"{"cmd":"fs_list"}"#).contains("aucun appareil"));
+    assert!(error(&mut s, r#"{"nocmd":1}"#).contains("cmd"));
+    let r = ask(&mut s, r#"{"cmd":"help","id":"abc"}"#);
+    assert_eq!(r.get("id").and_then(Value::as_str), Some("abc"));
+    assert!(r.get("commands").and_then(Value::as_array).unwrap().len() > 20);
+}
+
