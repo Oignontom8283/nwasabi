@@ -913,3 +913,22 @@ mod tests {
         assert_eq!(fpscr, FPSCR_IOC);
     }
 
+    #[test]
+    fn nan_propagation_follows_arm_rules() {
+        let snan = f32::from_bits(0x7f80_0001);
+        let qnan = f32::from_bits(0x7fc1_2345);
+        let mut fpscr = 0;
+        // Un NaN silencieux est propagé tel quel, sans lever d'exception.
+        assert_eq!(env(&mut fpscr).add(qnan, 1.0, false).to_bits(), 0x7fc1_2345);
+        assert_eq!(fpscr, 0);
+        // Un NaN signalant lève IOC et devient silencieux.
+        assert_eq!(env(&mut fpscr).add(1.0, snan, false).to_bits(), 0x7fc0_0001);
+        assert_eq!(fpscr, FPSCR_IOC);
+        // Le signalant l'emporte sur le silencieux, même en deuxième position.
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).mul(qnan, snan).to_bits(), 0x7fc0_0001);
+        // En mode « NaN par défaut », le résultat est toujours 0x7fc00000.
+        let mut fpscr = FPSCR_DN;
+        assert_eq!(env(&mut fpscr).add(qnan, 1.0, false).to_bits(), DEFAULT_NAN);
+    }
+
