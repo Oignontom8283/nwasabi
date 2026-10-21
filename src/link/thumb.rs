@@ -35,3 +35,17 @@ pub fn classify_branch(hw1: u16, hw2: u16) -> Option<Branch> {
     }
 }
 
+/// Décalage (en octets, signé) encodé dans un `bl`/`b.w` : le champ vaut « cible − (adresse + 4) ».
+pub fn decode_branch_offset(hw1: u16, hw2: u16) -> i32 {
+    let s = u32::from(hw1 >> 10) & 1;
+    let imm10 = u32::from(hw1) & 0x3ff;
+    let j1 = u32::from(hw2 >> 13) & 1;
+    let j2 = u32::from(hw2 >> 11) & 1;
+    let imm11 = u32::from(hw2) & 0x7ff;
+    let i1 = !(j1 ^ s) & 1;
+    let i2 = !(j2 ^ s) & 1;
+    let imm25 = (s << 24) | (i1 << 23) | (i2 << 22) | (imm10 << 12) | (imm11 << 1);
+    // Extension de signe depuis 25 bits.
+    ((imm25 << 7) as i32) >> 7
+}
+
