@@ -267,3 +267,10 @@ mod tests {
         assert_eq!(remove(&b, "zz.py"), Err(FsError::NotFound("zz.py".into())));
     }
 
+    #[test]
+    fn freed_space_is_zeroed() {
+        let mut b = write(&empty(), "a.py", b"AAAA").unwrap();
+        b = remove(&b, "a.py").unwrap();
+        assert_eq!(b, empty());
+    }
+
