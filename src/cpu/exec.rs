@@ -716,3 +716,44 @@ impl Cpu {
         Ok(())
     }
 
+    fn exec_stm<B: Bus>(
+        &mut self,
+        ctx: Ctx,
+        bus: &mut B,
+        rn: Reg,
+        regs: u16,
+        writeback: bool,
+        decrement_before: bool,
+    ) -> Result<(), Stop> {
+        let base = self.read(ctx, rn);
+        let bytes = 4 * regs.count_ones();
+        let start = if decrement_before {
+            base.wrapping_sub(bytes)
+        } else {
+            base
+        };
+        if start & 3 != 0 {
+            return Err(Stop::UsageFault {
+                pc: ctx.addr,
+                kind: UsageFault::Unaligned,
+            });
+        }
+        let mut address = start;
+        for r in 0..16u8 {
+            if regs & (1 << r) != 0 {
+                let value = self.read(ctx, r);
+                bus.write32(address, value).map_err(Stop::BusFault)?;
+                address = address.wrapping_add(4);
+            }
+        }
+        if writeback {
+            let new_base = if decrement_before {
+                start
+            } else {
+                base.wrapping_add(bytes)
+            };
+            self.write(rn, new_base);
+        }
+        Ok(())
+    }
+
