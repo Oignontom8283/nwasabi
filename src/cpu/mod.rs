@@ -7,6 +7,7 @@
 
 pub mod alu;
 mod bus;
+mod cache;
 mod decode;
 mod exception;
 mod exec;
@@ -69,6 +70,8 @@ pub struct Cpu {
     pub primask: bool,
     pub faultmask: bool,
     pub basepri: u8,
+    /// Instructions déjà décodées (voir `cache`).
+    cache: cache::DecodeCache,
 }
 
 impl Cpu {

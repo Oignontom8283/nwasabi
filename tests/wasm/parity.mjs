@@ -14,7 +14,7 @@ import { Nwasabi, toBase64, fromBase64 } from "../../web/src/nwasabi.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
 const wasmPath =
-  process.env.NWASABI_WASM ?? join(root, "target/wasm32-unknown-unknown/release/nwasabi.wasm");
+  process.env.NWASABI_WASM ?? join(root, "target/wasm32-unknown-unknown/wasm/nwasabi.wasm");
 
 const corpus = process.argv[2] ?? process.env.NWASABI_CORPUS;
 const emu = await Nwasabi.load(readFileSync(wasmPath));

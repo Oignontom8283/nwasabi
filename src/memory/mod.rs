@@ -27,6 +27,8 @@ pub struct Memory {
     /// Compteur incrémenté à chaque écriture ; sert à dater les modifications.
     tick: u64,
     watches: watch::Watchpoints,
+    /// Change quand du code déjà exécuté a pu être modifié (voir `Bus::code_epoch`).
+    code_epoch: u64,
 }
 
 impl Default for Memory {
@@ -42,6 +44,7 @@ impl Memory {
             last: 0,
             tick: 0,
             watches: watch::Watchpoints::default(),
+            code_epoch: 0,
         }
     }
 
@@ -143,6 +146,10 @@ impl Memory {
         let tick = self.tick;
         let region = &mut self.regions[index];
         let offset = address - region.spec.base;
+        if region.has_access(offset, data.len() as u32, access::EXECUTE) {
+            self.code_epoch += 1;
+        }
+        let region = &mut self.regions[index];
         region.copy_in(offset, data);
         region.stamp(offset, data.len() as u32, tick);
         Ok(())
@@ -171,6 +178,8 @@ impl Memory {
 
     /// Efface tous les indicateurs d'accès (par exemple au lancement d'une application).
     pub fn clear_access(&mut self) {
+        // Les lignes ne portent plus « exécuté » : les modifications du code ne seraient plus vues.
+        self.code_epoch += 1;
         for r in &mut self.regions {
             r.access.fill(0);
         }

@@ -142,11 +142,72 @@ impl Region {
         }
     }
 
+    /// Lit `N` octets (1 à 4) à `offset` : chemin rapide quand ils sont dans une même page.
+    #[inline]
+    pub fn read_small<const N: usize>(&self, offset: u32) -> [u8; N] {
+        let at = offset as usize;
+        let (page, inner) = (at / PAGE_SIZE as usize, at % PAGE_SIZE as usize);
+        if inner + N <= PAGE_SIZE as usize {
+            return match &self.pages[page] {
+                Some(p) => {
+                    let mut out = [0u8; N];
+                    out.copy_from_slice(&p[inner..inner + N]);
+                    out
+                }
+                None => [self.spec.fill; N],
+            };
+        }
+        let mut out = [0u8; N];
+        self.copy_out(offset, &mut out);
+        out
+    }
+
+    /// Écrit `N` octets (1 à 4) à `offset` : chemin rapide quand ils sont dans une même page.
+    #[inline]
+    pub fn write_small<const N: usize>(&mut self, offset: u32, data: [u8; N]) {
+        let at = offset as usize;
+        let (page, inner) = (at / PAGE_SIZE as usize, at % PAGE_SIZE as usize);
+        if inner + N <= PAGE_SIZE as usize {
+            let fill = self.spec.fill;
+            let p = self.pages[page].get_or_insert_with(|| Box::new([fill; PAGE_SIZE as usize]));
+            p[inner..inner + N].copy_from_slice(&data);
+        } else {
+            self.copy_in(offset, &data);
+        }
+    }
+
+    /// Comme `mark_access` pour un accès de 1 à 4 octets (au plus deux lignes).
+    #[inline]
+    pub fn mark_small(&mut self, offset: u32, len: u32, flag: u8) {
+        let first = (offset / LINE_SIZE) as usize;
+        let last = ((offset + len - 1) / LINE_SIZE) as usize;
+        self.access[first] |= flag;
+        if last != first {
+            self.access[last] |= flag;
+        }
+    }
+
+    /// Comme `stamp` pour un accès de 1 à 4 octets.
+    #[inline]
+    pub fn stamp_small(&mut self, offset: u32, len: u32, tick: u64) {
+        let lines = (self.spec.size / LINE_SIZE) as usize;
+        let stamps = self.stamps.get_or_insert_with(|| vec![0; lines]);
+        let first = (offset / LINE_SIZE) as usize;
+        let last = ((offset + len - 1) / LINE_SIZE) as usize;
+        stamps[first] = tick;
+        stamps[last] = tick;
+    }
+
     /// Indique que les lignes touchées par `[offset, offset + len)` ont reçu l'indicateur `flag`.
     pub fn mark_access(&mut self, offset: u32, len: u32, flag: u8) {
         for line in line_range(offset, len) {
             self.access[line] |= flag;
         }
+    }
+
+    /// Vrai si une des lignes de `[offset, offset + len)` porte l'indicateur `flag`.
+    pub fn has_access(&self, offset: u32, len: u32, flag: u8) -> bool {
+        line_range(offset, len).any(|line| self.access[line] & flag != 0)
     }
 
     /// Date l'écriture des lignes touchées par `[offset, offset + len)`.
