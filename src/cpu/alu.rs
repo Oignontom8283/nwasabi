@@ -25,3 +25,15 @@ impl ShiftKind {
     }
 }
 
+/// `x + y + carry_in` : résultat, retenue sortante et débordement signé.
+pub fn add_with_carry(x: u32, y: u32, carry_in: bool) -> (u32, bool, bool) {
+    let unsigned = u64::from(x) + u64::from(y) + u64::from(carry_in);
+    let signed = i64::from(x as i32) + i64::from(y as i32) + i64::from(carry_in);
+    let result = unsigned as u32;
+    (
+        result,
+        u64::from(result) != unsigned,
+        i64::from(result as i32) != signed,
+    )
+}
+
