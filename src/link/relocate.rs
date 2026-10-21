@@ -71,3 +71,97 @@ fn write_pair(section: &mut [u8], offset: u32, (hw1, hw2): (u16, u16)) -> Result
     Ok(())
 }
 
+/// Applique une relocation de type `kind` à l'emplacement `offset` de `section`.
+///
+/// `place` est l'adresse finale de cet emplacement (`P`).
+pub fn apply(
+    kind: u8,
+    section: &mut [u8],
+    offset: u32,
+    place: u32,
+    target: Target,
+) -> Result<(), RelocError> {
+    let s = target.address;
+    let t = u32::from(target.thumb);
+    match kind {
+        R_ARM_NONE => Ok(()),
+
+        // Adresse absolue sur 32 bits. TARGET1 est traité comme ABS32 (convention « bare metal »).
+        R_ARM_ABS32 | R_ARM_TARGET1 => {
+            let a = read_u32(section, offset)?;
+            write_u32(section, offset, s.wrapping_add(a) | t)
+        }
+
+        // Distance relative sur 32 bits.
+        R_ARM_REL32 => {
+            let a = read_u32(section, offset)?;
+            write_u32(section, offset, (s.wrapping_add(a) | t).wrapping_sub(place))
+        }
+
+        // Distance relative sur 31 bits (tables d'exceptions) ; le bit 31 de l'emplacement est conservé.
+        R_ARM_PREL31 => {
+            let word = read_u32(section, offset)?;
+            let addend = (((word & 0x7fff_ffff) << 1) as i32) >> 1; // extension de signe 31 bits
+            let value = i64::from((s.wrapping_add(addend as u32) | t).wrapping_sub(place) as i32);
+            if !(-(1 << 30)..(1 << 30)).contains(&value) {
+                return Err(RelocError::Overflow { kind, value });
+            }
+            write_u32(
+                section,
+                offset,
+                (word & 0x8000_0000) | (value as u32 & 0x7fff_ffff),
+            )
+        }
+
+        // Appel (`bl`) ou saut long (`b.w`) : seuls les 24 bits de décalage changent.
+        R_ARM_THM_CALL | R_ARM_THM_JUMP24 => {
+            let (hw1, hw2) = read_pair(section, offset)?;
+            let branch = thumb::classify_branch(hw1, hw2).ok_or(RelocError::BadInstruction {
+                kind,
+                hw1,
+                hw2,
+            })?;
+            match (kind, branch) {
+                (R_ARM_THM_CALL, Branch::Bl | Branch::BW) | (R_ARM_THM_JUMP24, Branch::BW) => {}
+                (_, Branch::Blx) => return Err(RelocError::Interworking { kind }),
+                _ => return Err(RelocError::BadInstruction { kind, hw1, hw2 }),
+            }
+            // Appeler une fonction faible absente ne fait rien (comportement de l'éditeur de liens GNU).
+            if target.weak_undefined {
+                return write_pair(section, offset, thumb::NOP_W);
+            }
+            let addend = thumb::decode_branch_offset(hw1, hw2);
+            let value = i64::from(s & !1) + i64::from(addend) - i64::from(place);
+            let encoded = i32::try_from(value)
+                .ok()
+                .and_then(|v| thumb::encode_branch_offset(hw1, hw2, v))
+                .ok_or(RelocError::Overflow { kind, value })?;
+            write_pair(section, offset, encoded)
+        }
+
+        // `movw` : 16 bits de poids faible de (S + A) | T.
+        // `movt` : 16 bits de poids fort de S + A.
+        R_ARM_THM_MOVW_ABS_NC | R_ARM_THM_MOVT_ABS => {
+            let (hw1, hw2) = read_pair(section, offset)?;
+            let is_movt = thumb::classify_mov16(hw1, hw2).ok_or(RelocError::BadInstruction {
+                kind,
+                hw1,
+                hw2,
+            })?;
+            if is_movt != (kind == R_ARM_THM_MOVT_ABS) {
+                return Err(RelocError::BadInstruction { kind, hw1, hw2 });
+            }
+            let addend = i32::from(thumb::decode_mov16(hw1, hw2) as i16) as u32;
+            let value = s.wrapping_add(addend);
+            let imm = if is_movt {
+                (value >> 16) as u16
+            } else {
+                ((value | t) & 0xffff) as u16
+            };
+            write_pair(section, offset, thumb::encode_mov16(hw1, hw2, imm))
+        }
+
+        other => Err(RelocError::Unsupported(other)),
+    }
+}
+
