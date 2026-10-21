@@ -217,3 +217,16 @@ fn bl_encoding(offset: i32) -> (u16, u16) {
     (hw1 as u16, hw2 as u16)
 }
 
+#[test]
+fn svc_is_given_to_the_hooks() {
+    // svc #0x2a
+    let mut bus = Flat::with_halfwords(&[0xdf2a, 0x2001]);
+    let mut cpu = Cpu::new();
+    cpu.regs.pc = START;
+    let mut hooks = RecordingHooks::default();
+    assert_eq!(cpu.step(&mut bus, &mut hooks), Err(Stop::Requested));
+    assert_eq!(hooks.svcs, [0x2a]);
+    // L'instruction suivante est celle d'après le svc.
+    assert_eq!(cpu.regs.pc, START + 2);
+}
+
