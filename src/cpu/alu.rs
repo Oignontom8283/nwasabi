@@ -87,3 +87,23 @@ pub fn decode_imm_shift(kind_bits: u32, imm5: u32) -> (ShiftKind, u32) {
     }
 }
 
+/// Expansion d'une constante immédiate « modifiée » de 12 bits (`ThumbExpandImm_C`) : valeur et,
+/// pour les formes avec rotation, la retenue produite (`None` : la retenue ne change pas).
+pub fn thumb_expand_imm(imm12: u32) -> (u32, Option<bool>) {
+    let imm8 = imm12 & 0xff;
+    if imm12 >> 10 == 0 {
+        let value = match (imm12 >> 8) & 3 {
+            0 => imm8,
+            1 => (imm8 << 16) | imm8,
+            2 => (imm8 << 24) | (imm8 << 8),
+            _ => (imm8 << 24) | (imm8 << 16) | (imm8 << 8) | imm8,
+        };
+        (value, None)
+    } else {
+        let unrotated = 0x80 | (imm12 & 0x7f);
+        let rotation = imm12 >> 7;
+        let value = unrotated.rotate_right(rotation);
+        (value, Some(value >> 31 != 0))
+    }
+}
+
