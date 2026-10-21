@@ -1,7 +1,58 @@
 //! Éditeur de liens : transforme un `.nwa` (objet ELF relogeable) en image prête à être placée
 //! en mémoire, comme le fait l'outil de flashage officiel avant d'écrire l'application dans la
 //! flash de la calculatrice.
+//!
+//! Le travail se fait en cinq temps, un fichier chacun :
+//! 1. résoudre les symboles entre le `.nwa`, le runtime EADK et les données externes ;
+//! 2. écarter les sections que rien n'utilise (comme `--gc-sections`) ;
+//! 3. placer les sections en flash et en RAM selon la disposition d'une application externe ;
+//! 4. appliquer les relocations ;
+//! 5. écrire l'en-tête d'application et assembler l'image.
 
+mod error;
+mod linker;
 pub mod relocate;
 pub mod runtime;
 pub mod thumb;
+
+pub use error::LinkError;
+
+use crate::elf::{ElfObject, Limits, SymbolKind};
+
+/// Taille d'un secteur de la flash externe : les applications y sont alignées.
+pub const APP_SECTOR_SIZE: u32 = 0x1_0000;
+
+/// Où placer l'application : zones de flash et de RAM réservées aux applications externes.
+///
+/// Ces valeurs viennent du `UserlandHeader` du firmware cible ; elles changent avec le modèle et
+/// la version d'Epsilon (voir le profil du firmware).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LayoutParams {
+    pub flash_start: u32,
+    pub flash_length: u32,
+    pub ram_start: u32,
+    pub ram_length: u32,
+    /// Adresse de la table de fonctions du userland (`eadk_display_draw_string` y est lue).
+    pub trampoline_address: u32,
+}
+
+impl LayoutParams {
+    pub fn flash_end(&self) -> u64 {
+        u64::from(self.flash_start) + u64::from(self.flash_length)
+    }
+
+    pub fn ram_end(&self) -> u64 {
+        u64::from(self.ram_start) + u64::from(self.ram_length)
+    }
+}
+
+/// Réglages de l'édition de liens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LinkOptions {
+    /// Bornes de lecture du fichier ELF.
+    pub limits: Limits,
+    /// Fournir aussi les fonctions que `eadk.h` déclare mais que le firmware officiel n'offre pas
+    /// (batterie, USB). Désactivé par défaut : un vrai appareil refuserait ces applications.
+    pub extended_runtime: bool,
+}
+
