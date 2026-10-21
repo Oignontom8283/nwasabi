@@ -179,3 +179,88 @@ pub fn decode(hw1: u16, hw2: u16) -> Option<FpInstr> {
     }
 }
 
+fn decode_transfer(
+    a: u32,
+    b: u32,
+    double: bool,
+    single: impl Fn(u32, u32) -> u8,
+    dreg: impl Fn(u32, u32) -> u8,
+) -> Option<FpInstr> {
+    // Transfert de deux registres entiers : 1110 1100 010 L Rt2 / Rt 101z 00 M 1 Vm.
+    if bits(a, 9, 5) == 0b00010 {
+        let (rt, rt2) = (bits(b, 15, 12) as Reg, bits(a, 3, 0) as Reg);
+        let (vm, m) = (bits(b, 3, 0), bits(b, 5, 5));
+        if bits(b, 7, 6) != 0b00 || bits(b, 4, 4) != 1 {
+            return None;
+        }
+        let first = if double { dreg(vm, m) } else { single(vm, m) };
+        return Some(FpInstr::MovTwoCore {
+            to_core: bits(a, 4, 4) == 1,
+            rt,
+            rt2,
+            first,
+        });
+    }
+    // Chargements et rangements : 1110 110 P U D W L Rn / Vd 101z imm8.
+    let (p, u, d, w, l) = (bit(a, 8), bit(a, 7), bits(a, 6, 6), bit(a, 5), bit(a, 4));
+    let rn = bits(a, 3, 0) as Reg;
+    let vd = bits(b, 15, 12);
+    let imm8 = bits(b, 7, 0);
+    let first = if double { dreg(vd, d) } else { single(vd, d) };
+    if p && !w {
+        // vldr / vstr : un seul registre, décalage de imm8 × 4.
+        let offset = (imm8 * 4) as i32;
+        let offset = if u { offset } else { -offset };
+        let words = if double { 2 } else { 1 };
+        return Some(if l {
+            FpInstr::Ldr {
+                first,
+                words,
+                rn,
+                offset,
+            }
+        } else {
+            FpInstr::Str {
+                first,
+                words,
+                rn,
+                offset,
+            }
+        });
+    }
+    // vldm / vstm (incrémentation après) et vldmdb / vstmdb (décrémentation avant ; vpush / vpop).
+    let decrement_before = match (p, u, w) {
+        (false, true, _) => false,
+        (true, false, true) => true,
+        _ => return None,
+    };
+    if double && imm8 % 2 == 1 {
+        return None; // anciennes instructions fldmx / fstmx
+    }
+    if imm8 == 0 || (first as u32 + imm8) > 32 {
+        return None;
+    }
+    let (writeback, words) = (w, imm8 as u8);
+    Some(if l {
+        FpInstr::Ldm {
+            first,
+            words,
+            rn,
+            writeback,
+            decrement_before,
+        }
+    } else {
+        FpInstr::Stm {
+            first,
+            words,
+            rn,
+            writeback,
+            decrement_before,
+        }
+    })
+}
+
+fn bit(v: u32, n: u32) -> bool {
+    (v >> n) & 1 != 0
+}
+
