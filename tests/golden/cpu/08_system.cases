@@ -1,0 +1,139 @@
+#0
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#1
+mrs r8, apsr
+#2
+msr apsr_nzcvqg, r6
+#3
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#4
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#5
+mov.w r3, #1
+msr primask, r3
+mrs r0, primask
+movs r1, #0
+msr primask, r1
+#6
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#7
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#8
+msr apsr_nzcvq, r8
+#9
+nop
+dmb
+dsb
+isb
+#10
+msr apsr_nzcvqg, r4
+#11
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#12
+mov.w r7, #1
+msr primask, r7
+mrs r0, primask
+movs r1, #0
+msr primask, r1
+#13
+nop
+dmb
+dsb
+isb
+#14
+msr apsr_nzcvqg, r8
+#15
+msr apsr_nzcvqg, r6
+#16
+mov.w r7, #1
+msr primask, r7
+mrs r0, primask
+movs r1, #0
+msr primask, r1
+#17
+mrs r2, apsr
+#18
+nop
+dmb
+dsb
+isb
+#19
+mrs r2, xpsr
+#20
+msr apsr_nzcvq, r2
+#21
+mov.w r7, #1
+msr primask, r7
+mrs r0, primask
+movs r1, #0
+msr primask, r1
+#22
+msr apsr_nzcvqg, r5
+#23
+mrs r7, apsr
+#24
+msr apsr_nzcvqg, r5
+#25
+msr apsr_nzcvqg, r8
+#26
+msr apsr_nzcvq, r0
+#27
+mrs r9, apsr
+#28
+mov.w r2, #1
+msr primask, r2
+mrs r0, primask
+movs r1, #0
+msr primask, r1
+#29
+msr apsr_nzcvq, r6
+#30
+nop
+dmb
+dsb
+isb
+#31
+nop
+dmb
+dsb
+isb
+#32
+msr apsr_nzcvq, r5
+mrs r4, apsr
+#33
+mrs r0, xpsr
+#34
+msr apsr_nzcvq, r6
+mrs r8, apsr
+#35
+msr apsr_nzcvq, r2
+#36
+mrs r1, xpsr
+#37
+cpsid i
+mrs r0, primask
+cpsie i
+mrs r1, primask
+#38
+mrs r6, apsr
+#39
+msr apsr_nzcvq, r1
+mrs r9, apsr
