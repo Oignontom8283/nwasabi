@@ -109,3 +109,36 @@ fn event_get_returns_queued_events_and_the_remaining_timeout() {
     assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 1000);
 }
 
+#[test]
+fn event_get_waits_then_times_out() {
+    let (mut emu, mut cpu) = setup();
+    cpu.regs.pc = 0x9020_0102; // juste après un `svc` de 2 octets
+    emu.device.memory.write_u32(SCRATCH, 50).unwrap();
+
+    assert_eq!(
+        call(&mut emu, &mut cpu, 23, &[SCRATCH]),
+        SvcAction::HandledAndStop
+    );
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(50)
+        })
+    );
+    assert_eq!(cpu.regs.pc, 0x9020_0100, "l'appel sera refait");
+
+    emu.kernel.advance_time(20_000);
+    call(&mut emu, &mut cpu, 23, &[SCRATCH]);
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(30)
+        })
+    );
+
+    emu.kernel.advance_time(40_000);
+    assert_eq!(call(&mut emu, &mut cpu, 23, &[SCRATCH]), SvcAction::Handled);
+    assert_eq!(cpu.regs.r[0], u32::from(keyboard::EVENT_NONE));
+    assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 0);
+}
+
