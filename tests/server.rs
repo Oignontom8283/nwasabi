@@ -60,11 +60,23 @@ fn get(server: &Server, path: &str) -> (u16, Vec<u8>) {
 }
 
 #[test]
-fn serves_a_fallback_page_and_health() {
+fn serves_the_site_and_health() {
     let server = start(&[]);
+    // Le site pré-construit (`web-dist/`) est embarqué dans le binaire.
     let (code, body) = get(&server, "/");
     assert_eq!(code, 200);
-    assert!(String::from_utf8_lossy(&body).contains("nwasabi"));
+    let page = String::from_utf8_lossy(&body);
+    assert!(page.contains("<title>nwasabi</title>"), "{page}");
+    let script = page
+        .split("src=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap();
+    let (code, body) = get(&server, script.trim_start_matches('.'));
+    assert_eq!(code, 200, "{script}");
+    assert!(!body.is_empty());
     let (code, body) = get(&server, "/__nwasabi/health");
     assert_eq!((code, body.as_slice()), (200, &b"{\"ok\":true}"[..]));
     let (_, body) = get(&server, "/__nwasabi/preload");
@@ -87,8 +99,6 @@ fn preloads_the_given_application() {
     let nwa = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
     assert_eq!(nwa, [1, 2, 3, 250]);
     assert_eq!(v.get("data_base64"), Some(&Value::Null));
-    let (_, page) = get(&server, "/");
-    assert!(String::from_utf8_lossy(&page).contains("demo.nwa"));
 }
 
 #[test]
