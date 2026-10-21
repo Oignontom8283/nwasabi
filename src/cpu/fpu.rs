@@ -264,3 +264,30 @@ fn bit(v: u32, n: u32) -> bool {
     (v >> n) & 1 != 0
 }
 
+fn decode_data(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Option<FpInstr> {
+    let opc1 = bits(a, 7, 4);
+    let d = single(bits(b, 15, 12), bits(a, 6, 6));
+    let n = single(bits(a, 3, 0), bits(b, 7, 7));
+    let m = single(bits(b, 3, 0), bits(b, 5, 5));
+    let s = bit(b, 6);
+    let (p, q, r) = (bit(opc1, 3), bit(opc1, 1), bit(opc1, 0));
+    let arith = |op| Some(FpInstr::Arith { op, d, n, m });
+    match (p, q, r, s) {
+        (false, false, false, false) => arith(FpArith::Vmla),
+        (false, false, false, true) => arith(FpArith::Vmls),
+        (false, false, true, false) => arith(FpArith::Vnmls),
+        (false, false, true, true) => arith(FpArith::Vnmla),
+        (false, true, false, false) => arith(FpArith::Vmul),
+        (false, true, false, true) => arith(FpArith::Vnmul),
+        (false, true, true, false) => arith(FpArith::Vadd),
+        (false, true, true, true) => arith(FpArith::Vsub),
+        (true, false, false, false) => arith(FpArith::Vdiv),
+        (true, false, true, false) => arith(FpArith::Vfnms),
+        (true, false, true, true) => arith(FpArith::Vfnma),
+        (true, true, false, false) => arith(FpArith::Vfma),
+        (true, true, false, true) => arith(FpArith::Vfms),
+        (true, true, true, _) => decode_extension(a, b, d, m),
+        _ => None,
+    }
+}
+
