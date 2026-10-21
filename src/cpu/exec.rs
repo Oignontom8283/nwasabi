@@ -849,3 +849,12 @@ impl Cpu {
     }
 }
 
+/// Masque de `width` bits de poids faible (1 à 32).
+fn field_mask(width: u8) -> u32 {
+    if width >= 32 {
+        u32::MAX
+    } else {
+        (1u32 << width) - 1
+    }
+}
+
