@@ -130,3 +130,18 @@ fn run_batch(name: &str) -> Vec<String> {
     problems
 }
 
+fn check(name: &str) {
+    let problems = run_batch(name);
+    assert!(
+        problems.is_empty(),
+        "{} différence(s) avec QEMU (premières) :\n{}",
+        problems.len(),
+        problems
+            .iter()
+            .take(8)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
