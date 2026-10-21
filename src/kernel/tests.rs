@@ -242,3 +242,18 @@ fn exit_and_reset_stop_the_application() {
     assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Reset));
 }
 
+#[test]
+fn unknown_svc_stops_in_strict_mode_and_is_counted_otherwise() {
+    let (mut emu, mut cpu) = setup();
+    assert_eq!(
+        call(&mut emu, &mut cpu, 0x70, &[]),
+        SvcAction::HandledAndStop
+    );
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::UnknownSvc(0x70)));
+
+    emu.kernel.config.strict_svc = false;
+    assert_eq!(call(&mut emu, &mut cpu, 0x70, &[]), SvcAction::Handled);
+    assert_eq!(emu.kernel.unknown_svcs, 1);
+    assert_eq!(emu.kernel.svc_counts[0x70], 2);
+}
+
