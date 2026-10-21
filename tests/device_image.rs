@@ -266,3 +266,71 @@ fn installation_stops_when_the_apps_area_is_full() {
     ));
 }
 
+#[test]
+fn erasing_the_apps_empties_the_list() {
+    let mut d = device(Model::N0110);
+    let app = linked_for(&d, synthetic_app());
+    d.install(&app).unwrap();
+    d.erase_apps().unwrap();
+    assert!(d.apps().is_empty());
+    assert_eq!(d.next_app_address(), 0x9020_0000);
+}
+
+#[test]
+fn exam_mode_hides_every_external_app() {
+    let mut d = device(Model::N0110);
+    let app = linked_for(&d, synthetic_app());
+    d.install(&app).unwrap();
+    let (start, end) = d.profile.slot_a.apps_flash;
+    assert_eq!(list_apps(&mut d.memory, start, end, false).len(), 1);
+    assert!(list_apps(&mut d.memory, start, end, true).is_empty());
+}
+
+#[test]
+fn a_data_image_that_crosses_a_sector_hides_the_next_app_as_on_the_real_device() {
+    // Première application : ses constantes finissent juste avant la limite d'un secteur, mais la
+    // copie de `.data` la franchit. L'en-tête annonce donc une taille trop courte.
+    let build = |d: &DeviceImage, rodata: usize| {
+        let mut app = synthetic_app();
+        let ro = app
+            .writer
+            .add_section(".rodata.pad", SHF_ALLOC, 1, &vec![0; rodata]);
+        let pad = app.writer.add_symbol(
+            "pad",
+            0,
+            rodata as u32,
+            SymbolBind::Global,
+            SymbolKind::Object,
+            SymbolSection::Section(ro.0),
+        );
+        let data = app
+            .writer
+            .add_section(".data.d", SHF_ALLOC | SHF_WRITE, 4, &[7; 16]);
+        let dsym = app.writer.add_symbol(
+            "d",
+            0,
+            16,
+            SymbolBind::Global,
+            SymbolKind::Object,
+            SymbolSection::Section(data.0),
+        );
+        app.word_ref(pad);
+        app.word_ref(dsym);
+        linked_for(d, app)
+    };
+    let mut d = device(Model::N0110);
+    let probe = build(&d, 0);
+    let rodata = 0x1_0000 - 8 - (probe.app_end - probe.flash_start) as usize;
+    let first = build(&d, rodata);
+    assert!(
+        !first.warnings.is_empty(),
+        "le scénario doit provoquer l'avertissement"
+    );
+    d.install(&first).unwrap();
+    // La suivante est installée à l'emplacement que calcule l'outil de flashage…
+    let second = linked_for(&d, synthetic_app());
+    let second_address = d.install(&second).unwrap();
+    assert_eq!(second_address, 0x9022_0000);
+    // …mais le système, qui se fie à la taille de l'en-tête, la cherche à 0x9021_0000 et s'arrête.
+    assert_eq!(d.apps().len(), 1);
+}
