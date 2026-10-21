@@ -150,3 +150,29 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 offset: (bits(h, 7, 0) << 2) as i32,
             },
         },
+        // Accès mémoire avec registre de décalage.
+        0b01010 | 0b01011 => {
+            let addr = Addr::Reg {
+                rn: low3(3),
+                rm: low3(6),
+                shift: 0,
+            };
+            let rt = low3(0);
+            let load = |size, signed| Instr::Load {
+                size,
+                signed,
+                rt,
+                addr,
+            };
+            let store = |size| Instr::Store { size, rt, addr };
+            match bits(h, 11, 9) {
+                0 => store(MemSize::Word),
+                1 => store(MemSize::Half),
+                2 => store(MemSize::Byte),
+                3 => load(MemSize::Byte, true),
+                4 => load(MemSize::Word, false),
+                5 => load(MemSize::Half, false),
+                6 => load(MemSize::Byte, false),
+                _ => load(MemSize::Half, true),
+            }
+        }
