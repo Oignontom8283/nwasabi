@@ -40,3 +40,36 @@ pub struct Session {
     frames: u64,
 }
 
+fn text<'a>(req: &'a Value, key: &str) -> Result<&'a str, String> {
+    req.get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("champ « {key} » (texte) manquant"))
+}
+
+fn number(req: &Value, key: &str) -> Result<u32, String> {
+    req.get(key)
+        .and_then(Value::as_u32)
+        .ok_or_else(|| format!("champ « {key} » (entier) manquant ou invalide"))
+}
+
+fn model_of(name: &str) -> Result<Model, String> {
+    Model::ALL
+        .into_iter()
+        .find(|m| m.name().eq_ignore_ascii_case(name))
+        .ok_or_else(|| format!("modèle inconnu : {name} (n0110, n0115 ou n0120)"))
+}
+
+fn key_of(req: &Value) -> Result<Key, String> {
+    let name = text(req, "key")?;
+    Key::from_name(name).ok_or_else(|| format!("touche inconnue : {name}"))
+}
+
+/// Corps d'un fichier donné en `text` ou en `base64`.
+fn body_of(req: &Value) -> Result<Vec<u8>, String> {
+    if let Some(t) = req.get("text").and_then(Value::as_str) {
+        return Ok(t.as_bytes().to_vec());
+    }
+    let b64 = text(req, "base64").map_err(|_| "il faut « text » ou « base64 »".to_owned())?;
+    json::base64_decode(b64).ok_or_else(|| "base64 invalide".to_owned())
+}
+
