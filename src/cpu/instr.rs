@@ -306,3 +306,31 @@ pub enum Instr {
         amount: u32,
     },
 
+    B {
+        offset: i32,
+    },
+    BCond {
+        cond: u8,
+        offset: i32,
+    },
+    Bl {
+        offset: i32,
+    },
+    Bx {
+        rm: Reg,
+    },
+    Blx {
+        rm: Reg,
+    },
+    Cbz {
+        rn: Reg,
+        offset: u32,
+        nonzero: bool,
+    },
+    /// `tbb` / `tbh` : branchement par table.
+    TableBranch {
+        half: bool,
+        rn: Reg,
+        rm: Reg,
+    },
+
