@@ -271,3 +271,7 @@ fn bx_to_an_even_address_is_an_invalid_state() {
     );
 }
 
+/// Hooks qui laissent le processeur lever l'exception (comportement par défaut).
+struct Raise;
+impl Hooks for Raise {}
+
