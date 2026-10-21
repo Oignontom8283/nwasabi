@@ -303,3 +303,86 @@ pub fn decode16(hw: u16) -> Option<Instr> {
     })
 }
 
+/// Instructions diverses de 16 bits (`1011 xxxx …`).
+fn decode16_misc(h: u32) -> Option<Instr> {
+    let low3 = |shift: u32| bits(h, shift + 2, shift) as Reg;
+    Some(match bits(h, 11, 8) {
+        0b0000 => Instr::AddSubImm12 {
+            rd: 13,
+            rn: 13,
+            imm: bits(h, 6, 0) << 2,
+            sub: bit(h, 7),
+        },
+        0b0010 => {
+            let kind = match bits(h, 7, 6) {
+                0 => ExtKind::Sxth,
+                1 => ExtKind::Sxtb,
+                2 => ExtKind::Uxth,
+                _ => ExtKind::Uxtb,
+            };
+            Instr::Extend {
+                kind,
+                rd: low3(0),
+                rm: low3(3),
+                rotate: 0,
+                rn: None,
+            }
+        }
+        0b0110 if bits(h, 7, 5) == 0b011 => Instr::Cps {
+            disable: bit(h, 4),
+            i: bit(h, 1),
+            f: bit(h, 0),
+        },
+        // cbz / cbnz.
+        0b0001 | 0b0011 | 0b1001 | 0b1011 => Instr::Cbz {
+            rn: low3(0),
+            offset: (bits(h, 9, 9) << 6) | (bits(h, 7, 3) << 1),
+            nonzero: bit(h, 11),
+        },
+        0b0100 | 0b0101 => Instr::Stm {
+            rn: 13,
+            regs: (bits(h, 7, 0) | (bits(h, 8, 8) << 14)) as u16,
+            writeback: true,
+            decrement_before: true,
+        },
+        0b1100 | 0b1101 => Instr::Ldm {
+            rn: 13,
+            regs: (bits(h, 7, 0) | (bits(h, 8, 8) << 15)) as u16,
+            writeback: true,
+            decrement_before: false,
+        },
+        0b1010 => {
+            let kind = match bits(h, 7, 6) {
+                0 => RevKind::Rev,
+                1 => RevKind::Rev16,
+                3 => RevKind::Revsh,
+                _ => return None,
+            };
+            Instr::Rev {
+                kind,
+                rd: low3(0),
+                rm: low3(3),
+            }
+        }
+        0b1110 => Instr::Bkpt {
+            imm: bits(h, 7, 0) as u8,
+        },
+        0b1111 => {
+            if bits(h, 3, 0) == 0 {
+                match bits(h, 7, 4) {
+                    0 | 1 | 4 => Instr::Nop, // nop, yield, sev
+                    2 => Instr::Wfe,
+                    3 => Instr::Wfi,
+                    _ => return None,
+                }
+            } else {
+                Instr::It {
+                    firstcond: bits(h, 7, 4) as u8,
+                    mask: bits(h, 3, 0) as u8,
+                }
+            }
+        }
+        _ => return None,
+    })
+}
+
