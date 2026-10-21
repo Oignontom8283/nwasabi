@@ -374,3 +374,38 @@ pub enum Instr {
         decrement_before: bool,
     },
 
+    /// `it` : débute un bloc conditionnel.
+    It {
+        firstcond: u8,
+        mask: u8,
+    },
+    Nop,
+    Wfi,
+    Wfe,
+    Svc {
+        imm: u8,
+    },
+    Bkpt {
+        imm: u8,
+    },
+    Udf {
+        imm: u16,
+    },
+    Mrs {
+        rd: Reg,
+        sysreg: SysReg,
+    },
+    /// `mask` : bits 11-10 du second demi-mot (pour APSR : bit 1 = N Z C V Q, bit 0 = GE).
+    Msr {
+        rn: Reg,
+        sysreg: SysReg,
+        mask: u8,
+    },
+    /// `cpsid` / `cpsie`.
+    Cps {
+        disable: bool,
+        i: bool,
+        f: bool,
+    },
+    /// `dmb`, `dsb`, `isb` : sans effet sur un processeur à un seul cœur émulé.
+    Barrier,
