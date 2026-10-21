@@ -599,3 +599,76 @@ fn layout(
     })
 }
 
+// === 4. Relocations et assemblage de l'image ===
+
+/// Nom lisible d'un symbole pour un message d'erreur (un symbole de section n'a pas de nom).
+fn display_name(objects: &[Obj<'_>], r: SymRef) -> String {
+    let sym = &objects[r.obj].elf.symbols[r.index];
+    match (sym.name.as_str(), sym.section) {
+        ("", SymbolSection::Section(s)) => objects[r.obj].elf.sections[s].name.clone(),
+        (name, _) => name.to_owned(),
+    }
+}
+
+struct Linked<'a, 'b> {
+    ctx: &'a Context<'a, 'b>,
+    layout: &'a Layout,
+}
+
+impl Linked<'_, '_> {
+    /// Adresse et nature de ce que vise une relocation, vue depuis la section `from`.
+    fn target(&self, from: SecId, r: SymRef) -> Result<Target, LinkError> {
+        let objects = self.ctx.objects;
+        let referenced_from = || objects[from.0].elf.sections[from.1].name.clone();
+        match self.ctx.resolve(r) {
+            Resolved::UndefinedWeak => Ok(Target {
+                address: 0,
+                thumb: false,
+                weak_undefined: true,
+            }),
+            Resolved::Undefined => {
+                let name = display_name(objects, r);
+                if name == ls::EXTERNAL_DATA_START || name == ls::EXTERNAL_DATA_SIZE {
+                    return Err(LinkError::MissingExternalData);
+                }
+                Err(LinkError::UndefinedSymbol {
+                    name,
+                    referenced_from: referenced_from(),
+                })
+            }
+            Resolved::Linker => {
+                let name = &objects[r.obj].elf.symbols[r.index].name;
+                let address = self.layout.symbols[name.as_str()];
+                Ok(Target {
+                    address,
+                    thumb: false,
+                    weak_undefined: false,
+                })
+            }
+            Resolved::Def(def) => {
+                let sym = &objects[def.obj].elf.symbols[def.index];
+                let address = match sym.section {
+                    SymbolSection::Absolute => sym.value,
+                    SymbolSection::Common => self.layout.commons[sym.name.as_str()],
+                    SymbolSection::Section(s) => {
+                        let placement =
+                            self.layout.placements.get(&(def.obj, s)).ok_or_else(|| {
+                                LinkError::DiscardedSection {
+                                    symbol: display_name(objects, def),
+                                    section: objects[def.obj].elf.sections[s].name.clone(),
+                                }
+                            })?;
+                        placement.vma.wrapping_add(sym.value)
+                    }
+                    SymbolSection::Undefined => 0,
+                };
+                Ok(Target {
+                    address,
+                    thumb: sym.is_thumb_function(),
+                    weak_undefined: false,
+                })
+            }
+        }
+    }
+}
+
