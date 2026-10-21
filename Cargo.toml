@@ -17,7 +17,7 @@ required-features = ["serve"]
 # `nwasabi-cli` : outil de test natif en ligne de commande (le cœur est compilé dans le binaire).
 [[bin]]
 name = "nwasabi-cli"
-path = "src/bin/nwasabi-cli.rs"
+path = "src/cli/main.rs"
 required-features = ["cli"]
 
 [features]
