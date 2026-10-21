@@ -65,3 +65,36 @@ pub mod linker_symbols {
     pub const EXTERNAL_DATA_SIZE: &str = "_eadk_external_data_size";
 }
 
+/// `_start` : copie `.data` de la flash vers la RAM, met `.bss` à zéro, appelle `main(0, NULL)`.
+///
+/// ```text
+///  0: push {r4, lr}
+///  2: ldr r0, =_data_section_start_ram      ; mot du pool à 0x30
+///  4: ldr r1, =_data_section_start_flash    ; 0x34
+///  6: ldr r2, =_data_section_end_ram        ; 0x38
+///  8: cmp r0, r2 ; bcs 0x16                 ; boucle de copie
+///  c: ldrb r3, [r1], #1 ; strb r3, [r0], #1 ; b 0x8
+/// 16: ldr r0, =_bss_section_start_ram       ; 0x3c
+/// 18: ldr r2, =_bss_section_end_ram         ; 0x40
+/// 1a: movs r3, #0
+/// 1c: cmp r0, r2 ; bcs 0x26                 ; boucle de mise à zéro
+/// 20: strb r3, [r0], #1 ; b 0x1c
+/// 26: movs r0, #0 ; movs r1, #0
+/// 2a: bl main                               ; relocation R_ARM_THM_CALL
+/// 2e: pop {r4, pc}
+/// ```
+const START_CODE: [u16; 24] = [
+    0xb510, 0x480b, 0x490b, 0x4a0c, 0x4290, 0xd204, 0xf811, 0x3b01, 0xf800, 0x3b01, 0xe7f8, 0x4809,
+    0x4a09, 0x2300, 0x4290, 0xd202, 0xf800, 0x3b01, 0xe7fa, 0x2000, 0x2100, 0xf7ff, 0xfffe, 0xbd10,
+];
+/// Décalage de l'instruction `bl main` dans `_start`.
+const START_BL_OFFSET: u32 = 0x2a;
+/// Symboles des cinq mots du pool de constantes de `_start` (à partir du décalage 0x30).
+const START_POOL: [&str; 5] = [
+    linker_symbols::DATA_START_RAM,
+    linker_symbols::DATA_START_FLASH,
+    linker_symbols::DATA_END_RAM,
+    linker_symbols::BSS_START_RAM,
+    linker_symbols::BSS_END_RAM,
+];
+
