@@ -176,3 +176,14 @@ fn push_and_pop_save_and_restore_registers() {
     );
 }
 
+#[test]
+fn pc_relative_load_reads_the_literal_pool() {
+    // ldr r0, [pc, #0] : lit à Align(pc + 4, 4) + 0.
+    let mut bus = Flat::with_halfwords(&[0x4800]);
+    bus.0[0x104..0x108].copy_from_slice(&0xcafe_f00du32.to_le_bytes());
+    let mut cpu = Cpu::new();
+    cpu.regs.pc = START;
+    cpu.step(&mut bus, &mut ()).unwrap();
+    assert_eq!(cpu.regs.r[0], 0xcafe_f00d);
+}
+
