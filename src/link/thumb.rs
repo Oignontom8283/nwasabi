@@ -49,3 +49,22 @@ pub fn decode_branch_offset(hw1: u16, hw2: u16) -> i32 {
     ((imm25 << 7) as i32) >> 7
 }
 
+/// Écrit `offset` dans les champs immédiats de `bl`/`b.w`. `None` si l'offset sort de ±16 Mio
+/// ou n'est pas pair.
+pub fn encode_branch_offset(hw1: u16, hw2: u16, offset: i32) -> Option<(u16, u16)> {
+    if offset & 1 != 0 || !(-BRANCH_RANGE..BRANCH_RANGE).contains(&offset) {
+        return None;
+    }
+    let value = offset as u32;
+    let s = (value >> 24) & 1;
+    let i1 = (value >> 23) & 1;
+    let i2 = (value >> 22) & 1;
+    let j1 = !(i1 ^ s) & 1;
+    let j2 = !(i2 ^ s) & 1;
+    let imm10 = (value >> 12) & 0x3ff;
+    let imm11 = (value >> 1) & 0x7ff;
+    let new1 = (hw1 & 0xf800) | ((s << 10) | imm10) as u16;
+    let new2 = (hw2 & 0xd000) | ((j1 << 13) | (j2 << 11) | imm11) as u16;
+    Some((new1, new2))
+}
+
