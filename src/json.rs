@@ -259,3 +259,173 @@ impl Parser<'_> {
         })
     }
 
+    fn skip_space(&mut self) {
+        while matches!(self.bytes.get(self.pos), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+            self.pos += 1;
+        }
+    }
+
+    fn eat(&mut self, byte: u8) -> bool {
+        self.skip_space();
+        if self.bytes.get(self.pos) == Some(&byte) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn literal(&mut self, word: &str, value: Value) -> Result<Value, ParseError> {
+        if self.bytes[self.pos..].starts_with(word.as_bytes()) {
+            self.pos += word.len();
+            Ok(value)
+        } else {
+            self.err("valeur inconnue")
+        }
+    }
+
+    fn value(&mut self, depth: usize) -> Result<Value, ParseError> {
+        if depth > MAX_DEPTH {
+            return self.err("trop d'imbrications");
+        }
+        self.skip_space();
+        match self.bytes.get(self.pos) {
+            None => self.err("fin inattendue"),
+            Some(b'n') => self.literal("null", Value::Null),
+            Some(b't') => self.literal("true", Value::Bool(true)),
+            Some(b'f') => self.literal("false", Value::Bool(false)),
+            Some(b'"') => Ok(Value::Str(self.string()?)),
+            Some(b'[') => {
+                self.pos += 1;
+                let mut items = Vec::new();
+                if self.eat(b']') {
+                    return Ok(Value::Array(items));
+                }
+                loop {
+                    items.push(self.value(depth + 1)?);
+                    if self.eat(b',') {
+                        continue;
+                    }
+                    if self.eat(b']') {
+                        return Ok(Value::Array(items));
+                    }
+                    return self.err("« , » ou « ] » attendu");
+                }
+            }
+            Some(b'{') => {
+                self.pos += 1;
+                let mut entries: Vec<(String, Value)> = Vec::new();
+                if self.eat(b'}') {
+                    return Ok(Value::Object(entries));
+                }
+                loop {
+                    self.skip_space();
+                    if self.bytes.get(self.pos) != Some(&b'"') {
+                        return self.err("clé attendue");
+                    }
+                    let key = self.string()?;
+                    if !self.eat(b':') {
+                        return self.err("« : » attendu");
+                    }
+                    let value = self.value(depth + 1)?;
+                    match entries.iter_mut().find(|(k, _)| *k == key) {
+                        Some((_, v)) => *v = value,
+                        None => entries.push((key, value)),
+                    }
+                    if self.eat(b',') {
+                        continue;
+                    }
+                    if self.eat(b'}') {
+                        return Ok(Value::Object(entries));
+                    }
+                    return self.err("« , » ou « } » attendu");
+                }
+            }
+            Some(b'-' | b'0'..=b'9') => self.number(),
+            Some(_) => self.err("caractère inattendu"),
+        }
+    }
+
+    fn number(&mut self) -> Result<Value, ParseError> {
+        let start = self.pos;
+        while matches!(
+            self.bytes.get(self.pos),
+            Some(b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')
+        ) {
+            self.pos += 1;
+        }
+        let text = std::str::from_utf8(&self.bytes[start..self.pos]).unwrap_or("");
+        if let Ok(i) = text.parse::<i64>() {
+            return Ok(Value::Int(i));
+        }
+        match text.parse::<f64>() {
+            Ok(f) if f.is_finite() => Ok(Value::Float(f)),
+            _ => {
+                self.pos = start;
+                self.err("nombre invalide")
+            }
+        }
+    }
+
+    fn hex4(&mut self) -> Result<u32, ParseError> {
+        let digits = self.bytes.get(self.pos..self.pos + 4);
+        let value = digits
+            .and_then(|d| std::str::from_utf8(d).ok())
+            .and_then(|d| u32::from_str_radix(d, 16).ok());
+        match value {
+            Some(v) => {
+                self.pos += 4;
+                Ok(v)
+            }
+            None => self.err("séquence \\u invalide"),
+        }
+    }
+
+    fn string(&mut self) -> Result<String, ParseError> {
+        self.pos += 1; // guillemet ouvrant
+        let mut out = Vec::new();
+        loop {
+            let Some(&b) = self.bytes.get(self.pos) else {
+                return self.err("chaîne non terminée");
+            };
+            self.pos += 1;
+            match b {
+                b'"' => break,
+                b'\\' => {
+                    let Some(&e) = self.bytes.get(self.pos) else {
+                        return self.err("échappement incomplet");
+                    };
+                    self.pos += 1;
+                    let c = match e {
+                        b'"' => '"',
+                        b'\\' => '\\',
+                        b'/' => '/',
+                        b'n' => '\n',
+                        b'r' => '\r',
+                        b't' => '\t',
+                        b'b' => '\u{8}',
+                        b'f' => '\u{c}',
+                        b'u' => {
+                            let mut code = self.hex4()?;
+                            if (0xd800..0xdc00).contains(&code)
+                                && self.bytes[self.pos..].starts_with(b"\\u")
+                            {
+                                self.pos += 2;
+                                let low = self.hex4()?;
+                                code = 0x10000 + ((code - 0xd800) << 10) + low.wrapping_sub(0xdc00);
+                            }
+                            char::from_u32(code).unwrap_or('\u{fffd}')
+                        }
+                        _ => return self.err("échappement inconnu"),
+                    };
+                    let mut buf = [0; 4];
+                    out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+                }
+                0..=0x1f => return self.err("caractère de contrôle dans une chaîne"),
+                b => out.push(b),
+            }
+        }
+        String::from_utf8(out).or_else(|_| self.err("UTF-8 invalide"))
+    }
+}
+
