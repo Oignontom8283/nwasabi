@@ -45,3 +45,23 @@ pub const EADK_EXTENDED_SVC: &[(&str, u8)] = &[
     ("eadk_usb_is_plugged", 52),
 ];
 
+/// Appel système privé de nwasabi : `_sbrk` (agrandissement du tas).
+pub const SVC_SBRK: u8 = 0x81;
+/// Appel système privé de nwasabi : `_write` (affichage de texte).
+pub const SVC_WRITE: u8 = 0x82;
+
+/// Noms des symboles que définit l'éditeur de liens lui-même (comme le ferait un script de link).
+pub mod linker_symbols {
+    pub const TRAMPOLINE: &str = "_userland_trampoline_address";
+    pub const HEAP_START: &str = "_heap_start";
+    pub const HEAP_END: &str = "_heap_end";
+    pub const DATA_START_FLASH: &str = "_data_section_start_flash";
+    pub const DATA_START_RAM: &str = "_data_section_start_ram";
+    pub const DATA_END_RAM: &str = "_data_section_end_ram";
+    pub const BSS_START_RAM: &str = "_bss_section_start_ram";
+    pub const BSS_END_RAM: &str = "_bss_section_end_ram";
+    pub const APP_END: &str = "_eadk_app_end";
+    pub const EXTERNAL_DATA_START: &str = "_eadk_external_data_start";
+    pub const EXTERNAL_DATA_SIZE: &str = "_eadk_external_data_size";
+}
+
