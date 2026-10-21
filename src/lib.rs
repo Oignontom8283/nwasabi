@@ -13,3 +13,4 @@ pub mod elf;
 pub mod link;
 pub mod memory;
 pub mod profile;
+pub mod structures;
