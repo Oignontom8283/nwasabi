@@ -202,3 +202,37 @@ pub fn rename(buffer: &[u8], from: &str, to: &str) -> Result<Vec<u8>, FsError> {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SIZE: usize = 64;
+
+    fn empty() -> Vec<u8> {
+        vec![0; SIZE]
+    }
+
+    fn names(buffer: &[u8]) -> Vec<String> {
+        parse(buffer).records.into_iter().map(|r| r.name).collect()
+    }
+
+    #[test]
+    fn an_empty_buffer_has_no_records() {
+        let p = parse(&empty());
+        assert!(p.records.is_empty());
+        assert_eq!(p.used, 2);
+        assert_eq!(p.corrupt_at, None);
+    }
+
+    #[test]
+    fn records_have_the_documented_layout() {
+        let b = write(&empty(), "a.py", b"xy").unwrap();
+        // taille = 2 + 4 + 1 + 2 = 9
+        assert_eq!(&b[..9], [9, 0, b'a', b'.', b'p', b'y', 0, b'x', b'y']);
+        assert_eq!(&b[9..11], [0, 0]);
+        let p = parse(&b);
+        assert_eq!(p.records[0].body_offset, 7);
+        assert_eq!(p.records[0].body_len, 2);
+        assert_eq!(p.used, 11);
+    }
+
