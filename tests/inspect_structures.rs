@@ -149,8 +149,10 @@ fn eadkp_probe(memory: &mut Memory) -> ModelClass {
 
 #[test]
 fn probing_flash_addresses_cannot_tell_n0110_26_4_0_from_an_n0120() {
-    // Sur le N0110 en Epsilon 26.4.0 (mesuré), le UserlandHeader est à 0x9002_0000 : la sonde par
-    // adresses de flash conclut « N0120 » alors que la SRAM est en 0x2000_0000.
+    // D'après le firmware N0110 d'Epsilon 26.4.0 que nwasabi décrit (profil mesuré), le
+    // UserlandHeader y est à 0x9002_0000 : sur un appareil qui exécute cette version, la sonde par
+    // adresses de flash conclurait « N0120 » alors que la SRAM est en 0x2000_0000. Sur les
+    // firmwares plus anciens (en-tête à 0x9001_0000), elle est juste : voir le test suivant.
     let mut d = device(Model::N0110);
     assert_eq!(eadkp_probe(&mut d.memory), ModelClass::N0120);
     // La lecture du SlotInfo, elle, ne se trompe pas.
