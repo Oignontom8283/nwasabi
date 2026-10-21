@@ -132,3 +132,14 @@ fn it_block_runs_the_instructions_whose_condition_holds() {
     assert_eq!(cpu.regs.it_state(), 0b0001_1000);
 }
 
+#[test]
+fn bl_and_bx_lr_form_a_call() {
+    // 0x100: bl +4 (vers 0x108) ; 0x104: movs r2, #1 ; 0x106: b . ; 0x108: movs r3, #7 ; 0x10a: bx lr
+    // bl offset: cible = 0x108 = pc4 (0x104) + 4 → offset 4 : hw1 = f000, hw2 = f802.
+    let program = [0xf000, 0xf802, 0x2201, 0xe7fe, 0x2307, 0x4770];
+    let (cpu, ..) = run(&program, |_| {}, 4);
+    assert_eq!(cpu.regs.r[3], 7);
+    assert_eq!(cpu.regs.r[2], 1);
+    assert_eq!(cpu.regs.lr, (START + 4) | 1);
+}
+
