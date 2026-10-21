@@ -39,3 +39,35 @@ pub enum RelocError {
     Interworking { kind: u8 },
 }
 
+fn slice_at(section: &mut [u8], offset: u32, len: usize) -> Result<&mut [u8], RelocError> {
+    let start = offset as usize;
+    section
+        .get_mut(start..start.saturating_add(len))
+        .ok_or(RelocError::OutOfSection)
+}
+
+fn read_u32(section: &mut [u8], offset: u32) -> Result<u32, RelocError> {
+    let b = slice_at(section, offset, 4)?;
+    Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+}
+
+fn write_u32(section: &mut [u8], offset: u32, value: u32) -> Result<(), RelocError> {
+    slice_at(section, offset, 4)?.copy_from_slice(&value.to_le_bytes());
+    Ok(())
+}
+
+fn read_pair(section: &mut [u8], offset: u32) -> Result<(u16, u16), RelocError> {
+    let b = slice_at(section, offset, 4)?;
+    Ok((
+        u16::from_le_bytes([b[0], b[1]]),
+        u16::from_le_bytes([b[2], b[3]]),
+    ))
+}
+
+fn write_pair(section: &mut [u8], offset: u32, (hw1, hw2): (u16, u16)) -> Result<(), RelocError> {
+    let b = slice_at(section, offset, 4)?;
+    b[..2].copy_from_slice(&hw1.to_le_bytes());
+    b[2..].copy_from_slice(&hw2.to_le_bytes());
+    Ok(())
+}
+
