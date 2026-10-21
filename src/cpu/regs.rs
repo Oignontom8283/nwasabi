@@ -78,3 +78,12 @@ impl Registers {
         self.set_z(result == 0);
     }
 
+    /// Les quatre indicateurs `GE` (un bit par octet du résultat des opérations parallèles).
+    pub fn ge(&self) -> u8 {
+        ((self.xpsr >> 16) & 0xf) as u8
+    }
+
+    pub fn set_ge(&mut self, ge: u8) {
+        self.xpsr = (self.xpsr & !(0xf << 16)) | (u32::from(ge & 0xf) << 16);
+    }
+
