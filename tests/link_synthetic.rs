@@ -79,3 +79,59 @@ fn entry_point_is_the_start_stub_in_thumb_mode() {
     assert_eq!(bytes_at(&app, app.entry & !1, 2), [0x10, 0xb5]);
 }
 
+#[test]
+fn unreferenced_sections_are_dropped() {
+    let mut app = synthetic_app();
+    app.function("unused");
+    let linked = link_app(app).unwrap();
+    assert!(linked.symbols.iter().all(|s| s.name != "unused"));
+    assert!(linked.sections.iter().all(|s| s.name != ".text.unused"));
+    // Les fonctions EADK que l'application n'appelle pas disparaissent aussi.
+    assert!(linked.symbols.iter().all(|s| s.name != "eadk_random"));
+}
+
+#[test]
+fn a_call_keeps_its_target_and_encodes_the_distance() {
+    let mut app = synthetic_app();
+    let callee = app.function("callee");
+    let site = app.call(callee);
+    let linked = link_app(app).unwrap();
+
+    let main = symbol(&linked, "main").address & !1;
+    let hw = |at: u32| u16::from_le_bytes(bytes_at(&linked, at, 2).try_into().unwrap());
+    let at = main + site;
+    let offset = decode_branch_offset(hw(at), hw(at + 2));
+    let target = (i64::from(at) + 4 + i64::from(offset)) as u32;
+    assert_eq!(target, symbol(&linked, "callee").address & !1);
+    assert_eq!(site, CALL_SLOTS_AT);
+}
+
+#[test]
+fn a_call_to_an_eadk_function_reaches_its_svc_stub() {
+    let mut app = synthetic_app();
+    let eadk = undefined(&mut app.writer, "eadk_random", SymbolBind::Global);
+    let site = app.call(eadk);
+    let linked = link_app(app).unwrap();
+
+    let stub = symbol(&linked, "eadk_random").address;
+    // `svc #45` puis `bx lr`.
+    assert_eq!(bytes_at(&linked, stub & !1, 4), [45, 0xdf, 0x70, 0x47]);
+    let at = (symbol(&linked, "main").address & !1) + site;
+    let hw = |at: u32| u16::from_le_bytes(bytes_at(&linked, at, 2).try_into().unwrap());
+    let offset = decode_branch_offset(hw(at), hw(at + 2));
+    assert_eq!((i64::from(at) + 4 + i64::from(offset)) as u32, stub & !1);
+}
+
+#[test]
+fn a_function_pointer_keeps_the_thumb_bit() {
+    let mut app = synthetic_app();
+    let callee = app.function("callee");
+    let slot = app.word_ref(callee);
+    let linked = link_app(app).unwrap();
+    let main = symbol(&linked, "main").address & !1;
+    let stored = u32::from_le_bytes(bytes_at(&linked, main + slot, 4).try_into().unwrap());
+    assert_eq!(stored, symbol(&linked, "callee").address);
+    assert_eq!(stored & 1, 1);
+    assert_eq!(slot, WORD_SLOTS_AT);
+}
+
