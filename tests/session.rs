@@ -124,3 +124,51 @@ fn settings_are_visible_in_the_memory_structures() {
     assert!(error(&mut s, r#"{"cmd":"settings_set","name":"zzz","value":1}"#).contains("inconnu"));
 }
 
+#[test]
+fn memory_can_be_read_written_and_followed() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    let cursor = ok(&mut s, r#"{"cmd":"changes","cursor":1000000}"#)
+        .get("cursor")
+        .and_then(Value::as_i64)
+        .unwrap();
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"deadbeef"}"#,
+    );
+    let r = ok(
+        &mut s,
+        r#"{"cmd":"memory_read","address":537001984,"length":4}"#,
+    );
+    assert_eq!(r.get("hex").and_then(Value::as_str), Some("deadbeef"));
+    let changes = ok(&mut s, &format!(r#"{{"cmd":"changes","cursor":{cursor}}}"#));
+    assert_eq!(
+        changes
+            .get("ranges")
+            .and_then(Value::as_array)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        error(&mut s, r#"{"cmd":"memory_read","address":0,"length":4}"#)
+            .contains("hors de toute zone")
+    );
+    assert!(
+        error(
+            &mut s,
+            r#"{"cmd":"memory_read","address":0,"length":99999999}"#
+        )
+        .contains("limitée")
+    );
+    let regions = ok(&mut s, r#"{"cmd":"regions"}"#);
+    assert!(
+        regions
+            .get("regions")
+            .and_then(Value::as_array)
+            .unwrap()
+            .len()
+            >= 3
+    );
+}
+
