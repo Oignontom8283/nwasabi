@@ -673,3 +673,69 @@ fn decode_dp_plain_immediate(a: u32, b: u32) -> Option<Instr> {
     })
 }
 
+/// Branchements, instructions système, indices et barrières.
+fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
+    match (bit(b, 14), bit(b, 12)) {
+        // Branchement long inconditionnel (T4).
+        (false, true) => Some(Instr::B {
+            offset: branch_offset25(a, b),
+        }),
+        // Appel `bl` (T1).
+        (true, true) => Some(Instr::Bl {
+            offset: branch_offset25(a, b),
+        }),
+        (true, false) => {
+            // `udf.w` : 1111 0111 1111 imm4 / 1010 imm12.
+            if bits(a, 11, 4) == 0b0111_1111 && bits(b, 15, 12) == 0b1010 {
+                Some(Instr::Udf {
+                    imm: ((bits(a, 3, 0) << 12) | bits(b, 11, 0)) as u16,
+                })
+            } else {
+                None
+            }
+        }
+        (false, false) => {
+            let cond = bits(a, 9, 6);
+            if cond < 0b1110 {
+                // Branchement conditionnel long (T3) : S:J2:J1:imm6:imm11:0.
+                let s = bits(a, 10, 10);
+                let imm = (s << 20)
+                    | (bits(b, 11, 11) << 19)
+                    | (bits(b, 13, 13) << 18)
+                    | (bits(a, 5, 0) << 12)
+                    | (bits(b, 10, 0) << 1);
+                return Some(Instr::BCond {
+                    cond: cond as u8,
+                    offset: sign_extend(imm, 21),
+                });
+            }
+            match bits(a, 10, 4) {
+                // msr
+                0b0111000 if bits(b, 15, 12) == 0b1000 => Some(Instr::Msr {
+                    rn: bits(a, 3, 0) as Reg,
+                    sysreg: SysReg(bits(b, 7, 0) as u8),
+                    mask: bits(b, 11, 10) as u8,
+                }),
+                // hints : nop.w, yield, wfe, wfi, sev
+                0b0111010 => match bits(b, 7, 0) {
+                    0 | 1 | 4 => Some(Instr::Nop),
+                    2 => Some(Instr::Wfe),
+                    3 => Some(Instr::Wfi),
+                    _ => None,
+                },
+                // barrières : clrex, dsb, dmb, isb
+                0b0111011 => match bits(b, 7, 4) {
+                    2 | 4 | 5 | 6 => Some(Instr::Barrier),
+                    _ => None,
+                },
+                // mrs
+                0b0111110 | 0b0111111 if bits(a, 3, 0) == 0b1111 => Some(Instr::Mrs {
+                    rd: bits(b, 11, 8) as Reg,
+                    sysreg: SysReg(bits(b, 7, 0) as u8),
+                }),
+                _ => None,
+            }
+        }
+    }
+}
+
