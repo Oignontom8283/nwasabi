@@ -1,0 +1,302 @@
+#0
+uxtb16.w r0, r5, ror #16
+#1
+pkhtb r3, r0, r6, asr #28
+#2
+uqsub8 r6, r10, r4
+sel r6, r3, r10
+#3
+pkhtb r8, r2, r8, asr #15
+#4
+sxtab16 r5, r8, r7, ror #24
+#5
+uqadd8 r1, r9, r0
+sel r7, r4, r4
+#6
+pkhtb r8, r0, r5, asr #15
+#7
+sxtb16.w r9, r6, ror #8
+#8
+sxth.w r10, r10, ror #8
+#9
+sxth.w r7, r2
+#10
+sxtb16.w r4, r6, ror #16
+#11
+usub16 r1, r8, r9
+sel r1, r7, r9
+#12
+uxtab r2, r9, r4, ror #8
+#13
+pkhbt r10, r8, r5, lsl #17
+#14
+pkhbt r9, r1, r9, lsl #13
+#15
+pkhbt r2, r3, r10, lsl #9
+#16
+pkhtb r2, r4, r5, asr #1
+#17
+pkhtb r9, r7, r8, asr #6
+#18
+uxtab16 r5, r10, r5, ror #24
+#19
+usub8 r3, r4, r9
+sel r9, r1, r8
+#20
+uxth.w r5, r10, ror #16
+#21
+sxtb.w r8, r3, ror #16
+#22
+uadd16 r2, r6, r10
+sel r7, r6, r3
+#23
+pkhbt r6, r0, r10, lsl #23
+#24
+uqadd8 r7, r6, r4
+sel r5, r5, r10
+#25
+sadd16 r9, r2, r9
+sel r0, r9, r2
+#26
+sxtab16 r8, r9, r10, ror #16
+#27
+ssub8 r10, r5, r5
+#28
+sxtab r6, r2, r5, ror #16
+#29
+uqadd16 r0, r10, r8
+sel r8, r4, r3
+#30
+uxtab r10, r10, r5, ror #16
+#31
+pkhbt r0, r10, r3, lsl #0
+#32
+sxtab16 r8, r0, r8, ror #24
+#33
+pkhtb r4, r0, r8, asr #20
+#34
+sxtb.w r1, r3, ror #24
+#35
+pkhtb r7, r9, r10, asr #26
+#36
+sxtab16 r1, r1, r3, ror #24
+#37
+uqadd8 r9, r0, r1
+#38
+pkhtb r1, r10, r0, asr #12
+#39
+pkhtb r8, r10, r0, asr #7
+#40
+uqsub8 r5, r5, r2
+#41
+uadd16 r6, r2, r9
+sel r3, r5, r5
+#42
+uxtab r1, r3, r5, ror #16
+#43
+uxtb.w r3, r1, ror #24
+#44
+pkhbt r10, r5, r10, lsl #12
+#45
+pkhtb r9, r3, r7, asr #22
+#46
+uxth.w r5, r10, ror #16
+#47
+ssub8 r1, r0, r5
+#48
+pkhbt r1, r0, r2, lsl #10
+#49
+sxtb16.w r1, r10, ror #8
+#50
+ssub8 r4, r9, r2
+#51
+ssub16 r3, r10, r1
+#52
+pkhbt r1, r7, r5, lsl #6
+#53
+sxtb16.w r10, r6, ror #24
+#54
+pkhbt r3, r0, r4, lsl #12
+#55
+sadd8 r2, r4, r0
+#56
+sxtab16 r0, r0, r3, ror #8
+#57
+uqsub16 r7, r0, r1
+sel r0, r0, r10
+#58
+uxtab16 r5, r4, r7, ror #16
+#59
+sadd16 r5, r1, r5
+#60
+pkhtb r5, r6, r9, asr #28
+#61
+pkhbt r2, r9, r1, lsl #17
+#62
+uxtb16.w r0, r8, ror #24
+#63
+sxtb16.w r6, r4, ror #8
+#64
+uqadd8 r1, r3, r9
+sel r7, r5, r5
+#65
+pkhbt r10, r4, r5, lsl #15
+#66
+sxtah r5, r3, r5, ror #24
+#67
+usub16 r9, r4, r3
+sel r0, r2, r6
+#68
+uqsub8 r3, r4, r8
+#69
+uxtb.w r2, r8
+#70
+uxtb16.w r2, r5, ror #8
+#71
+uxtb.w r0, r7, ror #8
+#72
+sxtah r7, r7, r7
+#73
+pkhtb r5, r0, r10, asr #29
+#74
+ssub16 r10, r4, r2
+#75
+uqsub8 r2, r10, r8
+#76
+sxtb.w r9, r5, ror #24
+#77
+pkhtb r1, r6, r9, asr #6
+#78
+usub16 r10, r4, r10
+sel r1, r0, r3
+#79
+uxtb.w r0, r9, ror #24
+#80
+sxth.w r4, r1, ror #16
+#81
+uxtab16 r8, r5, r5, ror #8
+#82
+uxtab16 r3, r10, r4, ror #8
+#83
+uadd8 r5, r4, r1
+#84
+sxtab16 r4, r5, r7
+#85
+pkhtb r2, r0, r6, asr #32
+#86
+pkhbt r0, r3, r7, lsl #6
+#87
+uadd8 r8, r6, r2
+sel r0, r9, r3
+#88
+pkhbt r5, r10, r9, lsl #10
+#89
+uadd8 r7, r7, r9
+#90
+uqsub8 r10, r2, r7
+#91
+pkhtb r5, r1, r9, asr #11
+#92
+uxtah r2, r9, r9
+#93
+pkhbt r0, r10, r3, lsl #31
+#94
+sxtab r5, r6, r2, ror #16
+#95
+sxtah r8, r9, r8, ror #24
+#96
+pkhbt r6, r0, r6, lsl #31
+#97
+uxtb16.w r3, r0
+#98
+usub8 r10, r5, r5
+sel r9, r7, r7
+#99
+sxtah r10, r9, r3, ror #16
+#100
+sadd8 r2, r7, r8
+#101
+usub16 r1, r9, r0
+sel r0, r3, r2
+#102
+uqsub16 r10, r6, r5
+#103
+ssub16 r9, r4, r9
+#104
+pkhtb r0, r5, r0, asr #20
+#105
+uqsub16 r9, r9, r7
+#106
+usub16 r10, r3, r9
+sel r5, r4, r5
+#107
+uxtah r4, r2, r10, ror #24
+#108
+sxtab r6, r5, r7, ror #16
+#109
+usub8 r3, r4, r1
+#110
+uxtb.w r3, r7, ror #8
+#111
+uxth.w r7, r0, ror #16
+#112
+pkhtb r1, r3, r5, asr #9
+#113
+uxth.w r3, r10
+#114
+pkhtb r8, r1, r4, asr #28
+#115
+sxth.w r10, r10
+#116
+uxtb.w r5, r2, ror #16
+#117
+uadd8 r2, r7, r3
+sel r10, r3, r2
+#118
+sxtb16.w r2, r6, ror #16
+#119
+sxtb16.w r3, r3, ror #8
+#120
+pkhbt r10, r5, r0, lsl #1
+#121
+pkhbt r5, r8, r6, lsl #16
+#122
+usub8 r0, r9, r7
+sel r6, r1, r10
+#123
+uadd16 r0, r8, r8
+#124
+sxth.w r8, r0, ror #16
+#125
+sadd16 r5, r8, r9
+sel r3, r7, r7
+#126
+pkhtb r9, r0, r5, asr #23
+#127
+sxtab16 r4, r6, r2, ror #16
+#128
+pkhbt r8, r5, r5, lsl #6
+#129
+pkhtb r1, r7, r2, asr #31
+#130
+uadd16 r2, r7, r1
+sel r6, r1, r9
+#131
+pkhtb r7, r10, r9, asr #23
+#132
+uxtb16.w r8, r3, ror #16
+#133
+pkhtb r9, r0, r10, asr #18
+#134
+pkhbt r9, r1, r8, lsl #21
+#135
+uxtb.w r8, r1, ror #24
+#136
+pkhbt r2, r7, r3, lsl #9
+#137
+uxtab16 r6, r1, r1, ror #24
+#138
+sadd8 r5, r1, r6
+sel r8, r9, r9
+#139
+sxtab16 r7, r6, r6, ror #24
