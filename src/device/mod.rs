@@ -121,3 +121,36 @@ impl DeviceImage {
         }
     }
 
+    /// Écrit une application en flash, comme le ferait l'outil de flashage : à la suite des
+    /// précédentes, complétée par des 0xFF jusqu'à la fin de son dernier secteur.
+    ///
+    /// L'application doit avoir été liée avec [`DeviceImage::app_layout`].
+    pub fn install(&mut self, app: &LinkedApp) -> Result<u32, DeviceError> {
+        if app.flash_start != self.next_app {
+            return Err(DeviceError::WrongPlace {
+                expected: self.next_app,
+                found: app.flash_start,
+            });
+        }
+        let (_, end) = self.profile.slot_a.apps_flash;
+        let available = end - self.next_app;
+        if app.flash.len() as u32 > available {
+            return Err(DeviceError::NoRoom {
+                needed: app.flash.len() as u32,
+                available,
+            });
+        }
+        let address = self.next_app;
+        self.memory.write_bytes(address, &app.flash)?;
+        // Remplissage jusqu'au secteur suivant, sans sortir de la zone.
+        let padded = app.installed_size().min(end - address);
+        self.memory.fill(
+            address + app.flash.len() as u32,
+            padded - app.flash.len() as u32,
+            0xff,
+        )?;
+        self.next_app = address + app.installed_size();
+        debug_assert_eq!(self.next_app % EXTERNAL_APP_SECTOR, 0);
+        Ok(address)
+    }
+
