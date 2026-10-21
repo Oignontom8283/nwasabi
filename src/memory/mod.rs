@@ -44,8 +44,8 @@ impl Memory {
     /// Ajoute une zone. Elle ne doit chevaucher aucune zone existante.
     pub fn add_region(&mut self, spec: RegionSpec) -> Result<(), MemoryError> {
         let bad = spec.size == 0
-            || spec.base % PAGE_SIZE != 0
-            || spec.size % PAGE_SIZE != 0
+            || !spec.base.is_multiple_of(PAGE_SIZE)
+            || !spec.size.is_multiple_of(PAGE_SIZE)
             || u64::from(spec.base) + u64::from(spec.size) > 1 << 32;
         if bad {
             return Err(MemoryError::BadRegion {
@@ -223,3 +223,5 @@ fn line_span(base: u32, first: usize, last: usize) -> ChangedRange {
     }
 }
 
+#[cfg(test)]
+mod tests;
