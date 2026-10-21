@@ -149,6 +149,11 @@ impl Region {
         }
     }
 
+    /// Vrai si une des lignes de `[offset, offset + len)` porte l'indicateur `flag`.
+    pub fn has_access(&self, offset: u32, len: u32, flag: u8) -> bool {
+        line_range(offset, len).any(|line| self.access[line] & flag != 0)
+    }
+
     /// Date l'écriture des lignes touchées par `[offset, offset + len)`.
     pub fn stamp(&mut self, offset: u32, len: u32, tick: u64) {
         let lines = (self.spec.size / LINE_SIZE) as usize;

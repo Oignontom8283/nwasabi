@@ -49,6 +49,10 @@ impl Memory {
                 self.tick += 1;
                 let tick = self.tick;
                 let region = &mut self.regions[index];
+                if region.has_access(offset, N as u32, access::EXECUTE) {
+                    self.code_epoch += 1;
+                }
+                let region = &mut self.regions[index];
                 region.copy_in(offset, &data);
                 region.mark_access(offset, N as u32, access::WRITE);
                 region.stamp(offset, N as u32, tick);
@@ -160,6 +164,10 @@ impl Bus for Memory {
                 let tick = self.tick;
                 let region = &mut self.regions[index];
                 let offset = address - region.spec.base;
+                if region.has_access(offset, data.len() as u32, access::EXECUTE) {
+                    self.code_epoch += 1;
+                }
+                let region = &mut self.regions[index];
                 region.copy_in(offset, data);
                 region.mark_access(offset, data.len() as u32, access::WRITE);
                 region.stamp(offset, data.len() as u32, tick);
@@ -172,6 +180,10 @@ impl Bus for Memory {
                 Ok(())
             }
         }
+    }
+
+    fn code_epoch(&self) -> Option<u64> {
+        Some(self.code_epoch)
     }
 
     fn fetch16(&mut self, address: u32) -> Result<u16, BusFault> {
