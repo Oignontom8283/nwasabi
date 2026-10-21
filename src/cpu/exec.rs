@@ -858,3 +858,28 @@ fn field_mask(width: u8) -> u32 {
     }
 }
 
+/// Extension d'octets ou de demi-mots, avec addition éventuelle d'un registre.
+fn extend(kind: ExtKind, rotated: u32, base: Option<u32>) -> u32 {
+    let add = |v: u32| base.map_or(v, |b| b.wrapping_add(v));
+    match kind {
+        ExtKind::Sxtb => add(sign_extend(rotated & 0xff, 8) as u32),
+        ExtKind::Uxtb => add(rotated & 0xff),
+        ExtKind::Sxth => add(sign_extend(rotated & 0xffff, 16) as u32),
+        ExtKind::Uxth => add(rotated & 0xffff),
+        ExtKind::Sxtb16 | ExtKind::Uxtb16 => {
+            let signed = kind == ExtKind::Sxtb16;
+            let widen = |b: u32| {
+                if signed {
+                    (sign_extend(b, 8) as u32) & 0xffff
+                } else {
+                    b
+                }
+            };
+            let lo = widen(rotated & 0xff);
+            let hi = widen((rotated >> 16) & 0xff);
+            let (blo, bhi) = base.map_or((0, 0), |b| (b & 0xffff, b >> 16));
+            (((hi + bhi) & 0xffff) << 16) | ((lo + blo) & 0xffff)
+        }
+    }
+}
+
