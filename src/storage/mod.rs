@@ -63,3 +63,25 @@ impl fmt::Display for FsError {
 
 impl std::error::Error for FsError {}
 
+/// Sorte de fichier, d'après son extension.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileKind {
+    /// Script Python (`.py`) : le corps est un octet « importé automatiquement » puis le texte.
+    Python,
+    /// Réglages du système (`.sys`) : à ne pas supprimer.
+    System,
+    /// Tout le reste (formats instables d'une version à l'autre) : traité comme des octets.
+    Other(String),
+}
+
+impl FileKind {
+    fn of(name: &str) -> Self {
+        match name.rsplit_once('.').map(|(_, ext)| ext) {
+            Some("py") => Self::Python,
+            Some("sys") => Self::System,
+            Some(ext) => Self::Other(ext.to_owned()),
+            None => Self::Other(String::new()),
+        }
+    }
+}
+
