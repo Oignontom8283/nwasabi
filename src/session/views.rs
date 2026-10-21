@@ -214,3 +214,58 @@ pub fn stats(s: &Stats) -> Value {
         .with("records", s.records)
 }
 
+fn fault(f: &Fault) -> Value {
+    match f {
+        Fault::Bus(b) => Value::object()
+            .with("fault", "bus")
+            .with("address", b.address)
+            .with("write", b.write)
+            .with("access", format!("{:?}", b.kind).to_lowercase()),
+        Fault::Unimplemented { pc, halfword } => Value::object()
+            .with("fault", "unimplemented")
+            .with("pc", *pc)
+            .with("halfword", u32::from(*halfword)),
+        Fault::UsageFault { pc, kind } => Value::object()
+            .with("fault", "usage")
+            .with("pc", *pc)
+            .with("kind", format!("{kind:?}")),
+        Fault::Breakpoint { imm8 } => Value::object()
+            .with("fault", "breakpoint")
+            .with("imm8", u32::from(*imm8)),
+        Fault::WaitForInterrupt => Value::object().with("fault", "wait_for_interrupt"),
+        Fault::UnknownSvc(n) => Value::object()
+            .with("fault", "unknown_svc")
+            .with("number", u32::from(*n)),
+    }
+}
+
+/// Description de la raison d'arrêt : `{"kind": "...", …}`.
+pub fn stop(stop: &RunStop) -> Value {
+    let kind = |k: &str| Value::object().with("kind", k);
+    match stop {
+        RunStop::Frame => kind("frame"),
+        RunStop::Sleep { ms } => kind("sleep").with("ms", *ms),
+        RunStop::WaitEvent { remaining_ms } => {
+            kind("wait_event").with("remaining_ms", *remaining_ms)
+        }
+        RunStop::Exited(code) => kind("exited").with("code", *code),
+        RunStop::Reset => kind("reset"),
+        RunStop::HomePressed => kind("home_pressed"),
+        RunStop::Budget => kind("budget"),
+        RunStop::Watchpoint(h) => kind("watchpoint")
+            .with("id", h.id.0)
+            .with("address", h.address)
+            .with("width", u32::from(h.width))
+            .with("write", h.write)
+            .with("value", h.value),
+        RunStop::Fault(f) => {
+            let mut v = kind("fault");
+            if let Value::Object(entries) = fault(f) {
+                for (k, val) in entries {
+                    v.set(&k, val);
+                }
+            }
+            v
+        }
+    }
+}
