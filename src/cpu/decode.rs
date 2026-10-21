@@ -455,3 +455,44 @@ fn decode_ldm_stm(a: u32, b: u32) -> Option<Instr> {
     })
 }
 
+/// `ldrd`, `strd`, `tbb`, `tbh` (les accès exclusifs ne sont pas gérés).
+fn decode_dual_and_table(a: u32, b: u32) -> Option<Instr> {
+    let (p, u, w, l) = (bit(a, 8), bit(a, 7), bit(a, 5), bit(a, 4));
+    let rn = bits(a, 3, 0) as Reg;
+    if p || w {
+        let offset = (bits(b, 7, 0) << 2) as i32;
+        let offset = if u { offset } else { -offset };
+        let mode = match (p, w) {
+            (true, false) => IndexMode::Offset,
+            (true, true) => IndexMode::PreIndex,
+            _ => IndexMode::PostIndex,
+        };
+        let (rt, rt2) = (bits(b, 15, 12) as Reg, bits(b, 11, 8) as Reg);
+        return Some(if l {
+            Instr::Ldrd {
+                rt,
+                rt2,
+                rn,
+                offset,
+                mode,
+            }
+        } else {
+            Instr::Strd {
+                rt,
+                rt2,
+                rn,
+                offset,
+                mode,
+            }
+        });
+    }
+    if bits(a, 8, 4) == 0b01101 && bits(b, 15, 5) == 0b111_1000_0000 {
+        return Some(Instr::TableBranch {
+            half: bit(b, 4),
+            rn,
+            rm: bits(b, 3, 0) as Reg,
+        });
+    }
+    None
+}
+
