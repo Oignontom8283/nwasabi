@@ -61,3 +61,93 @@ impl FirmwareProfile {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{FirmwareProfile, Model};
+
+    #[test]
+    fn every_preset_is_internally_consistent() {
+        for model in Model::ALL {
+            let profile = FirmwareProfile::default_for(model);
+            assert_eq!(profile.validate(), Ok(()), "{}", model.name());
+        }
+    }
+
+    #[test]
+    fn n0110_values_are_those_measured_in_the_official_firmware() {
+        let p = FirmwareProfile::epsilon_26_4_0(Model::N0110);
+        assert!(matches!(p.provenance, Provenance::Measured { .. }));
+        assert_eq!(
+            (p.software_version.as_str(), p.commit_hash.as_str()),
+            ("26.4.0", "cc9262e")
+        );
+        assert_eq!(p.slot_a.userland_header, 0x9002_0000);
+        assert_eq!(p.slot_a.apps_flash, (0x9020_0000, 0x903f_0000));
+        assert_eq!(p.slot_a.device_name, (0x903f_0000, 0x903f_0400));
+        assert_eq!(p.slot_b.userland_header, 0x9042_0000);
+        assert_eq!(p.slot_b.apps_flash, (0x9060_0000, 0x907f_0000));
+        assert_eq!(p.slot_b.device_name, (0x907f_0000, 0x907f_0400));
+        assert_eq!((p.storage_address, p.storage_size), (0x2000_657c, 0xa800));
+        assert_eq!(p.apps_ram, (0x2001_18a4, 0x2003_7000));
+        assert_eq!(
+            (p.process_stack_start, p.kernel_stack_start),
+            (0x2003_eff8, 0x2003_f3f8)
+        );
+        assert_eq!(p.trampoline_address(), 0x9002_0038);
+        assert_eq!(p.fcc_id, "2ALWP-N0110");
+    }
+
+    #[test]
+    fn the_stack_sits_right_below_the_kernel_ram() {
+        for model in Model::ALL {
+            let p = FirmwareProfile::default_for(model);
+            // Pile du userland : 32 Kio juste sous la RAM du noyau, moins 8 octets.
+            assert_eq!(p.apps_ram.1 + 0x8000 - 8, p.process_stack_start);
+            assert_eq!(p.process_stack_start + 8, p.kernel_sram_base());
+        }
+    }
+
+    #[test]
+    fn derived_profiles_shift_the_sram_addresses_only() {
+        let measured = FirmwareProfile::epsilon_26_4_0(Model::N0110);
+        let n0120 = FirmwareProfile::epsilon_26_4_0(Model::N0120);
+        assert!(matches!(n0120.provenance, Provenance::Derived { .. }));
+        assert_eq!(n0120.slot_a, measured.slot_a);
+        assert_eq!(n0120.storage_address, 0x2400_657c);
+        assert_eq!(n0120.apps_ram, (0x2401_18a4, 0x2403_7000));
+        assert_eq!(n0120.slot_info_address(), 0x2400_0000);
+    }
+
+    #[test]
+    fn invalid_profiles_are_detected() {
+        let mut p = FirmwareProfile::default_for(Model::N0110);
+        p.software_version = "26.4.0.1234".into();
+        p.serial_number = "court".into();
+        p.apps_ram.0 = p.apps_ram.1;
+        p.slot_a.userland_header = 0x8000_0000;
+        let errors = p.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            crate::profile::ProfileError::BadString {
+                field: "software_version",
+                ..
+            }
+        )));
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            crate::profile::ProfileError::BadString {
+                field: "serial_number",
+                ..
+            }
+        )));
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            crate::profile::ProfileError::OutOfBounds { field: "apps_ram" }
+        )));
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            crate::profile::ProfileError::OutOfBounds { field: "slot_a" }
+        )));
+    }
+}
