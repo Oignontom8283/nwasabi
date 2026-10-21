@@ -28,3 +28,43 @@ fn region(name: &str, base: u32, size: u32) -> RegionSpec {
     }
 }
 
+/// Dossier des vecteurs : `tests/golden/cpu`, ou celui que désigne `NWASABI_CPU_VECTORS` (pour essayer
+/// d'autres vecteurs produits avec une autre graine du générateur).
+fn vectors_dir() -> PathBuf {
+    match std::env::var_os("NWASABI_CPU_VECTORS") {
+        Some(dir) => PathBuf::from(dir),
+        None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden/cpu"),
+    }
+}
+
+fn word(bytes: &[u8], index: usize) -> u32 {
+    u32::from_le_bytes(bytes[4 * index..4 * index + 4].try_into().unwrap())
+}
+
+/// Nom de la i-ème valeur enregistrée dans un cas.
+fn slot_name(i: usize, fp: bool) -> String {
+    match (i, fp) {
+        (0..=11, _) => format!("r{i}"),
+        (12, _) => "apsr".to_owned(),
+        (13, true) => "fpscr".to_owned(),
+        (14..=45, true) => format!("s{}", i - 14),
+        (n, true) => format!("tampon[{}]", n - 46),
+        (n, false) => format!("tampon[{}]", n - 13),
+    }
+}
+
+/// Texte de chaque cas, d'après le fichier `.cases`.
+fn case_texts(path: &std::path::Path) -> Vec<String> {
+    let text = fs::read_to_string(path).unwrap_or_default();
+    let mut cases: Vec<String> = Vec::new();
+    for line in text.lines() {
+        if line.starts_with('#') && line[1..].chars().all(|c| c.is_ascii_digit()) {
+            cases.push(String::new());
+        } else if let Some(last) = cases.last_mut() {
+            last.push_str(line);
+            last.push('\n');
+        }
+    }
+    cases
+}
+
