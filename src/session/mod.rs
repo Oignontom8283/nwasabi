@@ -238,3 +238,58 @@ impl Session {
                     .with("ranges", ranges)
                     .with("cursor", memory.change_cursor()))
             }
+            "watch" => {
+                let (start, len) = (number(req, "address")?, number(req, "length")?);
+                let kind = match req.get("kind").and_then(Value::as_str).unwrap_or("write") {
+                    "read" => WatchKind::Read,
+                    "write" => WatchKind::Write,
+                    "readwrite" => WatchKind::ReadWrite,
+                    other => {
+                        return Err(format!("sorte inconnue : {other} (read, write, readwrite)"));
+                    }
+                };
+                let stop = req.get("stop").and_then(Value::as_bool).unwrap_or(false);
+                let id = self.emu()?.device.memory.watch(start, len, kind, stop);
+                Ok(Value::object().with("id", id.0))
+            }
+            "unwatch" => {
+                let id = crate::memory::WatchId(number(req, "id")?);
+                let removed = self.emu()?.device.memory.unwatch(id);
+                Ok(Value::object().with("removed", removed))
+            }
+            "watch_hits" => {
+                let hits = self.emu()?.device.memory.take_watch_hits();
+                Ok(Value::object().with(
+                    "hits",
+                    hits.iter()
+                        .map(|h| {
+                            Value::object()
+                                .with("id", h.id.0)
+                                .with("address", h.address)
+                                .with("width", u32::from(h.width))
+                                .with("write", h.write)
+                                .with("value", h.value)
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            }
+            "svc_stats" => {
+                let emu = self.emu()?;
+                let counts = emu
+                    .kernel
+                    .svc_counts
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| **c > 0)
+                    .map(|(n, c)| Value::object().with("svc", n).with("calls", *c))
+                    .collect::<Vec<_>>();
+                Ok(Value::object()
+                    .with("counts", counts)
+                    .with("frames", emu.kernel.frames))
+            }
+            c if c.starts_with("fs_") => self.fs(c, req),
+            c if c.starts_with("settings_") => self.settings(c, req),
+            other => Err(format!("commande inconnue : {other} (voir « help »)")),
+        }
+    }
+
