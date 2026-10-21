@@ -1,0 +1,32 @@
+Additional permission under section 7 of the GNU Affero General Public
+License version 3:
+
+"The Library" means this Program, and any modified version of it. A
+modified version includes any work that adds to, extends, replaces or
+changes the functionality of this Program, or that is intended to become
+part of it, regardless of whether that work is contained in existing
+files or in new files.
+
+"An Application" means any work that makes use of the Library solely
+through its public interface (for a Rust crate, its publicly exported
+items) and that does not otherwise contain, modify, or extend the
+Library.
+
+You may combine the Library with an Application, including by static
+linking, compiling into a single executable or WebAssembly module, and
+compile-time optimization (including inlining and link-time
+optimization), and convey or make available over a network the combined
+work, provided that the Library, including all its modifications,
+remains licensed under the GNU Affero General Public License version 3,
+and its Corresponding Source is made available to all users of the
+combined work, including users interacting with it remotely through a
+network.
+
+An Application is not required to be licensed under the GNU Affero
+General Public License solely because of such a combination.
+
+If you modify the Library, you are requested to extend this additional
+permission to your modified version, so that it remains usable under the
+same conditions by others. If you do not extend it, you must delete this
+additional permission from your version, as allowed by section 7 of the
+GNU Affero General Public License.
