@@ -281,7 +281,7 @@ impl ObjectWriter {
 }
 
 fn pad(out: &mut Vec<u8>, align: usize) {
-    while out.len() % align != 0 {
+    while !out.len().is_multiple_of(align) {
         out.push(0);
     }
 }
