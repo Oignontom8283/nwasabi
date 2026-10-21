@@ -496,3 +496,53 @@ fn decode_dual_and_table(a: u32, b: u32) -> Option<Instr> {
     None
 }
 
+/// Traitement de données avec registre décalé par une constante.
+fn decode_dp_shifted_register(a: u32, b: u32) -> Option<Instr> {
+    if bit(b, 15) {
+        return None;
+    }
+    let (op, s) = (bits(a, 8, 5), bit(a, 4));
+    let rn = bits(a, 3, 0) as Reg;
+    let rd = bits(b, 11, 8) as Reg;
+    let rm = bits(b, 3, 0) as Reg;
+    let imm5 = (bits(b, 14, 12) << 2) | bits(b, 7, 6);
+    let type_bits = bits(b, 5, 4);
+    let (kind, amount) = decode_imm_shift(type_bits, imm5);
+    let rhs = Rhs::Reg { rm, kind, amount };
+    let flags = if s { FlagMode::Always } else { FlagMode::Never };
+    let test = rd == 15 && s;
+    Some(match op {
+        0 if test => dp(DpOp::Tst, 0, rn, rhs, FlagMode::Always),
+        0 => dp(DpOp::And, rd, rn, rhs, flags),
+        1 => dp(DpOp::Bic, rd, rn, rhs, flags),
+        // orr ; avec rn = pc : mov / décalages par une constante.
+        2 if rn == 15 => Instr::Shift {
+            kind,
+            rd,
+            value: rm,
+            amount: ShiftAmount::Imm(amount),
+            flags,
+        },
+        2 => dp(DpOp::Orr, rd, rn, rhs, flags),
+        3 if rn == 15 => dp(DpOp::Mvn, rd, 0, rhs, flags),
+        3 => dp(DpOp::Orn, rd, rn, rhs, flags),
+        4 if test => dp(DpOp::Teq, 0, rn, rhs, FlagMode::Always),
+        4 => dp(DpOp::Eor, rd, rn, rhs, flags),
+        6 if !s => Instr::Pkh {
+            top_bottom: bit(b, 5),
+            rd,
+            rn,
+            rm,
+            amount: imm5,
+        },
+        8 if test => dp(DpOp::Cmn, 0, rn, rhs, FlagMode::Always),
+        8 => dp(DpOp::Add, rd, rn, rhs, flags),
+        10 => dp(DpOp::Adc, rd, rn, rhs, flags),
+        11 => dp(DpOp::Sbc, rd, rn, rhs, flags),
+        13 if test => dp(DpOp::Cmp, 0, rn, rhs, FlagMode::Always),
+        13 => dp(DpOp::Sub, rd, rn, rhs, flags),
+        14 => dp(DpOp::Rsb, rd, rn, rhs, flags),
+        _ => return None,
+    })
+}
+
