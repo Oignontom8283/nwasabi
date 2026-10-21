@@ -502,3 +502,25 @@ impl Env<'_> {
         self.finish(result, finite && f64::from(result) != exact, finite)
     }
 
+    fn div(&mut self, a: f32, b: f32) -> f32 {
+        let (a, b) = (self.input(a), self.input(b));
+        if let Some(n) = self.process_nans(&[a, b]) {
+            return n;
+        }
+        if (a == 0.0 && b == 0.0) || (a.is_infinite() && b.is_infinite()) {
+            return self.default_nan();
+        }
+        if b == 0.0 && a.is_finite() {
+            self.raise(FPSCR_DZC);
+            return if a.is_sign_negative() != b.is_sign_negative() {
+                f32::NEG_INFINITY
+            } else {
+                f32::INFINITY
+            };
+        }
+        let result = a / b;
+        let finite = a.is_finite() && b.is_finite();
+        let inexact = finite && b != 0.0 && f64::from(result) * f64::from(b) != f64::from(a);
+        self.finish(result, inexact, finite)
+    }
+
