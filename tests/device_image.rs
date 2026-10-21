@@ -191,3 +191,78 @@ fn ram_starts_filled_with_the_requested_value() {
     assert_eq!(d.memory.read32(0x2002_0000).unwrap(), 0xa5a5_a5a5);
 }
 
+#[test]
+fn an_installed_app_is_found_again_by_scanning_memory() {
+    let mut d = device(Model::N0110);
+    assert!(d.apps().is_empty());
+    let app = linked_for(&d, synthetic_app());
+    let address = d.install(&app).unwrap();
+    assert_eq!(address, 0x9020_0000);
+
+    let apps = d.apps();
+    assert_eq!(apps.len(), 1);
+    assert_eq!(apps[0].address, address);
+    assert_eq!(apps[0].name.as_deref(), Some("Test"));
+    assert_eq!(apps[0].header.api_level, 0);
+    assert_eq!(apps[0].header.size, app.app_end - app.flash_start);
+    // Le point d'entrée est celui de `_start` (sans le bit Thumb, ajouté par le système).
+    assert_eq!(address + apps[0].header.entry_offset + 1, app.entry);
+}
+
+#[test]
+fn apps_are_installed_one_after_the_other_on_sector_boundaries() {
+    let mut d = device(Model::N0110);
+    let mut addresses = Vec::new();
+    for _ in 0..3 {
+        let app = linked_for(&d, synthetic_app());
+        addresses.push(d.install(&app).unwrap());
+    }
+    assert_eq!(addresses, [0x9020_0000, 0x9021_0000, 0x9022_0000]);
+    assert_eq!(d.apps().len(), 3);
+    assert_eq!(d.next_app_address(), 0x9023_0000);
+    // Le complément jusqu'au secteur est effacé (0xFF).
+    let first = d.memory.read_bytes(0x9020_0000 + 0x2000, 16).unwrap();
+    assert_eq!(first, [0xff; 16]);
+}
+
+#[test]
+fn an_app_linked_for_another_place_is_refused() {
+    let mut d = device(Model::N0110);
+    let first = linked_for(&d, synthetic_app());
+    d.install(&first).unwrap();
+    // Reposer la même image (liée pour 0x9020_0000) à l'emplacement suivant est refusé.
+    assert!(matches!(
+        d.install(&first),
+        Err(DeviceError::WrongPlace { .. })
+    ));
+}
+
+#[test]
+fn installation_stops_when_the_apps_area_is_full() {
+    let mut d = device(Model::N0110);
+    let mut count = 0;
+    loop {
+        let layout = d.app_layout();
+        let Ok(app) = link(
+            &synthetic_app().finish(),
+            None,
+            &layout,
+            &LinkOptions::default(),
+        ) else {
+            break; // l'éditeur de liens constate qu'il n'y a plus de place
+        };
+        d.install(&app).unwrap();
+        count += 1;
+    }
+    // 0x1F0000 octets de zone / 0x10000 par application.
+    assert_eq!(count, 31);
+    assert_eq!(d.apps().len(), 31);
+    // Installer de force une image trop grande est aussi refusé par l'appareil.
+    let mut big = linked_for(&device(Model::N0110), synthetic_app());
+    big.flash = vec![0; 0x20_0000];
+    assert!(matches!(
+        device(Model::N0110).install(&big),
+        Err(DeviceError::NoRoom { .. })
+    ));
+}
+
