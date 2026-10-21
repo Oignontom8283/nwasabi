@@ -176,3 +176,32 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 _ => load(MemSize::Half, true),
             }
         }
+        // ldr / str / ldrb / strb avec constante de 5 bits.
+        0b01100..=0b01111 => {
+            let byte = bit(h, 12);
+            let imm = bits(h, 10, 6);
+            let (size, offset) = if byte {
+                (MemSize::Byte, imm)
+            } else {
+                (MemSize::Word, imm << 2)
+            };
+            let addr = Addr::Imm {
+                rn: low3(3),
+                offset: offset as i32,
+                mode: IndexMode::Offset,
+            };
+            if bit(h, 11) {
+                Instr::Load {
+                    size,
+                    signed: false,
+                    rt: low3(0),
+                    addr,
+                }
+            } else {
+                Instr::Store {
+                    size,
+                    rt: low3(0),
+                    addr,
+                }
+            }
+        }
