@@ -187,3 +187,11 @@ fn pc_relative_load_reads_the_literal_pool() {
     assert_eq!(cpu.regs.r[0], 0xcafe_f00d);
 }
 
+#[test]
+fn thumb2_movw_movt_build_a_constant() {
+    // movw r3, #0xabcd ; movt r3, #0x1234 (valeurs de l'assembleur GNU)
+    let (cpu, ..) = run(&[0xf64a, 0x33cd, 0xf2c1, 0x2334], |_| {}, 2);
+    assert_eq!(cpu.regs.r[3], 0x1234_abcd);
+    assert_eq!(cpu.regs.pc, START + 8);
+}
+
