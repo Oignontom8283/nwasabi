@@ -56,3 +56,80 @@ pub struct LinkOptions {
     pub extended_runtime: bool,
 }
 
+/// D'où vient une section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// Le fichier `.nwa` de l'application.
+    App,
+    /// Le runtime EADK fabriqué par nwasabi.
+    Runtime,
+    /// Les données externes fournies avec l'application.
+    ExternalData,
+}
+
+/// Rôle d'une section dans l'image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionClass {
+    /// En-tête d'application, nom, icône, niveau d'API.
+    Header,
+    Text,
+    Rodata,
+    Data,
+    Bss,
+    /// Variables communes (`COMMON`), placées avec `.bss`.
+    Common,
+}
+
+/// Une section de l'application, telle qu'elle est placée.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedSection {
+    pub name: String,
+    pub origin: Origin,
+    pub class: SectionClass,
+    /// Adresse d'exécution.
+    pub address: u32,
+    /// Adresse dans la flash de la copie initiale (absente pour `.bss`).
+    pub flash_address: Option<u32>,
+    pub size: u32,
+    pub alignment: u32,
+}
+
+/// Un symbole de l'image finale.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkedSymbol {
+    pub name: String,
+    pub address: u32,
+    pub size: u32,
+    pub kind: SymbolKind,
+    pub origin: Origin,
+}
+
+/// Une zone de mémoire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Region {
+    pub address: u32,
+    pub size: u32,
+}
+
+/// La section `.data` : copiée de la flash vers la RAM par `_start`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DataSegment {
+    /// Adresse en RAM.
+    pub address: u32,
+    /// Adresse de la copie initiale en flash.
+    pub flash_address: u32,
+    pub size: u32,
+}
+
+/// Remarque qui n'empêche pas de lier mais mérite attention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkWarning {
+    /// La taille écrite dans l'en-tête d'application ne couvre pas l'image `.data` : si celle-ci
+    /// franchit une limite de secteur, le système cherche l'application suivante au mauvais
+    /// endroit (défaut du format officiel, reproduit tel quel).
+    AppSizeMismatch {
+        system_next_offset: u32,
+        installed_next_offset: u32,
+    },
+}
+
