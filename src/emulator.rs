@@ -12,6 +12,7 @@ use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
 use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
 use crate::link::{LinkError, LinkOptions, LinkedApp, link};
+use crate::memory::WatchHit;
 use crate::profile::{FirmwareProfile, Model};
 use crate::storage::{Fs, Storage};
 
@@ -60,6 +61,8 @@ pub enum RunStop {
     HomePressed,
     /// Le budget d'instructions est épuisé.
     Budget,
+    /// Un point d'observation « avec arrêt » a été touché (voir `Memory::watch`).
+    Watchpoint(WatchHit),
     Fault(Fault),
 }
 
@@ -158,6 +161,7 @@ impl Emulator {
         let app = self.app.as_ref().ok_or(EmulatorError::NoApp)?;
         let profile = &self.device.profile;
         let exit_stub = profile.active().userland_header + EXIT_STUB_OFFSET;
+        self.device.memory.clear_access();
         self.cpu = Cpu::new();
         self.cpu.regs.sp = profile.process_stack_start;
         self.cpu.regs.lr = exit_stub | 1;
@@ -173,9 +177,24 @@ impl Emulator {
             self.kernel.keyboard.clear_exit_request();
             return RunStop::HomePressed;
         }
-        let stop = self
-            .cpu
-            .run(&mut self.device.memory, &mut self.kernel, max_instructions);
+        // Avec un point d'observation qui interrompt, on avance instruction par instruction pour
+        // s'arrêter juste après l'accès.
+        let stepwise = self.device.memory.has_stopping_watch();
+        let mut stop = Stop::Budget;
+        let mut left = max_instructions;
+        while left > 0 {
+            let chunk = if stepwise { 1 } else { left };
+            stop = self
+                .cpu
+                .run(&mut self.device.memory, &mut self.kernel, chunk);
+            left -= chunk;
+            if let Some(hit) = self.device.memory.take_watch_stop() {
+                return RunStop::Watchpoint(hit);
+            }
+            if stop != Stop::Budget {
+                break;
+            }
+        }
         match stop {
             Stop::Budget => RunStop::Budget,
             Stop::Requested => match self.kernel.take_stop() {
