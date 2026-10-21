@@ -823,3 +823,167 @@ fn imm8_addr(rn: Reg, b: u32) -> Option<Addr> {
     Some(Addr::Imm { rn, offset, mode })
 }
 
+/// Décalages par registre, extensions, instructions parallèles, `clz`, `rbit`, `rev`, `sel`,
+/// multiplications et divisions.
+fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
+    let rn = bits(a, 3, 0) as Reg;
+    let rd = bits(b, 11, 8) as Reg;
+    let rm = bits(b, 3, 0) as Reg;
+    match bits(a, 15, 8) {
+        // Traitement de données entre registres : 1111 1010 …
+        0xfa if bits(b, 15, 12) == 0b1111 => {
+            let op1 = bits(a, 7, 4);
+            let op2 = bits(b, 7, 4);
+            if op1 < 8 {
+                if op2 == 0 {
+                    // lsl / lsr / asr / ror par registre.
+                    let kind = ShiftKind::from_bits(op1 >> 1);
+                    let flags = if bit(op1, 0) {
+                        FlagMode::Always
+                    } else {
+                        FlagMode::Never
+                    };
+                    return Some(Instr::Shift {
+                        kind,
+                        rd,
+                        value: rn,
+                        amount: ShiftAmount::Reg(rm),
+                        flags,
+                    });
+                }
+                if bit(op2, 3) {
+                    let kind = match op1 {
+                        0 => ExtKind::Sxth,
+                        1 => ExtKind::Uxth,
+                        2 => ExtKind::Sxtb16,
+                        3 => ExtKind::Uxtb16,
+                        4 => ExtKind::Sxtb,
+                        5 => ExtKind::Uxtb,
+                        _ => return None,
+                    };
+                    return Some(Instr::Extend {
+                        kind,
+                        rd,
+                        rm,
+                        rotate: (bits(b, 5, 4) * 8) as u8,
+                        rn: if rn == 15 { None } else { Some(rn) },
+                    });
+                }
+                return None;
+            }
+            if !bit(b, 7) {
+                return decode_parallel(a, b).map(|op| Instr::Parallel { op, rd, rn, rm });
+            }
+            // Opérations diverses : rev, rev16, rbit, revsh, sel, clz.
+            match (bits(a, 7, 4), bits(b, 5, 4)) {
+                (0b1001, 0) if rm == rn => Some(Instr::Rev {
+                    kind: RevKind::Rev,
+                    rd,
+                    rm,
+                }),
+                (0b1001, 1) if rm == rn => Some(Instr::Rev {
+                    kind: RevKind::Rev16,
+                    rd,
+                    rm,
+                }),
+                (0b1001, 2) if rm == rn => Some(Instr::Rbit { rd, rm }),
+                (0b1001, 3) if rm == rn => Some(Instr::Rev {
+                    kind: RevKind::Revsh,
+                    rd,
+                    rm,
+                }),
+                (0b1010, 0) => Some(Instr::Sel { rd, rn, rm }),
+                (0b1011, 0) if rm == rn => Some(Instr::Clz { rd, rm }),
+                _ => None,
+            }
+        }
+        // Multiplications : 1111 1011 0 op1 …
+        0xfb if !bit(a, 7) => {
+            let op1 = bits(a, 6, 4);
+            let op2 = bits(b, 5, 4);
+            let ra = bits(b, 15, 12) as Reg;
+            match (op1, op2) {
+                (0, 0) if ra == 15 => Some(Instr::Mul {
+                    rd,
+                    rn,
+                    rm,
+                    flags: FlagMode::Never,
+                }),
+                (0, 0) => Some(Instr::Mla { rd, rn, rm, ra }),
+                (0, 1) => Some(Instr::Mls { rd, rn, rm, ra }),
+                (1, _) => Some(Instr::Smul16 {
+                    rd,
+                    rn,
+                    rm,
+                    ra: if ra == 15 { None } else { Some(ra) },
+                    n_high: bit(op2, 1),
+                    m_high: bit(op2, 0),
+                }),
+                (5, 0 | 1) => Some(Instr::Smmul {
+                    rd,
+                    rn,
+                    rm,
+                    ra: if ra == 15 { None } else { Some(ra) },
+                    round: bit(op2, 0),
+                }),
+                _ => None,
+            }
+        }
+        // Multiplications longues et divisions : 1111 1011 1 op1 …
+        0xfb => {
+            let op1 = bits(a, 6, 4);
+            let op2 = bits(b, 7, 4);
+            let (rdlo, rdhi) = (bits(b, 15, 12) as Reg, bits(b, 11, 8) as Reg);
+            match (op1, op2) {
+                (0, 0) => Some(Instr::MulLong {
+                    signed: true,
+                    accumulate: false,
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                }),
+                (1, 0xf) => Some(Instr::Div {
+                    signed: true,
+                    rd: rdhi,
+                    rn,
+                    rm,
+                }),
+                (2, 0) => Some(Instr::MulLong {
+                    signed: false,
+                    accumulate: false,
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                }),
+                (3, 0xf) => Some(Instr::Div {
+                    signed: false,
+                    rd: rdhi,
+                    rn,
+                    rm,
+                }),
+                (4, 0) => Some(Instr::MulLong {
+                    signed: true,
+                    accumulate: true,
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                }),
+                (6, 0) => Some(Instr::MulLong {
+                    signed: false,
+                    accumulate: true,
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                }),
+                (6, 6) => Some(Instr::Umaal { rdlo, rdhi, rn, rm }),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
