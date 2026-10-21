@@ -137,3 +137,10 @@ pub enum RevKind {
     Revsh,
 }
 
+/// Registres spéciaux accessibles par `mrs`/`msr` (numéro `SYSm`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SysReg(pub u8);
+
+/// Instructions de transfert de registres flottants (voir le module `fpu`).
+pub use super::fpu::FpInstr;
+
