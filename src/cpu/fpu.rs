@@ -868,3 +868,21 @@ fn negate(x: f32) -> f32 {
     f32::from_bits(x.to_bits() ^ 0x8000_0000)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn env(fpscr: &mut u32) -> Env<'_> {
+        Env { fpscr }
+    }
+
+    #[test]
+    fn simple_arithmetic_is_exact_and_raises_nothing() {
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).add(1.5, 2.25, false), 3.75);
+        assert_eq!(env(&mut fpscr).mul(3.0, 0.5), 1.5);
+        assert_eq!(env(&mut fpscr).div(9.0, 3.0), 3.0);
+        assert_eq!(env(&mut fpscr).sqrt(16.0), 4.0);
+        assert_eq!(fpscr, 0);
+    }
+
