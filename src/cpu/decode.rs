@@ -47,3 +47,19 @@ fn imm_rhs(value: u32) -> Rhs {
     Rhs::Imm { value, carry: None }
 }
 
+/// Décode une instruction de 16 bits.
+pub fn decode16(hw: u16) -> Option<Instr> {
+    let h = u32::from(hw);
+    let low3 = |shift: u32| bits(h, shift + 2, shift) as Reg;
+    Some(match h >> 11 {
+        // Décalage par une constante : lsl, lsr, asr.
+        0b00000..=0b00010 => {
+            let (kind, amount) = decode_imm_shift(bits(h, 12, 11), bits(h, 10, 6));
+            Instr::Shift {
+                kind,
+                rd: low3(0),
+                value: low3(3),
+                amount: ShiftAmount::Imm(amount),
+                flags: FlagMode::OutsideIt,
+            }
+        }
