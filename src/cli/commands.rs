@@ -284,3 +284,108 @@ pub fn link_cmd(raw: &[String]) -> Outcome {
     Ok(0)
 }
 
+// ---- fs ------------------------------------------------------------------------------------------
+
+/// Manipule une image du système de fichiers (le tampon de 42 Kio) stockée dans un fichier.
+pub fn fs_cmd(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json"])?;
+    let image_path = args
+        .value("image")
+        .ok_or("--image <fichier> est obligatoire")?;
+    let (op, rest) = args
+        .positional
+        .split_first()
+        .ok_or("opération manquante (list, stats, read, write, remove, rename)")?;
+    let mut buffer = match fs::read(image_path) {
+        Ok(bytes) if bytes.len() == STORAGE_SIZE => bytes,
+        Ok(bytes) => {
+            return Err(format!(
+                "{image_path} : {} octets au lieu de {STORAGE_SIZE}",
+                bytes.len()
+            ));
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => vec![0; STORAGE_SIZE],
+        Err(e) => return Err(format!("{image_path} : {e}")),
+    };
+    let e = |e: nwasabi::storage::FsError| e.to_string();
+    let name = || {
+        rest.first()
+            .ok_or_else(|| "nom de fichier manquant".to_owned())
+    };
+    match op.as_str() {
+        "list" => {
+            let parsed = records::parse(&buffer);
+            let files: Vec<Value> = parsed
+                .records
+                .iter()
+                .map(|r| {
+                    Value::object()
+                        .with("name", r.name.as_str())
+                        .with("size", r.body_len)
+                        .with("offset", r.offset)
+                })
+                .collect();
+            let out = Value::object()
+                .with("files", files)
+                .with("corrupt_at", parsed.corrupt_at);
+            print(&args, &out, || {
+                let mut t = String::new();
+                for r in &parsed.records {
+                    t += &format!("{:>6}  {}\n", r.body_len, r.name);
+                }
+                if let Some(at) = parsed.corrupt_at {
+                    t += &format!("système de fichiers abîmé à l'octet {at}\n");
+                }
+                t.trim_end().to_owned()
+            });
+        }
+        "stats" => {
+            let parsed = records::parse(&buffer);
+            let out = Value::object()
+                .with("total", buffer.len())
+                .with("used", parsed.used)
+                .with("free", buffer.len() - parsed.used)
+                .with("records", parsed.records.len());
+            print(&args, &out, || {
+                format!(
+                    "{} octets utilisés sur {}, {} fichier(s)",
+                    parsed.used,
+                    buffer.len(),
+                    parsed.records.len()
+                )
+            });
+        }
+        "read" => {
+            let body = records::read(&buffer, name()?).map_err(e)?;
+            match args.value("out") {
+                Some(path) => write_file(path, &body)?,
+                None => std::io::stdout()
+                    .write_all(&body)
+                    .map_err(|e| e.to_string())?,
+            }
+        }
+        "write" => {
+            let body = match (args.value("from"), args.value("text")) {
+                (Some(path), _) => read_file(path)?,
+                (None, Some(t)) => t.as_bytes().to_vec(),
+                (None, None) => return Err("--from <fichier> ou --text <texte> attendu".to_owned()),
+            };
+            buffer = records::write(&buffer, name()?, &body).map_err(e)?;
+            write_file(image_path, &buffer)?;
+        }
+        "remove" => {
+            buffer = records::remove(&buffer, name()?).map_err(e)?;
+            write_file(image_path, &buffer)?;
+        }
+        "rename" => {
+            let [from, to] = rest else {
+                return Err("usage : rename <ancien> <nouveau>".to_owned());
+            };
+            buffer = records::rename(&buffer, from, to).map_err(e)?;
+            write_file(image_path, &buffer)?;
+        }
+        other => return Err(format!("opération inconnue : {other}")),
+    }
+    Ok(0)
+}
+
