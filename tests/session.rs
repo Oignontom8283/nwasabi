@@ -266,3 +266,70 @@ fn keys_reach_the_app_and_waiting_is_reported() {
         "{ran}"
     );
 }
+
+/// Joue le début d'une partie de démineur et rend l'écran (RGB565, base64 décodé).
+fn play_minesweeper(firmware: &str) -> Option<Vec<u8>> {
+    let apps = support::corpus()?;
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("minesweeper-1.3.5"))?;
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(
+            r#"{{"cmd":"load","model":"n0110","firmware":"{firmware}","nwa_base64":"{}"}}"#,
+            json::base64_encode(nwa)
+        ),
+    );
+    ok(&mut s, r#"{"cmd":"run","instructions":20000000}"#);
+    for key in ["ok", "ok", "down", "ok", "ok"] {
+        ok(
+            &mut s,
+            &format!(r#"{{"cmd":"key","key":"{key}","action":"press"}}"#),
+        );
+        ok(&mut s, r#"{"cmd":"run","instructions":3000000}"#);
+        ok(
+            &mut s,
+            &format!(r#"{{"cmd":"key","key":"{key}","action":"release"}}"#),
+        );
+        ok(&mut s, r#"{"cmd":"run","instructions":3000000}"#);
+    }
+    let screen = ok(&mut s, r#"{"cmd":"screen","rgb565_base64":true}"#);
+    json::base64_decode(screen.get("rgb565_base64").and_then(Value::as_str).unwrap())
+}
+
+fn pixel(screen: &[u8], x: usize, y: usize) -> u16 {
+    let i = (y * 320 + x) * 2;
+    u16::from_le_bytes([screen[i], screen[i + 1]])
+}
+
+#[test]
+fn eadkp_apps_find_their_storage_with_the_default_firmware() {
+    // Le démineur (écrit avec eadkp) devine le modèle d'après la flash : avec la disposition des
+    // appareils relevés il trouve le système de fichiers ; la partie se joue.
+    let Some(screen) = play_minesweeper("24") else {
+        return support::skip_without_corpus();
+    };
+    assert_ne!(
+        pixel(&screen, 160, 200),
+        0xf800,
+        "l'écran n'est pas celui d'une panique"
+    );
+}
+
+#[test]
+fn the_26_4_0_layout_fools_the_model_detection_of_eadkp_apps() {
+    // Reproduit le comportement connu (voir la documentation du profil) : avec l'en-tête du
+    // userland à 0x90020000 sur N0110, l'application croit être sur N0120 et son système de
+    // fichiers lui paraît invalide. Elle affiche l'écran rouge de sa panique.
+    let Some(screen) = play_minesweeper("26.4.0") else {
+        return support::skip_without_corpus();
+    };
+    assert_eq!(pixel(&screen, 160, 200), 0xf800);
+}
+
+#[test]
+fn an_unknown_firmware_is_refused() {
+    let mut s = Session::new();
+    assert!(error(&mut s, r#"{"cmd":"new","firmware":"1.0"}"#).contains("firmware inconnu"));
+}
