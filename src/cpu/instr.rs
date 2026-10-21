@@ -48,3 +48,23 @@ impl DpOp {
     }
 }
 
+/// Deuxième opérande d'une opération de traitement de données.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rhs {
+    /// Constante ; `carry` est la retenue produite par le codage de la constante (`None` : inchangée).
+    Imm { value: u32, carry: Option<bool> },
+    /// Registre décalé d'une quantité immédiate.
+    Reg {
+        rm: Reg,
+        kind: ShiftKind,
+        amount: u32,
+    },
+}
+
+/// Quantité d'un décalage : immédiate ou donnée par un registre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShiftAmount {
+    Imm(u32),
+    Reg(Reg),
+}
+
