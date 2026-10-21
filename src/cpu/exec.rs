@@ -209,3 +209,45 @@ impl Cpu {
                 let product = self.read(ctx, rn).wrapping_mul(self.read(ctx, rm));
                 self.write(rd, self.read(ctx, ra).wrapping_sub(product));
             }
+            Instr::MulLong {
+                signed,
+                accumulate,
+                rdlo,
+                rdhi,
+                rn,
+                rm,
+            } => {
+                let (a, b) = (self.read(ctx, rn), self.read(ctx, rm));
+                let product: u64 = if signed {
+                    (i64::from(a as i32) * i64::from(b as i32)) as u64
+                } else {
+                    u64::from(a) * u64::from(b)
+                };
+                let acc = if accumulate {
+                    (u64::from(self.read(ctx, rdhi)) << 32) | u64::from(self.read(ctx, rdlo))
+                } else {
+                    0
+                };
+                let result = product.wrapping_add(acc);
+                self.write(rdlo, result as u32);
+                self.write(rdhi, (result >> 32) as u32);
+            }
+            Instr::Umaal { rdlo, rdhi, rn, rm } => {
+                let product = u64::from(self.read(ctx, rn)) * u64::from(self.read(ctx, rm));
+                let result =
+                    product + u64::from(self.read(ctx, rdlo)) + u64::from(self.read(ctx, rdhi));
+                self.write(rdlo, result as u32);
+                self.write(rdhi, (result >> 32) as u32);
+            }
+            Instr::Div { signed, rd, rn, rm } => {
+                let (a, b) = (self.read(ctx, rn), self.read(ctx, rm));
+                // La division par zéro donne 0 (le piège n'est pas activé) ; MIN / -1 = MIN.
+                let result = if b == 0 {
+                    0
+                } else if signed {
+                    (a as i32).wrapping_div(b as i32) as u32
+                } else {
+                    a / b
+                };
+                self.write(rd, result);
+            }
