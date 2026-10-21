@@ -409,3 +409,6 @@ pub enum Instr {
     },
     /// `dmb`, `dsb`, `isb` : sans effet sur un processeur à un seul cœur émulé.
     Barrier,
+    /// Instruction à virgule flottante.
+    Fp(FpInstr),
+}
