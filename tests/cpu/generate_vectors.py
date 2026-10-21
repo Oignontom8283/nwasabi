@@ -473,3 +473,29 @@ FAMILIES = [
 # Assemblage des lots, exécution par QEMU
 # ---------------------------------------------------------------------------------------------
 
+PROLOGUE = f"""
+  ldr r12, =.Lbufinit
+  ldr r11, ={BUF:#x}
+  ldmia r12!, {{r0-r7}}
+  stmia r11!, {{r0-r7}}
+  ldmia r12!, {{r0-r7}}
+  stmia r11!, {{r0-r7}}
+  ldr r12, =.Linit@I@
+  ldr r0, [r12, #48]
+  msr APSR_nzcvqg, r0
+  ldmia r12, {{r0-r11}}
+"""
+
+EPILOGUE = f"""
+  ldr r12, ={OUT:#x}+@I@*{CASE_WORDS * 4}
+  stmia r12!, {{r0-r11}}
+  mrs r0, apsr
+  str r0, [r12], #4
+  ldr r0, ={BUF:#x}
+  ldmia r0!, {{r1-r8}}
+  stmia r12!, {{r1-r8}}
+  ldmia r0!, {{r1-r8}}
+  stmia r12!, {{r1-r8}}
+"""
+
+
