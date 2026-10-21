@@ -378,3 +378,23 @@ def ite_after_compare(d, m):
             f"mov{INVERSE[c]} r2, #2")
 
 
+def cases_fp_arith():
+    out = []
+    ops3 = ['vadd', 'vsub', 'vmul', 'vdiv', 'vnmul', 'vmla', 'vmls', 'vnmla', 'vnmls', 'vfma',
+            'vfms', 'vfnma', 'vfnms']
+    for _ in range(200):
+        d, n, m = sreg(), sreg(), sreg()
+        out.append(random.choice([
+            f"{random.choice(ops3)}.f32 {d}, {n}, {m}",
+            f"{random.choice(ops3)}.f32 {d}, {n}, {m}",
+            f"{random.choice(['vabs', 'vneg', 'vsqrt', 'vmov'])}.f32 {d}, {m}",
+            f"vmov.f32 {d}, #{random.choice(FP_IMMEDIATES)}",
+            f"{random.choice(['vcmp', 'vcmpe'])}.f32 {d}, {m}\nvmrs APSR_nzcv, fpscr",
+            f"{random.choice(['vcmp', 'vcmpe'])}.f32 {d}, #0.0\nvmrs APSR_nzcv, fpscr",
+            ite_after_compare(d, m),
+            f"{random.choice(['vcvt', 'vcvtr'])}.{random.choice(['s32', 'u32'])}.f32 {d}, {m}",
+            f"vcvt.f32.{random.choice(['s32', 'u32'])} {d}, {m}",
+        ]))
+    return out
+
+
