@@ -220,3 +220,29 @@ pub fn build_runtime(extended: bool) -> Vec<u8> {
     w.finish()
 }
 
+/// Objet ELF qui porte les données externes d'une application (`eadk_external_data`), comme celui
+/// que fabrique l'outil de flashage : une section en lecture seule `.rodata.eadk_external_data`
+/// et deux symboles, `_eadk_external_data_start` (adresse) et `_eadk_external_data_size` (taille,
+/// symbole absolu).
+pub fn build_external_data(data: &[u8]) -> Vec<u8> {
+    let mut w = ObjectWriter::new();
+    let section = w.add_section(".rodata.eadk_external_data", SHF_ALLOC, 1, data);
+    w.add_symbol(
+        linker_symbols::EXTERNAL_DATA_START,
+        0,
+        data.len() as u32,
+        SymbolBind::Global,
+        SymbolKind::NoType,
+        SymbolSection::Section(section.0),
+    );
+    w.add_symbol(
+        linker_symbols::EXTERNAL_DATA_SIZE,
+        data.len() as u32,
+        0,
+        SymbolBind::Global,
+        SymbolKind::NoType,
+        SymbolSection::Absolute,
+    );
+    w.finish()
+}
+
