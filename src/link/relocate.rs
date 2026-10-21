@@ -165,3 +165,227 @@ pub fn apply(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn target(address: u32, thumb: bool) -> Target {
+        Target {
+            address,
+            thumb,
+            weak_undefined: false,
+        }
+    }
+
+    fn word(value: u32) -> Vec<u8> {
+        value.to_le_bytes().to_vec()
+    }
+
+    fn pair(hw1: u16, hw2: u16) -> Vec<u8> {
+        [hw1.to_le_bytes(), hw2.to_le_bytes()].concat()
+    }
+
+    #[test]
+    fn abs32_adds_symbol_and_implicit_addend() {
+        let mut data = word(0x10);
+        apply(
+            R_ARM_ABS32,
+            &mut data,
+            0,
+            0x2000_0000,
+            target(0x9020_0100, false),
+        )
+        .unwrap();
+        assert_eq!(data, word(0x9020_0110));
+    }
+
+    #[test]
+    fn abs32_to_a_thumb_function_keeps_the_thumb_bit() {
+        // Adresse de fonction stockée dans une table : bit 0 à 1.
+        let mut data = word(0);
+        apply(R_ARM_ABS32, &mut data, 0, 0, target(0x9020_0101, true)).unwrap();
+        assert_eq!(data, word(0x9020_0101));
+        // Symbole de section + addend : le bit Thumb vient de T.
+        let mut data = word(0x40);
+        apply(R_ARM_ABS32, &mut data, 0, 0, target(0x9020_0000, true)).unwrap();
+        assert_eq!(data, word(0x9020_0041));
+    }
+
+    #[test]
+    fn target1_behaves_like_abs32() {
+        let mut data = word(4);
+        apply(R_ARM_TARGET1, &mut data, 0, 0, target(0x100, false)).unwrap();
+        assert_eq!(data, word(0x104));
+    }
+
+    #[test]
+    fn rel32_subtracts_the_place() {
+        let mut data = word(0);
+        apply(
+            R_ARM_REL32,
+            &mut data,
+            0,
+            0x9020_0010,
+            target(0x9020_0100, false),
+        )
+        .unwrap();
+        assert_eq!(data, word(0xf0));
+        // Distance négative.
+        let mut data = word(0);
+        apply(
+            R_ARM_REL32,
+            &mut data,
+            0,
+            0x9020_0100,
+            target(0x9020_0010, false),
+        )
+        .unwrap();
+        assert_eq!(data, word((-0xf0i32) as u32));
+    }
+
+    #[test]
+    fn prel31_keeps_bit_31_and_checks_range() {
+        let mut data = word(0x8000_0000);
+        apply(
+            R_ARM_PREL31,
+            &mut data,
+            0,
+            0x9020_0000,
+            target(0x9020_0100, false),
+        )
+        .unwrap();
+        assert_eq!(data, word(0x8000_0100));
+        // Décalage négatif encodé sur 31 bits.
+        let mut data = word(0);
+        apply(
+            R_ARM_PREL31,
+            &mut data,
+            0,
+            0x9020_0100,
+            target(0x9020_0000, false),
+        )
+        .unwrap();
+        assert_eq!(data, word(0x7fff_ff00));
+        // Trop loin pour 31 bits.
+        let mut data = word(0);
+        let err = apply(R_ARM_PREL31, &mut data, 0, 0, target(0x7000_0000, false)).unwrap_err();
+        assert!(matches!(
+            err,
+            RelocError::Overflow {
+                kind: R_ARM_PREL31,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn thm_call_matches_the_gnu_linker() {
+        // `bl far_fwd` laissé à -4 par l'assembleur (f7ff fffe), placé à 0x1000, cible 0x3027 (Thumb).
+        let mut data = pair(0xf7ff, 0xfffe);
+        apply(R_ARM_THM_CALL, &mut data, 0, 0x1000, target(0x3027, true)).unwrap();
+        assert_eq!(data, pair(0xf002, 0xf811));
+        // Même chose vers l'arrière : 0x101c -> 0x1000.
+        let mut data = pair(0xf7ff, 0xfffe);
+        apply(R_ARM_THM_CALL, &mut data, 0, 0x101c, target(0x1001, true)).unwrap();
+        assert_eq!(data, pair(0xf7ff, 0xfff0));
+    }
+
+    #[test]
+    fn thm_jump24_matches_the_gnu_linker() {
+        // `b.w far_fwd` à 0x1004 (f7ff bffe) -> 0x3026 : f002 b80f.
+        let mut data = pair(0xf7ff, 0xbffe);
+        apply(R_ARM_THM_JUMP24, &mut data, 0, 0x1004, target(0x3027, true)).unwrap();
+        assert_eq!(data, pair(0xf002, 0xb80f));
+        // Un `bl` n'est pas valable pour une relocation de saut.
+        let mut data = pair(0xf7ff, 0xfffe);
+        let err = apply(R_ARM_THM_JUMP24, &mut data, 0, 0x1004, target(0x3027, true)).unwrap_err();
+        assert!(matches!(err, RelocError::BadInstruction { .. }));
+    }
+
+    #[test]
+    fn thm_call_to_a_missing_weak_function_becomes_a_nop() {
+        let mut data = pair(0xf7ff, 0xfffe);
+        let weak = Target {
+            address: 0,
+            thumb: false,
+            weak_undefined: true,
+        };
+        apply(R_ARM_THM_CALL, &mut data, 0, 0x1000, weak).unwrap();
+        assert_eq!(data, pair(0xf3af, 0x8000));
+    }
+
+    #[test]
+    fn thm_call_refuses_arm_targets_and_long_distances() {
+        let mut blx = pair(0xf000, 0xe800);
+        assert_eq!(
+            apply(R_ARM_THM_CALL, &mut blx, 0, 0, target(0x100, false)),
+            Err(RelocError::Interworking {
+                kind: R_ARM_THM_CALL
+            })
+        );
+        let mut far = pair(0xf7ff, 0xfffe);
+        let err = apply(R_ARM_THM_CALL, &mut far, 0, 0, target(0x3000_0000, true)).unwrap_err();
+        assert!(matches!(
+            err,
+            RelocError::Overflow {
+                kind: R_ARM_THM_CALL,
+                ..
+            }
+        ));
+        let mut not_a_branch = pair(0x4770, 0x4770);
+        let err = apply(R_ARM_THM_CALL, &mut not_a_branch, 0, 0, target(0x100, true)).unwrap_err();
+        assert!(matches!(err, RelocError::BadInstruction { .. }));
+    }
+
+    #[test]
+    fn movw_movt_load_the_two_halves_of_an_address() {
+        // movw r3, #0 / movt r3, #0 vers l'adresse 0x12345679 (fonction Thumb).
+        let mut movw = pair(0xf240, 0x0300);
+        apply(
+            R_ARM_THM_MOVW_ABS_NC,
+            &mut movw,
+            0,
+            0,
+            target(0x1234_5678, true),
+        )
+        .unwrap();
+        assert_eq!(movw, pair(0xf245, 0x6379)); // 0x5679
+        let mut movt = pair(0xf2c0, 0x0300);
+        apply(
+            R_ARM_THM_MOVT_ABS,
+            &mut movt,
+            0,
+            0,
+            target(0x1234_5678, true),
+        )
+        .unwrap();
+        assert_eq!(movt, pair(0xf2c1, 0x2334)); // 0x1234 (movt ne reçoit pas le bit Thumb)
+        // Utiliser movw avec la relocation movt est une erreur.
+        let mut wrong = pair(0xf240, 0x0300);
+        assert!(apply(R_ARM_THM_MOVT_ABS, &mut wrong, 0, 0, target(0, false)).is_err());
+    }
+
+    #[test]
+    fn none_does_nothing_and_unknown_kinds_are_refused() {
+        let mut data = word(0xdead_beef);
+        apply(R_ARM_NONE, &mut data, 0, 0, target(1, false)).unwrap();
+        assert_eq!(data, word(0xdead_beef));
+        assert_eq!(
+            apply(200, &mut data, 0, 0, target(1, false)),
+            Err(RelocError::Unsupported(200))
+        );
+    }
+
+    #[test]
+    fn out_of_section_offsets_are_refused() {
+        let mut data = word(0);
+        assert_eq!(
+            apply(R_ARM_ABS32, &mut data, 2, 0, target(0, false)),
+            Err(RelocError::OutOfSection)
+        );
+        assert_eq!(
+            apply(R_ARM_ABS32, &mut data, u32::MAX, 0, target(0, false)),
+            Err(RelocError::OutOfSection)
+        );
+    }
+}
