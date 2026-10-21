@@ -142,3 +142,18 @@ impl Emulator {
         self.app.as_ref()
     }
 
+    /// (Re)démarre l'application : registres remis à zéro, pile du processus, retour de `main`
+    /// vers le stub de fin, exécution à partir de `_start`.
+    pub fn launch(&mut self) -> Result<(), EmulatorError> {
+        let app = self.app.as_ref().ok_or(EmulatorError::NoApp)?;
+        let profile = &self.device.profile;
+        let exit_stub = profile.active().userland_header + EXIT_STUB_OFFSET;
+        self.cpu = Cpu::new();
+        self.cpu.regs.sp = profile.process_stack_start;
+        self.cpu.regs.lr = exit_stub | 1;
+        self.cpu.regs.pc = app.entry & !1;
+        self.kernel
+            .set_heap(app.heap.address, app.heap.address + app.heap.size);
+        Ok(())
+    }
+
