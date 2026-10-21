@@ -177,3 +177,31 @@ fn a_weak_undefined_symbol_is_zero_and_a_call_to_it_becomes_a_nop() {
     ); // nop.w
 }
 
+#[test]
+fn mandatory_header_sections_are_required() {
+    for (skip, expected) in [
+        (NAME, LinkError::MissingSection(NAME)),
+        (ICON, LinkError::MissingSection(ICON)),
+        (API_LEVEL, LinkError::MissingSection(API_LEVEL)),
+    ] {
+        let app = synthetic_app_with(vec![0; 4], &[skip]);
+        assert_eq!(link_app(app).unwrap_err(), expected, "sans {skip}");
+    }
+    let app = synthetic_app_with(vec![0; 8], &[]);
+    assert_eq!(
+        link_app(app).unwrap_err(),
+        LinkError::InvalidApiLevel { size: 8 }
+    );
+}
+
+#[test]
+fn files_that_are_not_arm_objects_are_rejected_cleanly() {
+    let err = link(
+        b"not an elf file at all",
+        None,
+        &n0110_layout(),
+        &LinkOptions::default(),
+    );
+    assert!(matches!(err, Err(LinkError::Elf(_))), "{err:?}");
+}
+
