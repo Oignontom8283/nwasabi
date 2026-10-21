@@ -27,3 +27,7 @@ cli = []
 wasm = []
 
 [dependencies]
+
+# Les tests du corpus exécutent des dizaines de millions d'instructions émulées.
+[profile.test]
+opt-level = 2

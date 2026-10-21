@@ -1,4 +1,4 @@
-use super::Cpu;
+use super::{Bus, Cpu};
 
 /// Ce que fait le processeur après une instruction `svc`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,8 +14,9 @@ pub enum SvcAction {
 /// Points d'extension qui permettent à l'hôte de réagir à ce qui se passe dans le processeur.
 /// Chaque méthode a une valeur par défaut : l'hôte n'implémente que ce dont il a besoin.
 pub trait Hooks {
-    /// Appelé quand une instruction `svc #imm8` s'exécute.
-    fn on_svc(&mut self, _imm8: u8, _cpu: &mut Cpu) -> SvcAction {
+    /// Appelé quand une instruction `svc #imm8` s'exécute. Le bus permet de lire et d'écrire la
+    /// mémoire de l'application (arguments passés par pointeur).
+    fn on_svc<B: Bus>(&mut self, _imm8: u8, _cpu: &mut Cpu, _bus: &mut B) -> SvcAction {
         SvcAction::Raise
     }
 }
