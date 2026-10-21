@@ -526,3 +526,47 @@ mod tests {
         assert_eq!(Value::from("a\u{1}b").to_string(), r#""a\u0001b""#);
     }
 
+    #[test]
+    fn integers_beyond_2_pow_53_are_not_rounded() {
+        let v = parse("9007199254740993").unwrap();
+        assert_eq!(v, Value::Int(9_007_199_254_740_993));
+        assert_eq!(Value::Float(1.0).to_string(), "1.0");
+        assert_eq!(Value::Float(f64::NAN).to_string(), "null");
+    }
+
+    #[test]
+    fn addresses_can_be_numbers_or_hex_strings() {
+        assert_eq!(Value::Int(4096).as_u32(), Some(4096));
+        assert_eq!(Value::from("0x20000000").as_u32(), Some(0x2000_0000));
+        assert_eq!(Value::from("12").as_u32(), Some(12));
+        assert_eq!(Value::Int(-1).as_u32(), None);
+        assert_eq!(Value::Int(1 << 40).as_u32(), None);
+    }
+
+    #[test]
+    fn malformed_documents_are_rejected_with_a_position() {
+        for bad in [
+            "",
+            "{",
+            "[1,]",
+            r#"{"a" 1}"#,
+            "tru",
+            "1 2",
+            r#""abc"#,
+            "\"\u{1}\"",
+            "{1:2}",
+            "--1",
+        ] {
+            assert!(parse(bad).is_err(), "{bad:?}");
+        }
+        assert_eq!(parse("[1,x]").unwrap_err().position, 3);
+    }
+
+    #[test]
+    fn nesting_depth_is_limited() {
+        let deep = "[".repeat(200) + &"]".repeat(200);
+        assert!(parse(&deep).is_err());
+        let ok = "[".repeat(30) + &"]".repeat(30);
+        assert!(parse(&ok).is_ok());
+    }
+
