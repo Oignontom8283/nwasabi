@@ -1,0 +1,320 @@
+#0
+mvns.w r3, #4261281277
+#1
+movs.w r2, r9
+#2
+movt r9, #9812
+#3
+lsr.w r10, r5, #21
+#4
+tst.w r2, #4193909241
+#5
+lsls.w r4, r3, r5
+#6
+rrxs r5, r4
+#7
+rsb.w r6, r1, r9, rrx
+#8
+mvn.w r3, #6029404
+#9
+rrxs r1, r7
+#10
+cmp.w r3, #150
+#11
+teq.w r3, r2, lsr #18
+#12
+teq.w r2, #65
+#13
+subw r8, r8, #348
+#14
+asrs.w r2, r6, r3
+#15
+lsl.w r6, r1, r8
+#16
+teq.w r10, r8, ror #20
+#17
+lsls.w r3, r6, r10
+#18
+asr.w r5, r10, #14
+#19
+addw r0, r1, #2082
+#20
+orns.w r6, r1, r7, lsr #2
+#21
+addw r9, r0, #1614
+#22
+rrx r5, r8
+#23
+subw r0, r9, #1588
+#24
+and.w r10, r0, r2, rrx
+#25
+and.w r1, r0, r9, asr #5
+#26
+movw r5, #2969
+#27
+teq.w r6, #5832793
+#28
+cmn.w r5, r2, lsr #13
+#29
+rsb.w r4, r2, #24903680
+#30
+addw r6, r4, #2956
+#31
+addw r7, r6, #2866
+#32
+movw r6, #27412
+#33
+lsls.w r6, r9, #25
+#34
+rsbs.w r1, r2, #654321408
+#35
+sub.w r2, r10, r1, rrx
+#36
+cmp.w r4, #3099113656
+#37
+subw r10, r10, #3562
+#38
+mvn.w r5, r1, lsl #16
+#39
+addw r7, r7, #1248
+#40
+cmp.w r10, r10, lsr #29
+#41
+movw r7, #39137
+#42
+eors.w r7, r10, r3
+#43
+asrs.w r6, r5, r5
+#44
+asrs.w r7, r6, #26
+#45
+and.w r6, r7, r3, rrx
+#46
+asr.w r3, r8, r5
+#47
+bic.w r8, r8, r5
+#48
+adcs.w r8, r6, r10
+#49
+lsr.w r9, r1, r2
+#50
+cmn.w r3, #9109643
+#51
+lsr.w r6, r5, #29
+#52
+mvn.w r8, #144
+#53
+movw r1, #27641
+#54
+asr.w r5, r0, r0
+#55
+eor.w r0, r5, r8, asr #16
+#56
+eor.w r6, r4, r1, asr #14
+#57
+asr.w r0, r6, r4
+#58
+movw r10, #59212
+#59
+rrx r1, r10
+#60
+movs.w r2, #1903260017
+#61
+rsbs.w r3, r6, r1
+#62
+sbcs.w r5, r0, r9
+#63
+mvns.w r9, #12386493
+#64
+addw r4, r3, #2115
+#65
+rrx r2, r4
+#66
+movs.w r7, r7
+#67
+rrxs r6, r10
+#68
+cmp.w r2, r9, ror #21
+#69
+subw r9, r3, #3194
+#70
+mvns.w r5, #1310740
+#71
+subw r3, r9, #2216
+#72
+movw r6, #13619
+#73
+rrx r8, r3
+#74
+cmp.w r2, r1, asr #2
+#75
+tst.w r9, #196
+#76
+addw r10, r0, #2445
+#77
+movs.w r8, #3724598784
+#78
+movs.w r9, r0
+#79
+subw r0, r3, #1167
+#80
+rrxs r4, r8
+#81
+sub.w r9, r9, r9, lsr #17
+#82
+mov.w r5, #1409307648
+#83
+tst.w r5, r7, lsl #18
+#84
+lsls.w r2, r2, r4
+#85
+adcs.w r7, r7, r8
+#86
+adds.w r5, r6, r10, ror #2
+#87
+lsls.w r1, r0, #22
+#88
+movt r0, #29499
+#89
+and.w r3, r7, r10
+#90
+rrx r9, r1
+#91
+rrx r3, r7
+#92
+subs.w r7, r0, r2, lsl #6
+#93
+bics.w r9, r10, r8
+#94
+movw r10, #808
+#95
+movs.w r1, r10
+#96
+teq.w r8, #18432
+#97
+lsr.w r10, r6, r2
+#98
+bics.w r2, r9, r7, rrx
+#99
+movw r4, #60158
+#100
+asrs.w r1, r3, r4
+#101
+sub.w r3, r6, r6, asr #21
+#102
+lsrs.w r3, r8, #27
+#103
+rrx r0, r4
+#104
+lsl.w r4, r1, r3
+#105
+cmp.w r8, #66
+#106
+teq.w r4, #113
+#107
+teq.w r6, r9, asr #15
+#108
+rsb.w r4, r8, r10, asr #21
+#109
+mov.w r7, r6
+#110
+lsr.w r10, r5, #13
+#111
+movs.w r10, r5
+#112
+cmn.w r6, #2661195422
+#113
+movw r7, #14391
+#114
+asrs.w r5, r4, r1
+#115
+mvns.w r3, #228
+#116
+addw r2, r9, #2762
+#117
+mov.w r1, r9
+#118
+addw r5, r5, #284
+#119
+asr.w r3, r5, r10
+#120
+lsl.w r3, r5, #10
+#121
+asr.w r9, r2, r2
+#122
+mvns.w r4, r9, lsr #4
+#123
+addw r5, r6, #89
+#124
+addw r8, r0, #261
+#125
+subw r6, r3, #1903
+#126
+mvns.w r2, r5, lsl #11
+#127
+adcs.w r4, r8, r3, rrx
+#128
+orn.w r7, r0, r2, rrx
+#129
+movt r2, #10691
+#130
+mov.w r7, r1
+#131
+eor.w r5, r0, r1
+#132
+mvn.w r6, #3200
+#133
+ands.w r1, r2, #169984
+#134
+cmn.w r3, #3473461
+#135
+asrs.w r7, r3, r0
+#136
+cmp.w r10, r4, lsr #19
+#137
+lsls.w r3, r3, r1
+#138
+asrs.w r6, r1, #17
+#139
+lsls.w r10, r4, #30
+#140
+movw r5, #53565
+#141
+and.w r5, r9, #909522486
+#142
+rsb.w r10, r7, #3048584629
+#143
+movs.w r3, r2
+#144
+add.w r5, r5, r2
+#145
+movw r9, #51597
+#146
+teq.w r10, r4, ror #5
+#147
+movw r9, #49633
+#148
+mvn.w r10, #2919280128
+#149
+addw r6, r5, #49
+#150
+rrxs r2, r10
+#151
+orn.w r3, r9, r6, lsr #17
+#152
+ands.w r5, r3, r4
+#153
+cmp.w r7, #3070277376
+#154
+mvns.w r7, r7, lsr #1
+#155
+ands.w r9, r4, r2, asr #22
+#156
+rrxs r8, r7
+#157
+lsls.w r6, r4, r1
+#158
+sub.w r2, r9, r9
+#159
+lsr.w r2, r0, #22
