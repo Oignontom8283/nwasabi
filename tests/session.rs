@@ -232,3 +232,37 @@ fn the_session_draws_the_same_screen_as_the_corpus_reference() {
     );
 }
 
+#[test]
+fn keys_reach_the_app_and_waiting_is_reported() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("mandelbrot"))
+        .unwrap();
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(
+            r#"{{"cmd":"load","nwa_base64":"{}"}}"#,
+            json::base64_encode(nwa)
+        ),
+    );
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":100000000}"#);
+    let kind = ran
+        .get("stop")
+        .and_then(|s| s.get("kind"))
+        .and_then(Value::as_str);
+    assert_eq!(kind, Some("wait_event"), "{ran}");
+    assert!(error(&mut s, r#"{"cmd":"key","key":"nope"}"#).contains("touche inconnue"));
+    ok(&mut s, r#"{"cmd":"key","key":"ok","action":"press"}"#);
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000000}"#);
+    assert_ne!(
+        ran.get("stop")
+            .and_then(|s| s.get("kind"))
+            .and_then(Value::as_str),
+        Some("fault"),
+        "{ran}"
+    );
+}
