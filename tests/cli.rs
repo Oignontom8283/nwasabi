@@ -53,3 +53,12 @@ fn usage_and_exit_codes() {
     assert_eq!(cli(&["run", "/inexistant.nwa"]).status.code(), Some(1));
 }
 
+#[test]
+fn keys_are_listed_as_json() {
+    let out = cli(&["keys", "--json"]);
+    let v = json::parse(stdout(&out).trim()).unwrap();
+    let keys = v.get("keys").and_then(Value::as_array).unwrap();
+    assert_eq!(keys.len(), 46);
+    assert_eq!(keys[4].get("name").and_then(Value::as_str), Some("ok"));
+}
+
