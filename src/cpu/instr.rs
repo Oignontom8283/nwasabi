@@ -334,3 +334,43 @@ pub enum Instr {
         rm: Reg,
     },
 
+    Load {
+        size: MemSize,
+        signed: bool,
+        rt: Reg,
+        addr: Addr,
+    },
+    Store {
+        size: MemSize,
+        rt: Reg,
+        addr: Addr,
+    },
+    Ldrd {
+        rt: Reg,
+        rt2: Reg,
+        rn: Reg,
+        offset: i32,
+        mode: IndexMode,
+    },
+    Strd {
+        rt: Reg,
+        rt2: Reg,
+        rn: Reg,
+        offset: i32,
+        mode: IndexMode,
+    },
+    /// `ldm`, `ldmia`, `ldmdb`, `pop`.
+    Ldm {
+        rn: Reg,
+        regs: u16,
+        writeback: bool,
+        decrement_before: bool,
+    },
+    /// `stm`, `stmia`, `stmdb`, `push`.
+    Stm {
+        rn: Reg,
+        regs: u16,
+        writeback: bool,
+        decrement_before: bool,
+    },
+
