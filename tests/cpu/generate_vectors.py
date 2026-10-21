@@ -331,3 +331,21 @@ def cases_branches():
     return out
 
 
+def cases_system():
+    out = []
+    for _ in range(40):
+        a = reg()
+        out.append(random.choice([
+            f"mrs {a}, apsr",
+            f"mrs {a}, xpsr",
+            f"mrs {a}, ipsr",
+            f"msr apsr_nzcvq, {a}",
+            f"msr apsr_nzcvqg, {a}",
+            f"msr apsr_nzcvq, {a}\nmrs {reg()}, apsr",
+            "cpsid i\nmrs r0, primask\ncpsie i\nmrs r1, primask",
+            "nop\ndmb\ndsb\nisb",
+            f"mov.w {a}, #1\nmsr primask, {a}\nmrs r0, primask\nmovs r1, #0\nmsr primask, r1",
+        ]))
+    return out
+
+
