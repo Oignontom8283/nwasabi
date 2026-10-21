@@ -15,9 +15,9 @@ USAGE :
 
 COMMANDES :
   run <app.nwa>        exécute une application et résume l'arrêt, l'écran et la sortie standard
-      --model n0110|n0115|n0120   --data <fichier>   --instructions N   --frames N
+      --model n0110|n0115|n0120   --firmware 24|26.4.0   --data <fichier>   --instructions N   --frames N
       --press <touche> (répétable)   --screenshot <fichier.png>   --json
-  inspect [<app.nwa>]  structures de l'OS lues en mémoire (JSON) ; --model, --data
+  inspect [<app.nwa>]  structures de l'OS lues en mémoire (JSON) ; --model, --firmware, --data
   link <app.nwa>       résultat de l'édition de liens ; --map ajoute sections et symboles ; --json
   fs --image <fichier> <op>   système de fichiers d'une image de 42 Kio :
       list | stats | read <nom> [--out f] | write <nom> (--from f | --text t) | remove <nom> | rename <a> <b>

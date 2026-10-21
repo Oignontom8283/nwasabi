@@ -55,6 +55,9 @@ fn load_request(args: &Args, nwa: &[u8]) -> Result<Value, String> {
         .with("cmd", "load")
         .with("model", model_option(args)?)
         .with("nwa_base64", json::base64_encode(nwa));
+    if let Some(firmware) = args.value("firmware") {
+        request.set("firmware", firmware);
+    }
     if let Some(path) = args.value("data") {
         request.set("data_base64", json::base64_encode(&read_file(path)?));
     }
@@ -520,7 +523,11 @@ fn read_paths(request: &mut Value) -> Result<(), String> {
         }
     }
     if request.get("save_png").is_some() {
+        // Le PNG est demandé pour l'écrire dans le fichier ; il ne reste dans la réponse que si
+        // l'appelant l'avait réclamé lui-même.
+        let asked = request.get("png").is_some();
         request.set("png", true);
+        request.set("_strip_png", !asked);
     }
     Ok(())
 }
@@ -538,7 +545,7 @@ fn write_paths(request: &Value, reply: &mut Value) -> Result<(), String> {
             )?;
             reply.set("saved", path);
             if path_key == "save_png"
-                && request.get("png").is_none()
+                && request.get("_strip_png").and_then(Value::as_bool) == Some(true)
                 && let Value::Object(entries) = reply
             {
                 entries.retain(|(k, _)| k != content_key);
