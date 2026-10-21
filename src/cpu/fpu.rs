@@ -760,3 +760,95 @@ impl Cpu {
                     self.regs.s[first as usize + 1] = read(self, rt2);
                 }
             }
+            FpInstr::Ldr {
+                first,
+                words,
+                rn,
+                offset,
+            } => {
+                let base = if rn == 15 { pc4 & !3 } else { read(self, rn) };
+                let address = base.wrapping_add(offset as u32);
+                if address & 3 != 0 {
+                    return Err(Stop::UsageFault {
+                        pc,
+                        kind: UsageFault::Unaligned,
+                    });
+                }
+                for w in 0..u32::from(words) {
+                    let value = bus
+                        .read32(address.wrapping_add(4 * w))
+                        .map_err(Stop::BusFault)?;
+                    self.regs.s[first as usize + w as usize] = value;
+                }
+            }
+            FpInstr::Str {
+                first,
+                words,
+                rn,
+                offset,
+            } => {
+                let base = if rn == 15 { pc4 & !3 } else { read(self, rn) };
+                let address = base.wrapping_add(offset as u32);
+                if address & 3 != 0 {
+                    return Err(Stop::UsageFault {
+                        pc,
+                        kind: UsageFault::Unaligned,
+                    });
+                }
+                for w in 0..u32::from(words) {
+                    let value = self.regs.s[first as usize + w as usize];
+                    bus.write32(address.wrapping_add(4 * w), value)
+                        .map_err(Stop::BusFault)?;
+                }
+            }
+            FpInstr::Ldm {
+                first,
+                words,
+                rn,
+                writeback,
+                decrement_before,
+            }
+            | FpInstr::Stm {
+                first,
+                words,
+                rn,
+                writeback,
+                decrement_before,
+            } => {
+                let load = matches!(instr, FpInstr::Ldm { .. });
+                let base = read(self, rn);
+                let bytes = 4 * u32::from(words);
+                let start = if decrement_before {
+                    base.wrapping_sub(bytes)
+                } else {
+                    base
+                };
+                if start & 3 != 0 {
+                    return Err(Stop::UsageFault {
+                        pc,
+                        kind: UsageFault::Unaligned,
+                    });
+                }
+                for w in 0..u32::from(words) {
+                    let address = start.wrapping_add(4 * w);
+                    let index = first as usize + w as usize;
+                    if load {
+                        self.regs.s[index] = bus.read32(address).map_err(Stop::BusFault)?;
+                    } else {
+                        bus.write32(address, self.regs.s[index])
+                            .map_err(Stop::BusFault)?;
+                    }
+                }
+                if writeback {
+                    let new_base = if decrement_before {
+                        start
+                    } else {
+                        base.wrapping_add(bytes)
+                    };
+                    self.write_core(rn, new_base);
+                }
+            }
+        }
+        Ok(())
+    }
+
