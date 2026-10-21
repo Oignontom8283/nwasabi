@@ -124,3 +124,13 @@ impl Settings<'_> {
         self.status.last_reset_type = kind;
     }
 
+    /// Mode examen : les applications externes sont cachées et ne peuvent pas être lancées.
+    /// (Seul l'effet est reproduit ; les octets d'examen en flash ne sont pas écrits.)
+    pub fn set_exam_mode(&mut self, on: bool) {
+        self.device.exam_mode = on;
+    }
+
+    pub fn exam_mode(&self) -> bool {
+        self.device.exam_mode
+    }
+}
