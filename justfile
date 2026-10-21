@@ -21,19 +21,19 @@ build-cli:
 
 # Compile la bibliothèque en WebAssembly (sans les binaires).
 build-wasm:
-    cargo build --lib --release --no-default-features --features wasm --target {{wasm_target}}
+    cargo build --lib --profile wasm --no-default-features --features wasm --target {{wasm_target}}
 
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
 
 # Prépare la page d'exemple : copie le module WebAssembly et son enveloppe JavaScript.
 example: build-wasm
-    cp target/{{wasm_target}}/release/nwasabi.wasm example/nwasabi.wasm
+    cp target/{{wasm_target}}/wasm/nwasabi.wasm example/nwasabi.wasm
     cp web/src/nwasabi.js example/nwasabi.js
 
 # Construit le site web (Vue) dans `web-dist/`, que le serveur `nwasabi` embarque.
 build-web: build-wasm
-    cp target/{{wasm_target}}/release/nwasabi.wasm web/src/nwasabi.wasm
+    cp target/{{wasm_target}}/wasm/nwasabi.wasm web/src/nwasabi.wasm
     cd web && npm install --no-audit --no-fund && npm run build
 
 # --- Lancement --------------------------------------------------------------

@@ -34,8 +34,9 @@ wasm = []
 [profile.test]
 opt-level = 2
 
-# Module WebAssembly livré au navigateur : petit et rapide.
-[profile.release]
+# Module WebAssembly livré au navigateur : petit et rapide (`just build-wasm`).
+[profile.wasm]
+inherits = "release"
 opt-level = 3
 lto = true
 codegen-units = 1

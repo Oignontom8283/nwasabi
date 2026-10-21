@@ -15,19 +15,19 @@ const MAX_WRITE: u32 = 1 << 16;
 /// Taille du numéro de série copié, zéro final compris.
 const SERIAL_BUFFER: usize = 17;
 
-fn read_u16_block<B: Bus>(bus: &mut B, mut address: u32, count: u32) -> Result<Vec<u16>, BusFault> {
-    let mut out = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        out.push(bus.read16(address)?);
-        address = address.wrapping_add(2);
-    }
-    Ok(out)
+fn read_u16_block<B: Bus>(bus: &mut B, address: u32, count: u32) -> Result<Vec<u16>, BusFault> {
+    let mut bytes = vec![0u8; count as usize * 2];
+    bus.read_block(address, &mut bytes)?;
+    Ok(bytes
+        .chunks_exact(2)
+        .map(|p| u16::from_le_bytes([p[0], p[1]]))
+        .collect())
 }
 
 fn read_bytes<B: Bus>(bus: &mut B, address: u32, count: u32) -> Result<Vec<u8>, BusFault> {
-    (0..count)
-        .map(|i| bus.read8(address.wrapping_add(i)))
-        .collect()
+    let mut bytes = vec![0u8; count as usize];
+    bus.read_block(address, &mut bytes)?;
+    Ok(bytes)
 }
 
 fn read_c_string<B: Bus>(bus: &mut B, address: u32) -> Result<Vec<u8>, BusFault> {
@@ -110,9 +110,13 @@ impl Kernel {
             5 => cpu.regs.s[0] = self.status.battery_voltage.to_bits(),
             18 => {
                 let rect = Rect::from_registers(r0, r1);
-                for (i, pixel) in self.display.pull(rect).into_iter().enumerate() {
-                    bus.write16(r2.wrapping_add(2 * i as u32), pixel)?;
-                }
+                let bytes: Vec<u8> = self
+                    .display
+                    .pull(rect)
+                    .into_iter()
+                    .flat_map(u16::to_le_bytes)
+                    .collect();
+                bus.write_block(r2, &bytes)?;
             }
             19 => {
                 let rect = Rect::from_registers(r0, r1);

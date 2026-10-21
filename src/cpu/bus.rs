@@ -36,6 +36,23 @@ pub trait Bus {
     fn write16(&mut self, address: u32, value: u16) -> Result<(), BusFault>;
     fn write32(&mut self, address: u32, value: u32) -> Result<(), BusFault>;
 
+    /// Lit `out.len()` octets consécutifs (accès du programme). Par défaut octet par octet ; un bus
+    /// peut le faire en un seul bloc, ce qui accélère les transferts de pixels et de textes.
+    fn read_block(&mut self, address: u32, out: &mut [u8]) -> Result<(), BusFault> {
+        for (i, byte) in out.iter_mut().enumerate() {
+            *byte = self.read8(address.wrapping_add(i as u32))?;
+        }
+        Ok(())
+    }
+
+    /// Écrit des octets consécutifs (accès du programme).
+    fn write_block(&mut self, address: u32, data: &[u8]) -> Result<(), BusFault> {
+        for (i, &byte) in data.iter().enumerate() {
+            self.write8(address.wrapping_add(i as u32), byte)?;
+        }
+        Ok(())
+    }
+
     /// Lit un demi-mot d'instruction. Par défaut c'est une simple lecture 16 bits ; un bus peut
     /// la redéfinir pour distinguer le chargement d'instructions de la lecture de données.
     fn fetch16(&mut self, address: u32) -> Result<u16, BusFault> {
