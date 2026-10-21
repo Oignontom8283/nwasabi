@@ -166,3 +166,18 @@ pub fn write(buffer: &[u8], name: &str, body: &[u8]) -> Result<Vec<u8>, FsError>
     }
 }
 
+/// Supprime le fichier : les suivants remontent. Rend le nouveau tampon.
+pub fn remove(buffer: &[u8], name: &str) -> Result<Vec<u8>, FsError> {
+    let parsed = parse(buffer);
+    require_sound(&parsed)?;
+    let old = find(&parsed, name).ok_or_else(|| FsError::NotFound(name.to_owned()))?;
+    assemble(
+        buffer.len(),
+        [
+            &buffer[..old.offset],
+            &[],
+            &buffer[old.offset + old.size..parsed.used - END_MARK],
+        ],
+    )
+}
+
