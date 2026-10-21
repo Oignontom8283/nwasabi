@@ -30,6 +30,9 @@ pub struct FirmwareProfile {
 
     /// Version d'Epsilon (ex. `26.4.0`).
     pub software_version: String,
+    /// Version du userland que le noyau attend, écrite dans le `UserlandHeader` (identique à
+    /// `software_version` sur un appareil à jour ; elle diffère après une mise à jour partielle).
+    pub expected_userland_version: String,
     /// Identifiant du commit de compilation (7 caractères).
     pub commit_hash: String,
     /// Niveau de sécurité du slot (protection contre le retour à une version plus ancienne).
@@ -146,6 +149,11 @@ impl FirmwareProfile {
             (
                 "software_version",
                 &self.software_version,
+                HEADER_STRING_SIZE - 1,
+            ),
+            (
+                "expected_userland_version",
+                &self.expected_userland_version,
                 HEADER_STRING_SIZE - 1,
             ),
             ("commit_hash", &self.commit_hash, HEADER_STRING_SIZE - 1),

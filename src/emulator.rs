@@ -14,6 +14,7 @@ use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
 use crate::link::{LinkError, LinkOptions, LinkedApp, link};
 use crate::memory::{WatchHit, access};
 use crate::profile::{FirmwareProfile, Model};
+use crate::settings::Settings;
 use crate::storage::{Fs, Storage};
 
 /// Une faute qui arrête l'application.
@@ -73,6 +74,8 @@ pub enum EmulatorError {
     Device(DeviceError),
     /// Aucune application n'est installée.
     NoApp,
+    /// Le mode examen cache les applications externes.
+    ExamMode,
 }
 
 impl fmt::Display for EmulatorError {
@@ -81,6 +84,7 @@ impl fmt::Display for EmulatorError {
             Self::Link(e) => write!(f, "édition de liens : {e}"),
             Self::Device(e) => write!(f, "{e}"),
             Self::NoApp => write!(f, "aucune application installée"),
+            Self::ExamMode => write!(f, "mode examen : les applications externes sont cachées"),
         }
     }
 }
@@ -150,6 +154,14 @@ impl Emulator {
         self.storage.with(&mut self.device.memory)
     }
 
+    /// Les réglages de l'appareil (versions, nom, FCC, batterie…), modifiables à tout moment.
+    pub fn settings(&mut self) -> Settings<'_> {
+        Settings {
+            device: &mut self.device,
+            status: &mut self.kernel.status,
+        }
+    }
+
     /// L'application installée en dernier.
     pub fn app(&self) -> Option<&LinkedApp> {
         self.app.as_ref()
@@ -158,6 +170,9 @@ impl Emulator {
     /// (Re)démarre l'application : registres remis à zéro, pile du processus, retour de `main`
     /// vers le stub de fin, exécution à partir de `_start`.
     pub fn launch(&mut self) -> Result<(), EmulatorError> {
+        if self.device.exam_mode {
+            return Err(EmulatorError::ExamMode);
+        }
         let app = self.app.as_ref().ok_or(EmulatorError::NoApp)?;
         let profile = &self.device.profile;
         let exit_stub = profile.active().userland_header + EXIT_STUB_OFFSET;
