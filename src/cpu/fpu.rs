@@ -291,3 +291,65 @@ fn decode_data(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Option<FpInst
     }
 }
 
+/// Instructions du groupe « opc1 = 1x11 » : constante, copies, valeur absolue, comparaisons, conversions.
+fn decode_extension(a: u32, b: u32, d: u8, m: u8) -> Option<FpInstr> {
+    let opc2 = bits(a, 3, 0);
+    let op = bits(b, 7, 6);
+    // vmov.f32 Sd, #imm : opc3 = x0, constante imm4H:imm4L.
+    if op & 1 == 0 {
+        let imm8 = (bits(a, 3, 0) << 4) | bits(b, 3, 0);
+        let sign = (imm8 >> 7) & 1;
+        let not_b = ((imm8 >> 6) & 1) ^ 1;
+        let b_rep = if (imm8 >> 6) & 1 == 1 { 0b11111 } else { 0 };
+        let fraction = imm8 & 0x3f;
+        let value = (sign << 31) | (not_b << 30) | (b_rep << 25) | (fraction << 19);
+        return Some(FpInstr::MovImm { d, bits: value });
+    }
+    Some(match opc2 {
+        0b0000 if op == 0b01 => FpInstr::Unary {
+            op: FpUnary::Vmov,
+            d,
+            m,
+        },
+        0b0000 => FpInstr::Unary {
+            op: FpUnary::Vabs,
+            d,
+            m,
+        },
+        0b0001 if op == 0b01 => FpInstr::Unary {
+            op: FpUnary::Vneg,
+            d,
+            m,
+        },
+        0b0001 => FpInstr::Unary {
+            op: FpUnary::Vsqrt,
+            d,
+            m,
+        },
+        0b0100 => FpInstr::Cmp {
+            d,
+            m: Some(m),
+            signal_nan: bit(b, 7),
+        },
+        0b0101 => FpInstr::Cmp {
+            d,
+            m: None,
+            signal_nan: bit(b, 7),
+        },
+        // vcvt entier -> flottant : op (bit 7) = 1 pour un entier signé.
+        0b1000 => FpInstr::FromInt {
+            signed: bit(b, 7),
+            d,
+            m,
+        },
+        // vcvt flottant -> entier : opc2 = 110s ; bit 7 : arrondi vers zéro (sinon FPSCR).
+        0b1100 | 0b1101 => FpInstr::ToInt {
+            signed: opc2 & 1 == 1,
+            round_zero: bit(b, 7),
+            d,
+            m,
+        },
+        _ => return None,
+    })
+}
+
