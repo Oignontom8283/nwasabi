@@ -85,3 +85,60 @@ pub struct ChangedRange {
     pub len: u32,
 }
 
+/// Stockage d'une zone : pages allouées à la demande, indicateurs d'accès, dates des écritures.
+pub(super) struct Region {
+    pub spec: RegionSpec,
+    pages: Vec<Option<Box<[u8; PAGE_SIZE as usize]>>>,
+    /// Un octet par ligne : combinaison de [`access`].
+    pub access: Vec<u8>,
+    /// Date (compteur d'écritures) de la dernière écriture de chaque ligne ; créé à la première écriture.
+    pub stamps: Option<Vec<u64>>,
+}
+
+impl Region {
+    pub fn new(spec: RegionSpec) -> Self {
+        let pages = (spec.size / PAGE_SIZE) as usize;
+        let lines = (spec.size / LINE_SIZE) as usize;
+        Self {
+            spec,
+            pages: vec![None; pages],
+            access: vec![0; lines],
+            stamps: None,
+        }
+    }
+
+    pub fn contains(&self, address: u32, len: u32) -> bool {
+        address >= self.spec.base
+            && u64::from(address) + u64::from(len)
+                <= u64::from(self.spec.base) + u64::from(self.spec.size)
+    }
+
+    /// Copie `out.len()` octets à partir de `offset` (déjà vérifié dans la zone).
+    pub fn copy_out(&self, offset: u32, out: &mut [u8]) {
+        let mut done = 0usize;
+        while done < out.len() {
+            let at = offset as usize + done;
+            let (page, inner) = (at / PAGE_SIZE as usize, at % PAGE_SIZE as usize);
+            let n = (out.len() - done).min(PAGE_SIZE as usize - inner);
+            match &self.pages[page] {
+                Some(p) => out[done..done + n].copy_from_slice(&p[inner..inner + n]),
+                None => out[done..done + n].fill(self.spec.fill),
+            }
+            done += n;
+        }
+    }
+
+    /// Écrit `data` à partir de `offset` (déjà vérifié dans la zone).
+    pub fn copy_in(&mut self, offset: u32, data: &[u8]) {
+        let fill = self.spec.fill;
+        let mut done = 0usize;
+        while done < data.len() {
+            let at = offset as usize + done;
+            let (page, inner) = (at / PAGE_SIZE as usize, at % PAGE_SIZE as usize);
+            let n = (data.len() - done).min(PAGE_SIZE as usize - inner);
+            let p = self.pages[page].get_or_insert_with(|| Box::new([fill; PAGE_SIZE as usize]));
+            p[inner..inner + n].copy_from_slice(&data[done..done + n]);
+            done += n;
+        }
+    }
+
