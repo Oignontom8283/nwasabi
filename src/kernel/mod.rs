@@ -3,4 +3,5 @@
 //! Aucun code d'Epsilon n'est utilisé : on reproduit seulement le comportement observable aux
 //! frontières (valeurs rendues, écran, clavier, temps).
 
+pub mod display;
 pub mod font;
