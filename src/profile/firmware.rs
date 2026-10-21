@@ -122,3 +122,80 @@ impl FirmwareProfile {
         self.apps_ram.1 - self.apps_ram.0
     }
 
+    /// Vérifie la cohérence interne du profil.
+    pub fn validate(&self) -> Result<(), Vec<ProfileError>> {
+        let mut errors = Vec::new();
+        let ascii = |s: &str, max: usize| s.is_ascii() && s.len() <= max && !s.contains('\0');
+        for (field, value, max) in [
+            (
+                "software_version",
+                &self.software_version,
+                HEADER_STRING_SIZE - 1,
+            ),
+            ("commit_hash", &self.commit_hash, HEADER_STRING_SIZE - 1),
+            ("fcc_id", &self.fcc_id, 31),
+            ("device_name", &self.device_name, DEVICE_NAME_SIZE - 1),
+        ] {
+            if !ascii(value, max) {
+                errors.push(ProfileError::BadString {
+                    field,
+                    value: value.clone(),
+                });
+            }
+        }
+        if !self.serial_number.is_ascii() || self.serial_number.len() != SERIAL_NUMBER_LEN {
+            errors.push(ProfileError::BadString {
+                field: "serial_number",
+                value: self.serial_number.clone(),
+            });
+        }
+
+        let flash_end = EXTERNAL_FLASH_BASE + EXTERNAL_FLASH_SIZE;
+        for (name, slot) in [("slot_a", &self.slot_a), ("slot_b", &self.slot_b)] {
+            let inside = |a: u32| (EXTERNAL_FLASH_BASE..flash_end).contains(&a);
+            let ordered = slot.origin < slot.kernel_header
+                && slot.kernel_header < slot.userland_header
+                && slot.userland_header < slot.apps_flash.0
+                && slot.apps_flash.0 < slot.apps_flash.1
+                && slot.apps_flash.1 <= slot.persisting_bytes.0
+                && slot.persisting_bytes.0 < slot.persisting_bytes.1
+                && slot.persisting_bytes.1 <= flash_end;
+            let name_inside = slot.device_name.0 >= slot.persisting_bytes.0
+                && slot.device_name.0 < slot.device_name.1
+                && slot.device_name.1 <= slot.persisting_bytes.1;
+            if !(inside(slot.origin) && ordered && name_inside) {
+                errors.push(ProfileError::OutOfBounds {
+                    field: if name == "slot_a" { "slot_a" } else { "slot_b" },
+                });
+            }
+        }
+        if self.slot_a.persisting_bytes.1 > self.slot_b.origin {
+            errors.push(ProfileError::Overlap {
+                first: "slot_a",
+                second: "slot_b",
+            });
+        }
+
+        // RAM : SlotInfo, système de fichiers, RAM des applications, pile, partie du noyau.
+        let base = self.sram_base();
+        let sram_end = base + self.sram_size;
+        let storage_end = self.storage_address + 4 + self.storage_size + 4;
+        if self.storage_address < base + 16 || storage_end > self.apps_ram.0 {
+            errors.push(ProfileError::OutOfBounds { field: "storage" });
+        }
+        if self.apps_ram.0 >= self.apps_ram.1 || self.apps_ram.1 > self.process_stack_start {
+            errors.push(ProfileError::OutOfBounds { field: "apps_ram" });
+        }
+        if self.process_stack_start >= self.kernel_sram_base()
+            || self.kernel_stack_start <= self.kernel_sram_base()
+            || self.kernel_stack_start > sram_end
+        {
+            errors.push(ProfileError::OutOfBounds { field: "pile" });
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
