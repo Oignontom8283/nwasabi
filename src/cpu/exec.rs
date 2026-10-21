@@ -574,3 +574,8 @@ impl Cpu {
                     self.faultmask = disable;
                 }
             }
+            Instr::Fp(fp) => return self.exec_fp(ctx.addr, ctx.pc4, fp, bus),
+        }
+        Ok(())
+    }
+
