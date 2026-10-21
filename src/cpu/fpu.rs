@@ -582,3 +582,36 @@ impl Env<'_> {
         }
     }
 
+    /// Conversion flottant → entier de 32 bits avec saturation.
+    fn convert_to_int(&mut self, x: f32, signed: bool, rounding: u32) -> u32 {
+        let x = self.input(x);
+        if x.is_nan() {
+            self.raise(FPSCR_IOC);
+            return 0;
+        }
+        let rounded = match rounding {
+            0 => x.round_ties_even(), // au plus proche
+            1 => x.ceil(),            // vers +infini
+            2 => x.floor(),           // vers -infini
+            _ => x.trunc(),           // vers zéro
+        };
+        let (min, max) = if signed {
+            (-2147483648.0f64, 2147483647.0f64)
+        } else {
+            (0.0, 4294967295.0)
+        };
+        let wide = f64::from(rounded);
+        let saturated = wide.clamp(min, max);
+        if wide != saturated {
+            self.raise(FPSCR_IOC);
+        } else if rounded != x {
+            self.raise(FPSCR_IXC);
+        }
+        if signed {
+            (saturated as i32) as u32
+        } else {
+            saturated as u32
+        }
+    }
+}
+
