@@ -31,3 +31,15 @@ pub enum ModelClass {
     N0120,
 }
 
+/// Le système de fichiers en RAM, vu de l'extérieur : ses magics et la taille du premier
+/// enregistrement. (La lecture des fichiers eux-mêmes viendra avec l'API de fichiers.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageView {
+    pub address: u32,
+    pub size: u32,
+    pub header_magic_ok: bool,
+    pub footer_magic_ok: bool,
+    /// Taille du premier enregistrement (0 : le système de fichiers est vide).
+    pub first_record_size: u16,
+}
+
