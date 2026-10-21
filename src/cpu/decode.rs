@@ -74,3 +74,14 @@ pub fn decode16(hw: u16) -> Option<Instr> {
             };
             dp(op, low3(0), low3(3), rhs, FlagMode::OutsideIt)
         }
+        // mov / cmp / add / sub avec une constante de 8 bits.
+        0b00100..=0b00111 => {
+            let rd = low3(8);
+            let imm = imm_rhs(bits(h, 7, 0));
+            match bits(h, 12, 11) {
+                0 => dp(DpOp::Mov, rd, 0, imm, FlagMode::OutsideIt),
+                1 => dp(DpOp::Cmp, 0, rd, imm, FlagMode::Always),
+                2 => dp(DpOp::Add, rd, rd, imm, FlagMode::OutsideIt),
+                _ => dp(DpOp::Sub, rd, rd, imm, FlagMode::OutsideIt),
+            }
+        }
