@@ -227,3 +227,25 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 }
             }
         }
+        // ldr / str relatifs à SP.
+        0b10010 | 0b10011 => {
+            let addr = Addr::Imm {
+                rn: 13,
+                offset: (bits(h, 7, 0) << 2) as i32,
+                mode: IndexMode::Offset,
+            };
+            if bit(h, 11) {
+                Instr::Load {
+                    size: MemSize::Word,
+                    signed: false,
+                    rt: low3(8),
+                    addr,
+                }
+            } else {
+                Instr::Store {
+                    size: MemSize::Word,
+                    rt: low3(8),
+                    addr,
+                }
+            }
+        }
