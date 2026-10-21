@@ -48,3 +48,18 @@ fn rectangle_fill_push_and_pull_go_through_memory() {
     assert_eq!(back, [0, 1, 1, 1, 2, 1, 3, 1]);
 }
 
+#[test]
+fn a_bad_pointer_stops_with_a_bus_fault() {
+    let (mut emu, mut cpu) = setup();
+    let action = call(
+        &mut emu,
+        &mut cpu,
+        19,
+        &[1 | 1 << 16, 1 | 1 << 16, 0x7000_0000],
+    );
+    assert_eq!(action, SvcAction::HandledAndStop);
+    assert!(
+        matches!(emu.kernel.take_stop(), Some(KernelStop::BusFault(f)) if f.address == 0x7000_0000)
+    );
+}
+
