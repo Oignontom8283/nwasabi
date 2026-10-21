@@ -6,10 +6,12 @@
 //! malformée.mod error;
 mod header;
 mod reader;
+mod reloc;
 mod section;
 mod symbol;
 
 pub use error::ElfError;
 pub use header::Header;
+pub use reloc::*;
 pub use section::*;
 pub use symbol::{Symbol, SymbolBind, SymbolKind, SymbolSection};
