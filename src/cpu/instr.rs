@@ -241,3 +241,68 @@ pub enum Instr {
         round: bool,
     },
 
+    /// `bfi` (insertion) ; `rn` à `None` : `bfc` (mise à zéro).
+    Bfi {
+        rd: Reg,
+        rn: Option<Reg>,
+        lsb: u8,
+        width: u8,
+    },
+    /// `ubfx` / `sbfx`.
+    Bfx {
+        signed: bool,
+        rd: Reg,
+        rn: Reg,
+        lsb: u8,
+        width: u8,
+    },
+    /// `ssat` / `usat` : saturation sur `bits` bits après un décalage.
+    Sat {
+        signed: bool,
+        rd: Reg,
+        rn: Reg,
+        bits: u8,
+        kind: ShiftKind,
+        amount: u32,
+    },
+    Clz {
+        rd: Reg,
+        rm: Reg,
+    },
+    Rbit {
+        rd: Reg,
+        rm: Reg,
+    },
+    Rev {
+        kind: RevKind,
+        rd: Reg,
+        rm: Reg,
+    },
+    /// `uxtb`, `sxth`, `uxtab`… ; `rn` présent pour les formes avec addition.
+    Extend {
+        kind: ExtKind,
+        rd: Reg,
+        rm: Reg,
+        rotate: u8,
+        rn: Option<Reg>,
+    },
+    Parallel {
+        op: ParallelOp,
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+    },
+    Sel {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+    },
+    /// `pkhbt` / `pkhtb`.
+    Pkh {
+        top_bottom: bool,
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        amount: u32,
+    },
+
