@@ -987,3 +987,24 @@ mod tests {
         assert_eq!(env(&mut fpscr).convert_to_int(-2.1, true, 2) as i32, -3);
     }
 
+    #[test]
+    fn decodes_the_constant_encoding_of_vmov_immediate() {
+        // vmov.f32 s0, #1.0 : imm8 = 0x70 ; vmov.f32 s0, #-2.5 : imm8 = 0x84.
+        let one = decode(0xeeb7, 0x0a00).unwrap();
+        assert_eq!(
+            one,
+            FpInstr::MovImm {
+                d: 0,
+                bits: 0x3f80_0000
+            }
+        );
+        let neg = decode(0xeeb8, 0x0a04).unwrap();
+        assert_eq!(
+            neg,
+            FpInstr::MovImm {
+                d: 0,
+                bits: 0xc020_0000
+            }
+        );
+    }
+}
