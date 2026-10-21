@@ -190,3 +190,29 @@ def cases_thumb32_dp():
     return out
 
 
+def cases_bitfield():
+    out = []
+    for _ in range(120):
+        rd, rn = reg(), reg()
+        lsb = random.randrange(32)
+        width = random.randrange(1, 33 - lsb)
+        out.append(random.choice([
+            f"ubfx {rd}, {rn}, #{lsb}, #{width}",
+            f"sbfx {rd}, {rn}, #{lsb}, #{width}",
+            f"bfi {rd}, {rn}, #{lsb}, #{width}",
+            f"bfc {rd}, #{lsb}, #{width}",
+            f"ssat {rd}, #{random.randrange(1, 33)}, {rn}",
+            f"ssat {rd}, #{random.randrange(1, 33)}, {rn}, lsl #{random.randrange(32)}",
+            f"ssat {rd}, #{random.randrange(1, 33)}, {rn}, asr #{random.randrange(1, 32)}",
+            f"usat {rd}, #{random.randrange(0, 32)}, {rn}",
+            f"usat {rd}, #{random.randrange(0, 32)}, {rn}, lsl #{random.randrange(32)}",
+            f"usat {rd}, #{random.randrange(0, 32)}, {rn}, asr #{random.randrange(1, 32)}",
+            f"clz {rd}, {rn}",
+            f"rbit {rd}, {rn}",
+            f"rev.w {rd}, {rn}",
+            f"rev16.w {rd}, {rn}",
+            f"revsh.w {rd}, {rn}",
+        ]))
+    return out
+
+
