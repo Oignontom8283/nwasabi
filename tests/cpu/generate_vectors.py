@@ -584,3 +584,69 @@ def assemble_batch(cases, fp=False, inits=None):
     return '\n'.join(lines) + '\n'
 
 
+LINKER = """MEMORY { ROM (rx): ORIGIN = 0x0, LENGTH = 0x40000 }
+SECTIONS { .text : { KEEP(*(.vectors)) *(.text*) *(.rodata*) } > ROM }
+"""
+
+
+def tool(name, env):
+    return shlex.split(os.environ.get(env, name))
+
+
+def run_qemu(elf, nbytes, work):
+    out = os.path.join(work, 'qemu_out.bin')
+    cmd = (tool('qemu-system-arm', 'QEMU') + shlex.split(os.environ.get('QEMU_ARGS', '')) +
+           ['-M', 'mps2-an500', '-cpu', 'cortex-m7', '-nographic', '-monitor', 'stdio',
+            '-serial', 'none', '-kernel', elf])
+    for wait in (1.5, 4.0, 10.0):
+        if os.path.exists(out):
+            os.remove(out)
+        p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, text=True)
+        time.sleep(wait)
+        p.stdin.write('pmemsave %#x %d "%s"\nquit\n' % (OUT, nbytes, out))
+        p.stdin.flush()
+        try:
+            p.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            p.kill()
+        if os.path.exists(out):
+            data = open(out, 'rb').read()
+            if len(data) == nbytes and int.from_bytes(data[-4:], 'little') == MARKER:
+                return data
+    raise SystemExit("QEMU n'a pas terminé le programme (marqueur absent)")
+
+
+def build_and_run(name, cases, outdir, fp=False):
+    work = tempfile.mkdtemp(prefix='nwasabi-vec-')
+    asm = os.path.join(work, 'prog.s')
+    with open(asm, 'w') as f:
+        inits = []
+        f.write(assemble_batch(cases, fp, inits))
+    with open(os.path.join(work, 'link.ld'), 'w') as f:
+        f.write(LINKER)
+    r = subprocess.run(tool('arm-none-eabi-as', 'ARM_AS') +
+                       ['-mcpu=cortex-m7', '-mfpu=fpv5-sp-d16', '-o', os.path.join(work, 'prog.o'), asm],
+                       capture_output=True, text=True)
+    if r.returncode:
+        sys.stderr.write(r.stderr)
+        raise SystemExit(f'assemblage de {name} impossible (programme laissé dans {asm})')
+    subprocess.run(tool('arm-none-eabi-ld', 'ARM_LD') +
+                   ['-T', os.path.join(work, 'link.ld'), '-o', os.path.join(work, 'prog.elf'),
+                    os.path.join(work, 'prog.o')], check=True)
+    binfile = os.path.join(work, 'prog.bin')
+    subprocess.run(tool('arm-none-eabi-objcopy', 'ARM_OBJCOPY') +
+                   ['-O', 'binary', os.path.join(work, 'prog.elf'), binfile], check=True)
+    data = run_qemu(os.path.join(work, 'prog.elf'), len(cases) * (FP_CASE_WORDS if fp else CASE_WORDS) * 4 + 4, work)
+    os.makedirs(outdir, exist_ok=True)
+    with open(binfile, 'rb') as src, open(os.path.join(outdir, name + '.bin'), 'wb') as dst:
+        dst.write(src.read())
+    with open(os.path.join(outdir, name + '.expected'), 'wb') as f:
+        f.write(data)
+    with open(os.path.join(outdir, name + '.cases'), 'w') as f:
+        for i, c in enumerate(cases):
+            f.write(f'#{i}\n{c}\n')
+            f.write('; init : ' + ' '.join('%08x' % v for v in inits[i]) + '\n')
+    print(f'{name}: {len(cases)} cas, programme de {os.path.getsize(binfile)} octets')
+
+
