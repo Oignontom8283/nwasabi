@@ -96,7 +96,7 @@ impl DeviceImage {
         profile.validate().map_err(DeviceError::Profile)?;
         let mut memory = build_memory(&profile, options.ram_fill)?;
         write_structures(&mut memory, &profile)?;
-        let next_app = profile.slot_a.apps_flash.0;
+        let next_app = profile.active().apps_flash.0;
         Ok(Self {
             memory,
             profile,
@@ -111,7 +111,7 @@ impl DeviceImage {
 
     /// Zones à donner à l'éditeur de liens pour une application qui sera installée ensuite.
     pub fn app_layout(&self) -> LayoutParams {
-        let (_, end) = self.profile.slot_a.apps_flash;
+        let (_, end) = self.profile.active().apps_flash;
         LayoutParams {
             flash_start: self.next_app,
             flash_length: end.saturating_sub(self.next_app),
@@ -132,7 +132,7 @@ impl DeviceImage {
                 found: app.flash_start,
             });
         }
-        let (_, end) = self.profile.slot_a.apps_flash;
+        let (_, end) = self.profile.active().apps_flash;
         let available = end - self.next_app;
         if app.flash.len() as u32 > available {
             return Err(DeviceError::NoRoom {
@@ -156,7 +156,7 @@ impl DeviceImage {
 
     /// Efface la zone des applications externes (comme « supprimer toutes les applications »).
     pub fn erase_apps(&mut self) -> Result<(), DeviceError> {
-        let (start, end) = self.profile.slot_a.apps_flash;
+        let (start, end) = self.profile.active().apps_flash;
         self.memory.fill(start, end - start, 0xff)?;
         self.next_app = start;
         Ok(())
@@ -164,7 +164,7 @@ impl DeviceImage {
 
     /// Les applications installées, relues en mémoire (hors mode examen).
     pub fn apps(&mut self) -> Vec<AppEntry> {
-        let (start, end) = self.profile.slot_a.apps_flash;
+        let (start, end) = self.profile.active().apps_flash;
         list_apps(&mut self.memory, start, end, false)
     }
 }
