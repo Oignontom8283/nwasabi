@@ -181,3 +181,24 @@ pub fn remove(buffer: &[u8], name: &str) -> Result<Vec<u8>, FsError> {
     )
 }
 
+/// Change le nom d'un fichier en gardant sa place et son corps.
+pub fn rename(buffer: &[u8], from: &str, to: &str) -> Result<Vec<u8>, FsError> {
+    check_name(to)?;
+    let parsed = parse(buffer);
+    require_sound(&parsed)?;
+    let old = find(&parsed, from).ok_or_else(|| FsError::NotFound(from.to_owned()))?;
+    if from != to && find(&parsed, to).is_some() {
+        return Err(FsError::Exists(to.to_owned()));
+    }
+    let body = &buffer[old.body_offset..old.body_offset + old.body_len];
+    let record = encode(to, body)?;
+    assemble(
+        buffer.len(),
+        [
+            &buffer[..old.offset],
+            &record,
+            &buffer[old.offset + old.size..parsed.used - END_MARK],
+        ],
+    )
+}
+
