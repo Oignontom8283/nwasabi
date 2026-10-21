@@ -491,7 +491,7 @@ pub fn hex_encode(data: &[u8]) -> String {
 
 pub fn hex_decode(text: &str) -> Option<Vec<u8>> {
     let digits: Vec<u8> = text.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-    if digits.len() % 2 != 0 {
+    if !digits.len().is_multiple_of(2) {
         return None;
     }
     digits
@@ -570,3 +570,29 @@ mod tests {
         assert!(parse(&ok).is_ok());
     }
 
+    #[test]
+    fn base64_matches_the_standard_vectors() {
+        for (plain, coded) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foobar", "Zm9vYmFy"),
+        ] {
+            assert_eq!(base64_encode(plain.as_bytes()), coded);
+            assert_eq!(base64_decode(coded).unwrap(), plain.as_bytes());
+        }
+        assert_eq!(base64_decode("Zm9v\nYmFy").unwrap(), b"foobar");
+        assert_eq!(base64_decode("Zm9vYmE").unwrap(), b"fooba");
+        assert!(base64_decode("Zm9v!").is_none());
+        assert!(base64_decode("Z").is_none());
+    }
+
+    #[test]
+    fn hex_round_trips() {
+        assert_eq!(hex_encode(&[0, 0xab, 0xff]), "00abff");
+        assert_eq!(hex_decode("00 AB ff").unwrap(), [0, 0xab, 0xff]);
+        assert!(hex_decode("abc").is_none());
+        assert!(hex_decode("zz").is_none());
+    }
+}
