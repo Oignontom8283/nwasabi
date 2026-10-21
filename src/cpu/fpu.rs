@@ -615,3 +615,23 @@ impl Env<'_> {
     }
 }
 
+impl Cpu {
+    /// Exécute une instruction à virgule flottante.
+    pub(super) fn exec_fp<B: Bus>(
+        &mut self,
+        pc: u32,
+        pc4: u32,
+        instr: FpInstr,
+        bus: &mut B,
+    ) -> Result<(), Stop> {
+        // Toute instruction flottante marque le contexte flottant comme actif (pour l'empilement
+        // lors d'une exception).
+        self.control |= 1 << 2;
+        let read = |cpu: &Cpu, r: Reg| match r {
+            15 => pc4,
+            13 => cpu.regs.sp,
+            14 => cpu.regs.lr,
+            n => cpu.regs.r[n as usize],
+        };
+        let f = |cpu: &Cpu, i: u8| f32::from_bits(cpu.regs.s[i as usize]);
+        match instr {
