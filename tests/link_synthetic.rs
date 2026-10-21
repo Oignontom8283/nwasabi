@@ -305,3 +305,87 @@ fn bss_is_in_ram_only_and_commons_follow_it() {
     );
 }
 
+#[test]
+fn external_data_is_required_when_the_app_reads_it() {
+    let make = || {
+        let mut app = synthetic_app();
+        let var = undefined(&mut app.writer, "eadk_external_data", SymbolBind::Global);
+        let size = undefined(
+            &mut app.writer,
+            "eadk_external_data_size",
+            SymbolBind::Global,
+        );
+        app.word_ref(var);
+        app.word_ref(size);
+        app.finish()
+    };
+    let layout = n0110_layout();
+    let options = LinkOptions::default();
+    assert_eq!(
+        link(&make(), None, &layout, &options).unwrap_err(),
+        LinkError::MissingExternalData
+    );
+
+    let blob: Vec<u8> = (0..100).collect();
+    let linked = link(&make(), Some(&blob), &layout, &options).unwrap();
+    let start = symbol(&linked, "_eadk_external_data_start").address;
+    assert_eq!(bytes_at(&linked, start, 100), blob.as_slice());
+    // Les deux variables de l'application sont initialisées avec l'adresse et la taille des données.
+    let initial = |i: u32| {
+        word(
+            &linked.flash,
+            (linked.data.flash_address - linked.flash_start + 4 * i) as usize,
+        )
+    };
+    assert_eq!(initial(0), start);
+    assert_eq!(initial(1), 100);
+}
+
+#[test]
+fn external_data_is_ignored_when_the_app_does_not_read_it() {
+    let blob = vec![0xaa; 4096];
+    let plain = link(
+        &synthetic_app().finish(),
+        None,
+        &n0110_layout(),
+        &LinkOptions::default(),
+    )
+    .unwrap();
+    let with_data = link(
+        &synthetic_app().finish(),
+        Some(&blob),
+        &n0110_layout(),
+        &LinkOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(plain.flash, with_data.flash);
+}
+
+#[test]
+fn the_extended_runtime_is_opt_in() {
+    let make = || {
+        let mut app = synthetic_app();
+        let battery = undefined(&mut app.writer, "eadk_battery_level", SymbolBind::Global);
+        app.call(battery);
+        app.finish()
+    };
+    let strict = link(&make(), None, &n0110_layout(), &LinkOptions::default());
+    assert!(
+        matches!(strict, Err(LinkError::UndefinedSymbol { .. })),
+        "{strict:?}"
+    );
+    let options = LinkOptions {
+        extended_runtime: true,
+        ..LinkOptions::default()
+    };
+    let extended = link(&make(), None, &n0110_layout(), &options).unwrap();
+    assert_eq!(
+        bytes_at(
+            &extended,
+            symbol(&extended, "eadk_battery_level").address & !1,
+            4
+        ),
+        [4, 0xdf, 0x70, 0x47]
+    );
+}
+
