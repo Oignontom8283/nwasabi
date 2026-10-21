@@ -4,6 +4,8 @@
 //! encore être « lié » (voir le module `link`). Ce module se limite à lire le fichier de façon
 //! sûre : toutes les positions et tailles sont vérifiées, jamais de `panic` sur une entrée
 //! malformée.mod error;
+mod header;
 mod reader;
 
 pub use error::ElfError;
+pub use header::Header;
