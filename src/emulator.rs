@@ -13,6 +13,7 @@ use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
 use crate::link::{LinkError, LinkOptions, LinkedApp, link};
 use crate::profile::{FirmwareProfile, Model};
+use crate::storage::{Fs, Storage};
 
 /// Une faute qui arrête l'application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +101,7 @@ pub struct Emulator {
     pub device: DeviceImage,
     pub cpu: Cpu,
     pub kernel: Kernel,
+    storage: Storage,
     app: Option<LinkedApp>,
 }
 
@@ -114,11 +116,13 @@ impl Emulator {
         config: KernelConfig,
     ) -> Result<Self, EmulatorError> {
         let status = DeviceStatus::from_profile(&profile);
+        let storage = Storage::new(profile.storage_address, profile.storage_size);
         let device = DeviceImage::new(profile)?;
         Ok(Self {
             device,
             cpu: Cpu::new(),
             kernel: Kernel::new(config, status),
+            storage,
             app: None,
         })
     }
@@ -135,6 +139,12 @@ impl Emulator {
         self.device.install(&app)?;
         self.app = Some(app);
         self.launch()
+    }
+
+    /// Les fichiers de la calculatrice : consultables et modifiables à tout moment entre deux
+    /// appels à [`Emulator::run`], même pendant que l'application est lancée.
+    pub fn fs(&mut self) -> Fs<'_> {
+        self.storage.with(&mut self.device.memory)
     }
 
     /// L'application installée en dernier.
