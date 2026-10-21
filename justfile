@@ -43,3 +43,12 @@ clippy:
 # Lance les tests natifs (architecture de la machine hôte).
 test:
     cargo test --all-features
+
+# Séquence complète avant de proposer un changement : formatage, clippy, tests, WebAssembly.
+ci: fmt-check clippy test build-wasm
+
+# --- Ménage -----------------------------------------------------------------
+
+# Supprime les fichiers de compilation.
+clean:
+    cargo clean
