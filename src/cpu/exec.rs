@@ -23,3 +23,19 @@ struct Ctx {
 }
 
 impl Cpu {
+    /// Condition ARM (4 bits) satisfaite avec les indicateurs actuels ?
+    fn cond_passed(&self, cond: u8) -> bool {
+        let r = &self.regs;
+        let base = match cond >> 1 {
+            0 => r.z(),
+            1 => r.c(),
+            2 => r.n(),
+            3 => r.v(),
+            4 => r.c() && !r.z(),
+            5 => r.n() == r.v(),
+            6 => !r.z() && r.n() == r.v(),
+            _ => return true,
+        };
+        base != (cond & 1 != 0)
+    }
+
