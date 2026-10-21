@@ -147,3 +147,35 @@ pub fn app(app: &LinkedApp) -> Value {
         )
 }
 
+pub fn regions(regions: &[RegionInfo]) -> Value {
+    Value::Array(
+        regions
+            .iter()
+            .map(|r| {
+                let perms = format!(
+                    "{}{}{}",
+                    if r.perms.read { 'r' } else { '-' },
+                    if r.perms.write { 'w' } else { '-' },
+                    if r.perms.execute { 'x' } else { '-' }
+                );
+                Value::object()
+                    .with("name", r.name.as_str())
+                    .with("base", r.base)
+                    .with("size", r.size)
+                    .with("perms", perms)
+                    .with("kind", format!("{:?}", r.kind).to_lowercase())
+            })
+            .collect(),
+    )
+}
+
+pub fn usage(u: &Usage) -> Value {
+    Value::object()
+        .with("heap", pair(u.heap.start, u.heap.end))
+        .with("heap_break", u.heap_break)
+        .with("heap_high_water", u.heap_high_water)
+        .with("stack", pair(u.stack.start, u.stack.end))
+        .with("stack_low_water", u.stack_low_water)
+        .with("sp", u.sp)
+}
+
