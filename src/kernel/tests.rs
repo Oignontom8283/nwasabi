@@ -157,3 +157,15 @@ fn event_get_wakes_up_when_a_key_arrives() {
     assert_eq!(cpu.regs.r[0], 1);
 }
 
+#[test]
+fn random_is_reproducible_for_a_given_seed() {
+    let (mut a, mut cpu) = setup();
+    let (mut b, _) = setup();
+    call(&mut a, &mut cpu, 45, &[]);
+    let first = cpu.regs.r[0];
+    call(&mut b, &mut cpu, 45, &[]);
+    assert_eq!(cpu.regs.r[0], first);
+    call(&mut a, &mut cpu, 45, &[]);
+    assert_ne!(cpu.regs.r[0], first);
+}
+
