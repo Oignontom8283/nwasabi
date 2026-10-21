@@ -79,3 +79,18 @@ impl Hooks for RecordingHooks {
     }
 }
 
+const START: u32 = 0x100;
+
+/// Exécute `count` instructions du programme et renvoie le processeur.
+fn run(code: &[u16], setup: impl FnOnce(&mut Cpu), count: u64) -> (Cpu, Flat, Stop) {
+    let mut bus = Flat::with_halfwords(code);
+    let mut cpu = Cpu::new();
+    cpu.regs.pc = START;
+    cpu.regs.sp = 0x8000;
+    setup(&mut cpu);
+    let stop = cpu.run(&mut bus, &mut (), count);
+    (cpu, bus, stop)
+}
+
+impl Hooks for () {}
+
