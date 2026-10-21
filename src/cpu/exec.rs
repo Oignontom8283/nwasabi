@@ -883,3 +883,77 @@ fn extend(kind: ExtKind, rotated: u32, base: Option<u32>) -> u32 {
     }
 }
 
+/// Opération sur quatre octets ou deux demi-mots : résultat et indicateurs `GE` (`None` si
+/// l'opération ne les modifie pas).
+fn parallel(op: ParallelOp, a: u32, b: u32) -> (u32, Option<u8>) {
+    let bytes = |v: u32| [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
+    let halves = |v: u32| [v as u16, (v >> 16) as u16];
+    let pack8 = |r: [u8; 4]| u32::from_le_bytes(r);
+    let pack16 = |r: [u16; 2]| u32::from(r[0]) | (u32::from(r[1]) << 16);
+    match op {
+        ParallelOp::Uadd8 | ParallelOp::Usub8 | ParallelOp::Sadd8 | ParallelOp::Ssub8 => {
+            let (x, y) = (bytes(a), bytes(b));
+            let mut out = [0u8; 4];
+            let mut ge = 0u8;
+            for i in 0..4 {
+                let value: i32 = match op {
+                    ParallelOp::Uadd8 => i32::from(x[i]) + i32::from(y[i]),
+                    ParallelOp::Usub8 => i32::from(x[i]) - i32::from(y[i]),
+                    ParallelOp::Sadd8 => i32::from(x[i] as i8) + i32::from(y[i] as i8),
+                    _ => i32::from(x[i] as i8) - i32::from(y[i] as i8),
+                };
+                out[i] = value as u8;
+                let flag = match op {
+                    ParallelOp::Uadd8 => value >= 0x100,
+                    _ => value >= 0,
+                };
+                ge |= u8::from(flag) << i;
+            }
+            (pack8(out), Some(ge))
+        }
+        ParallelOp::Uqadd8 | ParallelOp::Uqsub8 => {
+            let (x, y) = (bytes(a), bytes(b));
+            let mut out = [0u8; 4];
+            for i in 0..4 {
+                out[i] = if op == ParallelOp::Uqadd8 {
+                    x[i].saturating_add(y[i])
+                } else {
+                    x[i].saturating_sub(y[i])
+                };
+            }
+            (pack8(out), None)
+        }
+        ParallelOp::Uadd16 | ParallelOp::Usub16 | ParallelOp::Sadd16 | ParallelOp::Ssub16 => {
+            let (x, y) = (halves(a), halves(b));
+            let mut out = [0u16; 2];
+            let mut ge = 0u8;
+            for i in 0..2 {
+                let value: i32 = match op {
+                    ParallelOp::Uadd16 => i32::from(x[i]) + i32::from(y[i]),
+                    ParallelOp::Usub16 => i32::from(x[i]) - i32::from(y[i]),
+                    ParallelOp::Sadd16 => i32::from(x[i] as i16) + i32::from(y[i] as i16),
+                    _ => i32::from(x[i] as i16) - i32::from(y[i] as i16),
+                };
+                out[i] = value as u16;
+                let flag = match op {
+                    ParallelOp::Uadd16 => value >= 0x1_0000,
+                    _ => value >= 0,
+                };
+                ge |= u8::from(flag) * (0b11 << (2 * i));
+            }
+            (pack16(out), Some(ge))
+        }
+        ParallelOp::Uqadd16 | ParallelOp::Uqsub16 => {
+            let (x, y) = (halves(a), halves(b));
+            let mut out = [0u16; 2];
+            for i in 0..2 {
+                out[i] = if op == ParallelOp::Uqadd16 {
+                    x[i].saturating_add(y[i])
+                } else {
+                    x[i].saturating_sub(y[i])
+                };
+            }
+            (pack16(out), None)
+        }
+    }
+}
