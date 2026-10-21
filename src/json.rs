@@ -98,3 +98,59 @@ impl Value {
     }
 }
 
+impl From<bool> for Value {
+    fn from(v: bool) -> Self {
+        Self::Bool(v)
+    }
+}
+impl From<i64> for Value {
+    fn from(v: i64) -> Self {
+        Self::Int(v)
+    }
+}
+impl From<u64> for Value {
+    fn from(v: u64) -> Self {
+        Self::Int(i64::try_from(v).unwrap_or(i64::MAX))
+    }
+}
+impl From<u32> for Value {
+    fn from(v: u32) -> Self {
+        Self::Int(i64::from(v))
+    }
+}
+impl From<i32> for Value {
+    fn from(v: i32) -> Self {
+        Self::Int(i64::from(v))
+    }
+}
+impl From<usize> for Value {
+    fn from(v: usize) -> Self {
+        Self::Int(i64::try_from(v).unwrap_or(i64::MAX))
+    }
+}
+impl From<f64> for Value {
+    fn from(v: f64) -> Self {
+        Self::Float(v)
+    }
+}
+impl From<&str> for Value {
+    fn from(v: &str) -> Self {
+        Self::Str(v.to_owned())
+    }
+}
+impl From<String> for Value {
+    fn from(v: String) -> Self {
+        Self::Str(v)
+    }
+}
+impl<T: Into<Value>> From<Vec<T>> for Value {
+    fn from(v: Vec<T>) -> Self {
+        Self::Array(v.into_iter().map(Into::into).collect())
+    }
+}
+impl<T: Into<Value>> From<Option<T>> for Value {
+    fn from(v: Option<T>) -> Self {
+        v.map_or(Self::Null, Into::into)
+    }
+}
+
