@@ -564,3 +564,21 @@ impl Env<'_> {
         self.finish(result, finite && inexact, finite)
     }
 
+    /// Comparaison : renvoie les indicateurs (N, Z, C, V) pour FPSCR.
+    fn compare(&mut self, a: f32, b: f32, signal_nan: bool) -> u32 {
+        let (a, b) = (self.input(a), self.input(b));
+        if a.is_nan() || b.is_nan() {
+            if signal_nan || is_snan(a) || is_snan(b) {
+                self.raise(FPSCR_IOC);
+            }
+            return 0b0011; // non ordonné : C et V
+        }
+        if a == b {
+            0b0110 // égal : Z et C
+        } else if a < b {
+            0b1000 // inférieur : N
+        } else {
+            0b0010 // supérieur : C
+        }
+    }
+
