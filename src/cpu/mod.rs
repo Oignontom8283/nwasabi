@@ -8,6 +8,8 @@
 pub mod alu;
 mod bus;
 mod decode;
+mod exception;
+mod exec;
 mod fpu;
 mod hooks;
 mod instr;
