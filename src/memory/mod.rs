@@ -9,11 +9,13 @@
 mod bus;
 mod error;
 mod region;
+mod watch;
 
 pub use error::MemoryError;
 pub use region::{
     ChangedRange, LINE_SIZE, PAGE_SIZE, Perms, RegionInfo, RegionKind, RegionSpec, access,
 };
+pub use watch::{WatchHit, WatchId, WatchKind};
 
 use region::Region;
 
@@ -24,6 +26,7 @@ pub struct Memory {
     last: usize,
     /// Compteur incrémenté à chaque écriture ; sert à dater les modifications.
     tick: u64,
+    watches: watch::Watchpoints,
 }
 
 impl Default for Memory {
@@ -38,6 +41,7 @@ impl Memory {
             regions: Vec::new(),
             last: 0,
             tick: 0,
+            watches: watch::Watchpoints::default(),
         }
     }
 
@@ -204,6 +208,48 @@ impl Memory {
             }
         }
         ranges
+    }
+
+    /// Observe les accès du programme à `[start, start + len)`. Les accès de l'hôte ne comptent
+    /// pas. Avec `stop`, l'émulateur s'interrompt au premier accès (voir `Emulator::run`).
+    pub fn watch(&mut self, start: u32, len: u32, kind: WatchKind, stop: bool) -> WatchId {
+        self.watches.add(start, len, kind, stop)
+    }
+
+    /// Retire un point d'observation ; faux s'il n'existait pas.
+    pub fn unwatch(&mut self, id: WatchId) -> bool {
+        self.watches.remove(id)
+    }
+
+    /// Les accès observés depuis le dernier appel (les plus anciens sont perdus au-delà de 4096).
+    pub fn take_watch_hits(&mut self) -> Vec<WatchHit> {
+        self.watches.take_hits()
+    }
+
+    /// Premier accès à un point d'observation « avec arrêt », s'il y en a eu un.
+    pub fn take_watch_stop(&mut self) -> Option<WatchHit> {
+        self.watches.take_stop()
+    }
+
+    /// Vrai s'il existe un point d'observation qui interrompt l'exécution.
+    pub fn has_stopping_watch(&self) -> bool {
+        self.watches.has_stopping()
+    }
+
+    /// Plus petite et plus grande adresses des lignes de `[start, end)` qui portent l'indicateur
+    /// `flag` (voir [`access`]) : mesure de l'étendue réellement utilisée d'une zone.
+    pub fn access_extent(&self, start: u32, end: u32, flag: u8) -> Option<(u32, u32)> {
+        let region = self.regions.iter().find(|r| r.contains(start, 1))?;
+        let base = region.spec.base;
+        let first = ((start - base) / LINE_SIZE) as usize;
+        let last = ((end.min(base + region.spec.size) - base).div_ceil(LINE_SIZE)) as usize;
+        let lines = region.access.get(first..last)?;
+        let low = lines.iter().position(|&a| a & flag != 0)?;
+        let high = lines.iter().rposition(|&a| a & flag != 0)?;
+        Some((
+            base + (first + low) as u32 * LINE_SIZE,
+            base + (first + high + 1) as u32 * LINE_SIZE,
+        ))
     }
 
     /// Nombre de pages de 4 Kio effectivement allouées dans la zone `name` (consommation réelle).

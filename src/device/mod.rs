@@ -79,6 +79,8 @@ impl std::error::Error for DeviceError {}
 pub struct DeviceImage {
     pub memory: Memory,
     pub profile: FirmwareProfile,
+    /// Mode examen : l'appareil cache les applications externes.
+    pub exam_mode: bool,
     /// Prochain emplacement où l'outil de flashage écrirait une application.
     next_app: u32,
 }
@@ -100,6 +102,7 @@ impl DeviceImage {
         Ok(Self {
             memory,
             profile,
+            exam_mode: false,
             next_app,
         })
     }
@@ -154,6 +157,21 @@ impl DeviceImage {
         Ok(address)
     }
 
+    /// Modifie le profil et réécrit en mémoire les structures qui en dépendent (en-têtes, nom de
+    /// l'appareil, FCC…), comme le ferait une nouvelle version du firmware. Les applications et
+    /// les fichiers ne sont pas touchés. Si le nouveau profil est incohérent, rien n'est changé.
+    pub fn update_profile(
+        &mut self,
+        change: impl FnOnce(&mut FirmwareProfile),
+    ) -> Result<(), DeviceError> {
+        let mut profile = self.profile.clone();
+        change(&mut profile);
+        profile.validate().map_err(DeviceError::Profile)?;
+        write_structures(&mut self.memory, &profile)?;
+        self.profile = profile;
+        Ok(())
+    }
+
     /// Efface la zone des applications externes (comme « supprimer toutes les applications »).
     pub fn erase_apps(&mut self) -> Result<(), DeviceError> {
         let (start, end) = self.profile.active().apps_flash;
@@ -165,6 +183,6 @@ impl DeviceImage {
     /// Les applications installées, relues en mémoire (hors mode examen).
     pub fn apps(&mut self) -> Vec<AppEntry> {
         let (start, end) = self.profile.active().apps_flash;
-        list_apps(&mut self.memory, start, end, false)
+        list_apps(&mut self.memory, start, end, self.exam_mode)
     }
 }

@@ -39,7 +39,7 @@ fn write_slot(
 
     let userland = UserlandHeader {
         header: USERLAND_HEADER_MAGIC,
-        expected_software_version: profile.software_version.clone(),
+        expected_software_version: profile.expected_userland_version.clone(),
         storage_address: profile.storage_address,
         storage_size: profile.storage_size,
         external_apps_flash: slot.apps_flash,
@@ -72,10 +72,13 @@ fn write_slot(
     fcc[..n].copy_from_slice(&id[..n]);
     memory.write_bytes(at + FCC_ID_OFFSET, &fcc)?;
 
+    // Zone du nom : effacée (flash vierge), puis le nom s'il y en a un.
+    let (name_start, name_end) = slot.device_name;
+    memory.fill(name_start, name_end - name_start, 0xff)?;
     if !profile.device_name.is_empty() {
         let mut name = profile.device_name.clone().into_bytes();
         name.push(0);
-        memory.write_bytes(slot.device_name.0, &name)?;
+        memory.write_bytes(name_start, &name)?;
     }
     Ok(())
 }

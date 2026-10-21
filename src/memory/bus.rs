@@ -63,8 +63,21 @@ impl Memory {
                 region.mark_access(offset, N as u32, flag);
             }
         }
+        if !self.watches.is_empty() && kind != Kind::Fetch {
+            let value = match kind {
+                Kind::Write => data.map_or(0, le),
+                _ => le(bytes),
+            };
+            self.watches
+                .check(address, N as u8, kind == Kind::Write, value);
+        }
         Ok(bytes)
     }
+}
+
+/// Valeur little-endian de 1 à 4 octets.
+fn le<const N: usize>(bytes: [u8; N]) -> u32 {
+    bytes.iter().rev().fold(0, |v, &b| v << 8 | u32::from(b))
 }
 
 impl Bus for Memory {
