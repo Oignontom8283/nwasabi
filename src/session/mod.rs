@@ -293,3 +293,33 @@ impl Session {
         }
     }
 
+    fn time_ms(&mut self) -> Result<u64, String> {
+        let emu = self.emu()?;
+        Ok(emu.kernel.micros(emu.cpu.cycles) / 1000)
+    }
+
+    fn new_device(&mut self, req: &Value) -> Reply {
+        let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
+        self.emu = Some(Emulator::new(model).map_err(|e| e.to_string())?);
+        self.frames = 0;
+        Ok(Value::object().with("model", model.name()))
+    }
+
+    fn load(&mut self, req: &Value) -> Reply {
+        let nwa = json::base64_decode(text(req, "nwa_base64")?).ok_or("base64 invalide")?;
+        let data = match req.get("data_base64").and_then(Value::as_str) {
+            Some(d) => Some(json::base64_decode(d).ok_or("base64 invalide (data_base64)")?),
+            None => None,
+        };
+        let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
+        let mut emu = Emulator::new(model).map_err(|e| e.to_string())?;
+        emu.install_nwa(&nwa, data.as_deref())
+            .map_err(|e| e.to_string())?;
+        let info = views::app(emu.app().expect("application installée"));
+        self.emu = Some(emu);
+        self.frames = 0;
+        Ok(Value::object()
+            .with("model", model.name())
+            .with("app", info))
+    }
+
