@@ -64,3 +64,29 @@ pub struct FirmwareProfile {
     pub device_name: String,
 }
 
+/// Une incohérence dans un profil.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProfileError {
+    /// Une chaîne est trop longue ou non ASCII.
+    BadString { field: &'static str, value: String },
+    /// Une adresse ou une plage sort de la zone où elle devrait se trouver.
+    OutOfBounds { field: &'static str },
+    /// Deux plages qui ne doivent pas se chevaucher se chevauchent.
+    Overlap {
+        first: &'static str,
+        second: &'static str,
+    },
+}
+
+impl fmt::Display for ProfileError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BadString { field, value } => write!(f, "{field} invalide : {value:?}"),
+            Self::OutOfBounds { field } => write!(f, "{field} hors de la zone attendue"),
+            Self::Overlap { first, second } => write!(f, "{first} chevauche {second}"),
+        }
+    }
+}
+
+impl std::error::Error for ProfileError {}
+
