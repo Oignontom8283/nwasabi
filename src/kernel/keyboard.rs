@@ -109,6 +109,19 @@ impl Key {
         Key::Exe,
     ];
 
+    /// Nom de la touche dans l'API EADK, sans le préfixe `eadk_key_` (`ok`, `left_parenthesis`…).
+    pub fn name(self) -> &'static str {
+        KEY_NAMES
+            .iter()
+            .find(|(_, k)| *k == self)
+            .map_or("?", |(n, _)| n)
+    }
+
+    /// La touche portant ce nom.
+    pub fn from_name(name: &str) -> Option<Key> {
+        KEY_NAMES.iter().find(|(n, _)| *n == name).map(|(_, k)| *k)
+    }
+
     /// Numéro de bit de la touche.
     pub fn bit(self) -> u32 {
         u32::from(self as u8)
@@ -119,6 +132,55 @@ impl Key {
         Self::ALL.into_iter().find(|k| k.bit() == bit)
     }
 }
+
+const KEY_NAMES: [(&str, Key); 46] = [
+    ("left", Key::Left),
+    ("up", Key::Up),
+    ("down", Key::Down),
+    ("right", Key::Right),
+    ("ok", Key::Ok),
+    ("back", Key::Back),
+    ("home", Key::Home),
+    ("on_off", Key::OnOff),
+    ("shift", Key::Shift),
+    ("alpha", Key::Alpha),
+    ("xnt", Key::Xnt),
+    ("var", Key::Var),
+    ("toolbox", Key::Toolbox),
+    ("backspace", Key::Backspace),
+    ("exp", Key::Exp),
+    ("ln", Key::Ln),
+    ("log", Key::Log),
+    ("imaginary", Key::Imaginary),
+    ("comma", Key::Comma),
+    ("power", Key::Power),
+    ("sine", Key::Sine),
+    ("cosine", Key::Cosine),
+    ("tangent", Key::Tangent),
+    ("pi", Key::Pi),
+    ("sqrt", Key::Sqrt),
+    ("square", Key::Square),
+    ("seven", Key::Seven),
+    ("eight", Key::Eight),
+    ("nine", Key::Nine),
+    ("left_parenthesis", Key::LeftParenthesis),
+    ("right_parenthesis", Key::RightParenthesis),
+    ("four", Key::Four),
+    ("five", Key::Five),
+    ("six", Key::Six),
+    ("multiplication", Key::Multiplication),
+    ("division", Key::Division),
+    ("one", Key::One),
+    ("two", Key::Two),
+    ("three", Key::Three),
+    ("plus", Key::Plus),
+    ("minus", Key::Minus),
+    ("zero", Key::Zero),
+    ("dot", Key::Dot),
+    ("ee", Key::Ee),
+    ("ans", Key::Ans),
+    ("exe", Key::Exe),
+];
 
 /// Nombre d'événements par « plan » (normal, shift, alpha, shift+alpha).
 pub const EVENTS_PER_PLANE: u16 = 56;
@@ -269,6 +331,15 @@ mod tests {
         }
         assert_eq!(Key::from_bit(7), None);
         assert_eq!(Key::from_bit(35), None);
+    }
+
+    #[test]
+    fn keys_have_unique_api_names() {
+        for key in Key::ALL {
+            assert_eq!(Key::from_name(key.name()), Some(key));
+        }
+        assert_eq!(Key::from_name("nope"), None);
+        assert_eq!(Key::LeftParenthesis.name(), "left_parenthesis");
     }
 
     #[test]
