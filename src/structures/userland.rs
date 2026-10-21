@@ -79,3 +79,32 @@ impl UserlandHeader {
     }
 }
 
+/// Les trois mots qui suivent le `UserlandHeader` : début de la table des vecteurs du userland.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VectorTable {
+    /// Valeur initiale du pointeur de pile.
+    pub initial_stack: u32,
+    /// Point d'entrée du userland (bit 0 à 1 : Thumb).
+    pub start: u32,
+    /// `Ion::Display::drawString`, appelée par `eadk_display_draw_string` (bit 0 à 1).
+    pub draw_string: u32,
+}
+
+impl VectorTable {
+    pub fn encode(&self) -> [u8; 12] {
+        let mut out = [0u8; 12];
+        put_word(&mut out, 0, self.initial_stack);
+        put_word(&mut out, 4, self.start);
+        put_word(&mut out, 8, self.draw_string);
+        out
+    }
+
+    pub fn decode(bytes: &[u8; 12]) -> Self {
+        Self {
+            initial_stack: word(bytes, 0),
+            start: word(bytes, 4),
+            draw_string: word(bytes, 8),
+        }
+    }
+}
+
