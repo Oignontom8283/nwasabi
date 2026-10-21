@@ -108,3 +108,50 @@ impl VectorTable {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mots lus à 0x9002_0000 dans le firmware officiel 26.4.0 du N0110.
+    fn official_header() -> UserlandHeader {
+        UserlandHeader {
+            header: USERLAND_HEADER_MAGIC,
+            expected_software_version: "26.4.0".into(),
+            storage_address: 0x2000_657c,
+            storage_size: 0xa800,
+            external_apps_flash: (0x9020_0000, 0x903f_0000),
+            external_apps_ram: (0x2001_18a4, 0x2003_7000),
+            device_name: (0x903f_0000, 0x903f_0400),
+            footer: USERLAND_HEADER_MAGIC,
+        }
+    }
+
+    #[test]
+    fn userland_header_round_trips_and_has_the_official_layout() {
+        let header = official_header();
+        let bytes = header.encode();
+        assert_eq!(&bytes[..4], [0xfe, 0xed, 0xc0, 0xde]);
+        assert_eq!(&bytes[4..12], b"26.4.0\0\0");
+        assert_eq!(UserlandHeader::decode(&bytes), header);
+        assert!(header.is_valid());
+        assert_eq!(bytes.len(), 48);
+    }
+
+    #[test]
+    fn userland_header_with_a_null_pointer_is_invalid() {
+        let mut header = official_header();
+        header.external_apps_ram.1 = 0;
+        assert!(!header.is_valid());
+    }
+
+    #[test]
+    fn vector_table_follows_the_header() {
+        let table = VectorTable {
+            initial_stack: 0x2003_eff8,
+            start: 0x9002_0045,
+            draw_string: 0x9002_0041,
+        };
+        assert_eq!(VectorTable::decode(&table.encode()), table);
+        assert_eq!(TRAMPOLINE_TABLE_OFFSET, 0x38);
+    }
+}
