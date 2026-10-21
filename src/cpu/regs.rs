@@ -114,3 +114,56 @@ impl Registers {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flags_are_independent_bits_of_xpsr() {
+        let mut r = Registers::default();
+        r.set_n(true);
+        r.set_c(true);
+        assert_eq!(r.xpsr, 0xa000_0000);
+        r.set_nz(0);
+        assert_eq!((r.n(), r.z(), r.c(), r.v()), (false, true, true, false));
+        r.set_q();
+        assert!(r.q());
+    }
+
+    #[test]
+    fn it_state_round_trips_through_its_scattered_bits() {
+        let mut r = Registers::default();
+        for it in 0..=255u8 {
+            r.set_it_state(it);
+            assert_eq!(r.it_state(), it);
+        }
+        // Les autres bits de xPSR ne bougent pas.
+        r.xpsr = 0xf00f_0000;
+        r.set_it_state(0xa5);
+        assert_eq!(r.xpsr & 0xf00f_0000, 0xf00f_0000);
+        assert_eq!(r.it_state(), 0xa5);
+    }
+
+    #[test]
+    fn it_block_advances_and_ends() {
+        let mut r = Registers::default();
+        // `itte eq` : firstcond 0, mask 0b0110 -> état 0b0000_0110.
+        r.set_it_state(0b0000_0110);
+        r.advance_it();
+        assert_eq!(r.it_state(), 0b0000_1100);
+        r.advance_it();
+        assert_eq!(r.it_state(), 0b0001_1000);
+        // Quand les 3 bits de poids faible sont nuls, le bloc est terminé.
+        r.set_it_state(0b0000_1000);
+        r.advance_it();
+        assert_eq!(r.it_state(), 0);
+    }
+
+    #[test]
+    fn ge_flags_occupy_bits_19_to_16() {
+        let mut r = Registers::default();
+        r.set_ge(0b1010);
+        assert_eq!(r.xpsr, 0b1010 << 16);
+        assert_eq!(r.ge(), 0b1010);
+    }
+}
