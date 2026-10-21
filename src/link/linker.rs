@@ -738,3 +738,38 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         image[start..start + bytes.len()].copy_from_slice(&bytes);
     }
 
+    // En-tête d'application (32 octets) : magic, niveau d'API, décalages, taille, magic.
+    let start_ref = start.expect("_start vérifié plus haut");
+    let entry = linked.target(roots[0], start_ref)?.address;
+    let first_of = |class: Class| -> SecId {
+        layout
+            .placements
+            .iter()
+            .filter(|(_, p)| p.class == class)
+            .map(|(&id, p)| (p.vma, id))
+            .min()
+            .map(|(_, id)| id)
+            .expect("section d'en-tête vérifiée par le placement")
+    };
+    let offset_in_flash = |address: u32| address - params.flash_start;
+    let name_id = first_of(Class::Name);
+    let icon_id = first_of(Class::Icon);
+    let header: [u32; 8] = {
+        let mut words = [0u32; 8];
+        words[0] = MAGIC;
+        words[1] = u32::from_le_bytes(image[4..8].try_into().expect("4 octets"));
+        words[2] = offset_in_flash(layout.placements[&name_id].vma);
+        words[3] = objects[icon_id.0].elf.sections[icon_id.1].size;
+        words[4] = offset_in_flash(layout.placements[&icon_id].vma);
+        // Le script de link GNU lit l'adresse de `_start` sans son bit Thumb : décalage pair.
+        words[5] = offset_in_flash(entry & !1);
+        words[6] = offset_in_flash(layout.app_end);
+        words[7] = MAGIC;
+        words
+    };
+    for (i, word) in header.iter().enumerate() {
+        if i != 1 {
+            image[4 * i..4 * i + 4].copy_from_slice(&word.to_le_bytes());
+        }
+    }
+
