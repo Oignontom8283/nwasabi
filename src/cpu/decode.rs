@@ -809,3 +809,17 @@ fn decode_load_store_single(a: u32, b: u32) -> Option<Instr> {
     })
 }
 
+/// Adresse « base ± constante de 8 bits » avec les bits P, U, W du second demi-mot.
+fn imm8_addr(rn: Reg, b: u32) -> Option<Addr> {
+    let (p, u, w) = (bit(b, 10), bit(b, 9), bit(b, 8));
+    let imm8 = bits(b, 7, 0) as i32;
+    let offset = if u { imm8 } else { -imm8 };
+    let mode = match (p, w) {
+        (true, false) => IndexMode::Offset,
+        (true, true) => IndexMode::PreIndex,
+        (false, true) => IndexMode::PostIndex,
+        (false, false) => return None,
+    };
+    Some(Addr::Imm { rn, offset, mode })
+}
+
