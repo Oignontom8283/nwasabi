@@ -138,3 +138,85 @@ fn constant_function(w: &mut ObjectWriter, name: &str, value: i32) {
     add_function(w, name, &code);
 }
 
+/// Construit l'objet ELF du runtime. `extended` ajoute les fonctions de [`EADK_EXTENDED_SVC`].
+pub fn build_runtime(extended: bool) -> Vec<u8> {
+    let mut w = ObjectWriter::new();
+    let undefined = |w: &mut ObjectWriter, name: &str| {
+        w.add_symbol(
+            name,
+            0,
+            0,
+            SymbolBind::Global,
+            SymbolKind::NoType,
+            SymbolSection::Undefined,
+        )
+    };
+
+    // Les fonctions EADK : `svc #N` puis `bx lr` (les résultats sont déjà dans r0/r1/s0).
+    let extra: &[(&str, u8)] = if extended { EADK_EXTENDED_SVC } else { &[] };
+    for &(name, number) in EADK_SVC.iter().chain(extra) {
+        add_function(
+            &mut w,
+            name,
+            &halfwords(&[0xdf00 | u16::from(number), 0x4770]),
+        );
+    }
+
+    // Fonctions de support de la bibliothèque C.
+    add_function(
+        &mut w,
+        "_sbrk",
+        &halfwords(&[0xdf00 | u16::from(SVC_SBRK), 0x4770]),
+    );
+    add_function(
+        &mut w,
+        "_write",
+        &halfwords(&[0xdf00 | u16::from(SVC_WRITE), 0x4770]),
+    );
+    constant_function(&mut w, "_read", 0);
+    constant_function(&mut w, "_lseek", 0);
+    constant_function(&mut w, "_fstat", 0);
+    constant_function(&mut w, "_isatty", 1);
+    constant_function(&mut w, "_open", -1);
+    constant_function(&mut w, "_close", -1);
+
+    // eadk_display_draw_string passe par la trampoline du userland.
+    let mut code = halfwords(&DRAW_STRING_CODE);
+    code.extend_from_slice(&[0; 4]);
+    let draw = add_function(&mut w, "eadk_display_draw_string", &code);
+    let trampoline = undefined(&mut w, linker_symbols::TRAMPOLINE);
+    w.add_relocation(draw, 0xc, trampoline, R_ARM_ABS32);
+
+    // _start.
+    let mut code = halfwords(&START_CODE);
+    code.extend_from_slice(&[0; 4 * START_POOL.len()]);
+    let start = add_function(&mut w, "_start", &code);
+    let main = undefined(&mut w, "main");
+    w.add_relocation(start, START_BL_OFFSET, main, R_ARM_THM_CALL);
+    for (i, name) in START_POOL.iter().enumerate() {
+        let symbol = undefined(&mut w, name);
+        w.add_relocation(start, 0x30 + 4 * i as u32, symbol, R_ARM_ABS32);
+    }
+
+    // eadk_external_data et eadk_external_data_size : deux variables initialisées avec
+    // l'adresse et la taille des données externes (donc dans .data, copiées en RAM par _start).
+    let ext_start = undefined(&mut w, linker_symbols::EXTERNAL_DATA_START);
+    let ext_size = undefined(&mut w, linker_symbols::EXTERNAL_DATA_SIZE);
+    for (name, target) in [
+        ("eadk_external_data", ext_start),
+        ("eadk_external_data_size", ext_size),
+    ] {
+        let section = w.add_section(&format!(".data.{name}"), SHF_ALLOC | SHF_WRITE, 4, &[0; 4]);
+        w.add_symbol(
+            name,
+            0,
+            4,
+            SymbolBind::Global,
+            SymbolKind::Object,
+            SymbolSection::Section(section.0),
+        );
+        w.add_relocation(section, 0, target, R_ARM_ABS32);
+    }
+    w.finish()
+}
+
