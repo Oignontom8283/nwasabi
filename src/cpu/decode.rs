@@ -546,3 +546,34 @@ fn decode_dp_shifted_register(a: u32, b: u32) -> Option<Instr> {
     })
 }
 
+/// Traitement de données avec constante « modifiée ».
+fn decode_dp_modified_immediate(a: u32, b: u32) -> Option<Instr> {
+    let (op, s) = (bits(a, 8, 5), bit(a, 4));
+    let rn = bits(a, 3, 0) as Reg;
+    let rd = bits(b, 11, 8) as Reg;
+    let imm12 = (bits(a, 10, 10) << 11) | (bits(b, 14, 12) << 8) | bits(b, 7, 0);
+    let (value, carry) = thumb_expand_imm(imm12);
+    let rhs = Rhs::Imm { value, carry };
+    let flags = if s { FlagMode::Always } else { FlagMode::Never };
+    let test = rd == 15 && s;
+    Some(match op {
+        0 if test => dp(DpOp::Tst, 0, rn, rhs, FlagMode::Always),
+        0 => dp(DpOp::And, rd, rn, rhs, flags),
+        1 => dp(DpOp::Bic, rd, rn, rhs, flags),
+        2 if rn == 15 => dp(DpOp::Mov, rd, 0, rhs, flags),
+        2 => dp(DpOp::Orr, rd, rn, rhs, flags),
+        3 if rn == 15 => dp(DpOp::Mvn, rd, 0, rhs, flags),
+        3 => dp(DpOp::Orn, rd, rn, rhs, flags),
+        4 if test => dp(DpOp::Teq, 0, rn, rhs, FlagMode::Always),
+        4 => dp(DpOp::Eor, rd, rn, rhs, flags),
+        8 if test => dp(DpOp::Cmn, 0, rn, rhs, FlagMode::Always),
+        8 => dp(DpOp::Add, rd, rn, rhs, flags),
+        10 => dp(DpOp::Adc, rd, rn, rhs, flags),
+        11 => dp(DpOp::Sbc, rd, rn, rhs, flags),
+        13 if test => dp(DpOp::Cmp, 0, rn, rhs, FlagMode::Always),
+        13 => dp(DpOp::Sub, rd, rn, rhs, flags),
+        14 => dp(DpOp::Rsb, rd, rn, rhs, flags),
+        _ => return None,
+    })
+}
+
