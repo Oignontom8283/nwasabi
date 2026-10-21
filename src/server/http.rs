@@ -85,3 +85,29 @@ fn read_request(stream: &TcpStream) -> Option<(String, String)> {
 
 use std::io::Read;
 
+/// Traite une connexion avec `route(chemin)`.
+pub fn serve_connection(mut stream: TcpStream, route: &dyn Fn(&str) -> Response) {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+    let response = match read_request(&stream) {
+        None => Response::text(400, "requête illisible"),
+        Some((method, path)) if method == "GET" || method == "HEAD" => {
+            let mut r = route(&path);
+            if method == "HEAD" {
+                r.body.clear();
+            }
+            r
+        }
+        Some(_) => Response::text(405, "seul GET est accepté"),
+    };
+    let head = format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n",
+        response.status,
+        response.reason(),
+        response.content_type,
+        response.body.len()
+    );
+    let _ = stream.write_all(head.as_bytes());
+    let _ = stream.write_all(&response.body);
+    let _ = stream.flush();
+}
+
