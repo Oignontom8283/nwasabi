@@ -85,3 +85,44 @@ impl FileKind {
     }
 }
 
+/// Un fichier de la liste.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileInfo {
+    pub name: String,
+    pub kind: FileKind,
+    /// Taille du corps, en octets.
+    pub size: usize,
+    /// Position de l'enregistrement dans le tampon.
+    pub offset: usize,
+}
+
+impl FileInfo {
+    fn of(record: &Record) -> Self {
+        Self {
+            kind: FileKind::of(&record.name),
+            name: record.name.clone(),
+            size: record.body_len,
+            offset: record.offset,
+        }
+    }
+}
+
+/// La liste des fichiers et l'état du tampon.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listing {
+    pub files: Vec<FileInfo>,
+    /// Position où le tampon est abîmé, s'il l'est.
+    pub corrupt_at: Option<usize>,
+}
+
+/// Occupation du tampon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stats {
+    /// Taille du tampon.
+    pub total: usize,
+    /// Octets utilisés, marque de fin comprise.
+    pub used: usize,
+    pub free: usize,
+    pub records: usize,
+}
+
