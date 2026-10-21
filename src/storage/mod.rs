@@ -241,3 +241,22 @@ impl Fs<'_> {
         self.store(&old, &new)
     }
 
+    /// Lit un script Python.
+    pub fn read_python(&mut self, name: &str) -> Result<PythonSource, FsError> {
+        let body = self.read(name)?;
+        let (flag, text) = body.split_first().map_or((0, &[][..]), |(f, t)| (*f, t));
+        let end = text.iter().position(|&b| b == 0).unwrap_or(text.len());
+        Ok(PythonSource {
+            auto_import: flag != 0,
+            text: String::from_utf8_lossy(&text[..end]).into_owned(),
+        })
+    }
+
+    /// Écrit un script Python (octet d'importation, texte, zéro final).
+    pub fn write_python(&mut self, name: &str, source: &PythonSource) -> Result<(), FsError> {
+        let mut body = vec![u8::from(source.auto_import)];
+        body.extend_from_slice(source.text.as_bytes());
+        body.push(0);
+        self.write(name, &body)
+    }
+
