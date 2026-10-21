@@ -230,3 +230,25 @@ fn svc_is_given_to_the_hooks() {
     assert_eq!(cpu.regs.pc, START + 2);
 }
 
+#[test]
+fn unknown_encodings_stop_with_their_address() {
+    // 0xe800 0x0000 : srs/rfe, non géré.
+    let (_, _, stop) = run(&[0xe800, 0x0000], |_| {}, 1);
+    assert_eq!(
+        stop,
+        Stop::Unimplemented {
+            pc: START,
+            halfword: 0xe800
+        }
+    );
+    // Un udf lève une UsageFault.
+    let (_, _, stop) = run(&[0xde00], |_| {}, 1);
+    assert_eq!(
+        stop,
+        Stop::UsageFault {
+            pc: START,
+            kind: UsageFault::UndefinedInstruction
+        }
+    );
+}
+
