@@ -143,3 +143,33 @@ fn session_talks_json_lines_over_stdio() {
     assert!(lines[3].contains("\"ok\":false"));
 }
 
+#[test]
+fn run_is_deterministic_and_matches_the_reference_screen() {
+    let Some(app) = corpus_file("mandelbrot") else {
+        return support::skip_without_corpus();
+    };
+    let app = app.to_str().unwrap();
+    let args = ["run", app, "--instructions", "100000000", "--json"];
+    let (a, b) = (cli(&args), cli(&args));
+    assert_eq!(a.status.code(), Some(0));
+    assert_eq!(a.stdout, b.stdout, "deux exécutions, mêmes octets");
+    let v = json::parse(stdout(&a).trim()).unwrap();
+    // Même empreinte que tests/golden/screens.tsv.
+    assert_eq!(
+        v.get("screen_crc32").and_then(Value::as_str),
+        Some("8876b506")
+    );
+
+    let png = workdir("shot").join("mandelbrot.png");
+    let shot = cli(&[
+        "run",
+        app,
+        "--instructions",
+        "100000000",
+        "--screenshot",
+        png.to_str().unwrap(),
+    ]);
+    assert!(shot.status.success());
+    assert_eq!(&std::fs::read(&png).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
+}
+
