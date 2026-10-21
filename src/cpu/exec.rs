@@ -526,3 +526,20 @@ impl Cpu {
                     }
                 }
             }
+            Instr::Ldm {
+                rn,
+                regs,
+                writeback,
+                decrement_before,
+            } => {
+                self.exec_ldm(ctx, bus, rn, regs, writeback, decrement_before)?;
+            }
+            Instr::Stm {
+                rn,
+                regs,
+                writeback,
+                decrement_before,
+            } => {
+                self.exec_stm(ctx, bus, rn, regs, writeback, decrement_before)?;
+            }
+
