@@ -773,3 +773,42 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         }
     }
 
+    // Informations lisibles : nom, icône, symboles.
+    let name_bytes = objects[name_id.0].elf.section_data(name_id.1);
+    let name_end = name_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(name_bytes.len());
+    let name = String::from_utf8_lossy(&name_bytes[..name_end]).into_owned();
+    let icon = objects[icon_id.0].elf.section_data(icon_id.1).to_vec();
+
+    let mut symbols = Vec::new();
+    for (o, obj) in objects.iter().enumerate() {
+        for sym in obj.elf.symbols.iter().skip(1) {
+            if sym.name.is_empty()
+                || sym.name.starts_with('$')
+                || matches!(sym.kind, SymbolKind::Section | SymbolKind::File)
+            {
+                continue;
+            }
+            let address = match sym.section {
+                SymbolSection::Section(s) => match layout.placements.get(&(o, s)) {
+                    Some(p) => p.vma.wrapping_add(sym.value),
+                    None => continue,
+                },
+                SymbolSection::Common => match layout.commons.get(&sym.name) {
+                    Some(&a) => a,
+                    None => continue,
+                },
+                _ => continue,
+            };
+            symbols.push(LinkedSymbol {
+                name: sym.name.clone(),
+                address,
+                size: sym.size,
+                kind: sym.kind,
+                origin: obj.origin,
+            });
+        }
+    }
+
