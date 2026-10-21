@@ -71,3 +71,17 @@ pub struct RegionInfo {
     pub kind: RegionKind,
 }
 
+/// Indicateurs d'accès par ligne de 32 octets.
+pub mod access {
+    pub const READ: u8 = 1;
+    pub const WRITE: u8 = 2;
+    pub const EXECUTE: u8 = 4;
+}
+
+/// Une plage d'adresses qui a changé.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChangedRange {
+    pub start: u32,
+    pub len: u32,
+}
+
