@@ -78,3 +78,28 @@ impl KernelHeader {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kernel_header_matches_the_bytes_of_the_official_firmware() {
+        // Octets lus à 0x9000_0008 dans le firmware 26.4.0 : f0 0d c0 de "26.4.0\0\0" "cc9262e\0" f0 0d c0 de.
+        let expected: [u8; 24] = *b"\xf0\x0d\xc0\xde26.4.0\0\0cc9262e\0\xf0\x0d\xc0\xde";
+        let header = KernelHeader::new("26.4.0", "cc9262e");
+        assert_eq!(header.encode(), expected);
+        assert_eq!(KernelHeader::decode(&expected), header);
+        assert!(header.is_valid());
+    }
+
+    #[test]
+    fn slot_header_matches_the_official_firmware() {
+        // Niveau de sécurité 2, charge de 1 610 080 octets.
+        let header = SlotHeader {
+            security_level: 2,
+            payload_length: 1_610_080,
+        };
+        assert_eq!(header.encode(), [2, 0, 0, 0, 0x60, 0x91, 0x18, 0]);
+        assert_eq!(SlotHeader::decode(&header.encode()), header);
+    }
+}
