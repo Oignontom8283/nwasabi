@@ -1,12 +1,20 @@
 # example
 
-Petite page web de démonstration qui montre comment intégrer nwasabi dans un site.
+Petite page web qui montre comment intégrer nwasabi dans un site : `index.html` est un seul
+fichier, sans outil de construction. Elle charge le module WebAssembly de nwasabi, lit un fichier
+`.nwa` choisi par l'utilisateur et dessine son écran dans un canvas.
 
-nwasabi est compilé en WebAssembly et chargé par la page. On lui donne le contenu d'un
-fichier `.nwa` (une application externe pour calculatrice NumWorks) et le modèle de
-calculatrice ; la page exécute l'application et dessine son écran dans un canvas.
+Pour l'essayer :
+
+```
+just example          # construit le module et copie nwasabi.js et nwasabi.wasm à côté de la page
+python3 -m http.server -d example 8000
+```
+
+puis ouvrir http://localhost:8000/. (Un module WebAssembly ne se charge pas depuis `file://`.)
+
+Pour l'intégrer ailleurs, il suffit de copier `index.html`, `nwasabi.js` et `nwasabi.wasm` sur
+votre serveur. Toutes les commandes disponibles (fichiers, mémoire, réglages…) sont celles de la
+commande `help` du protocole de session : voir `src/session/mod.rs`.
 
 Ce dossier ne contient que la démonstration, aucun test.
-
-**État :** pas encore implémenté. Ce fichier expliquera comment la construire et la lancer
-quand elle existera.
