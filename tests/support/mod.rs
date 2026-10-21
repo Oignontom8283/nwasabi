@@ -36,3 +36,21 @@ pub fn skip_without_corpus() {
     eprintln!("corpus absent (variable NWASABI_CORPUS non définie) : test ignoré");
 }
 
+use nwasabi::elf::{
+    ObjectWriter, R_ARM_ABS32, R_ARM_THM_CALL, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SectionId,
+    SymbolBind, SymbolId, SymbolKind, SymbolSection,
+};
+use nwasabi::link::LayoutParams;
+
+/// Zones réservées aux applications sur un N0110 sous Epsilon 26.4.0 (valeurs lues dans le
+/// `UserlandHeader` de ce firmware).
+pub fn n0110_layout() -> LayoutParams {
+    LayoutParams {
+        flash_start: 0x9020_0000,
+        flash_length: 0x1f_0000,
+        ram_start: 0x2001_18a4,
+        ram_length: 0x2003_7000 - 0x2001_18a4,
+        trampoline_address: 0x9002_0038,
+    }
+}
+
