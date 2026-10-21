@@ -36,6 +36,13 @@ pub trait Bus {
     fn write16(&mut self, address: u32, value: u16) -> Result<(), BusFault>;
     fn write32(&mut self, address: u32, value: u32) -> Result<(), BusFault>;
 
+    /// Numéro qui change chaque fois que du code déjà exécuté a pu être modifié. Le processeur
+    /// s'en sert pour garder les instructions décodées : tant qu'il ne change pas, elles sont
+    /// toujours valables. `None` (par défaut) : le bus ne le suit pas, rien n'est gardé.
+    fn code_epoch(&self) -> Option<u64> {
+        None
+    }
+
     /// Lit `out.len()` octets consécutifs (accès du programme). Par défaut octet par octet ; un bus
     /// peut le faire en un seul bloc, ce qui accélère les transferts de pixels et de textes.
     fn read_block(&mut self, address: u32, out: &mut [u8]) -> Result<(), BusFault> {
