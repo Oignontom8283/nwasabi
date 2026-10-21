@@ -26,3 +26,12 @@ fn slot_info_at(memory: &mut Memory, base: u32) -> Option<SlotInfo> {
         .then_some(info)
 }
 
+/// Cherche le début de la SRAM comme le ferait une application : le `SlotInfo` est à la première
+/// adresse de la SRAM, dont la position dépend du modèle. Renvoie le premier candidat où un
+/// `SlotInfo` valide, qui pointe vers la flash, est présent.
+pub fn detect_sram_base(memory: &mut Memory) -> Option<u32> {
+    SRAM_CANDIDATES
+        .into_iter()
+        .find(|&base| slot_info_at(memory, base).is_some())
+}
+
