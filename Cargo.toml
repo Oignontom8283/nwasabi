@@ -8,4 +8,22 @@ license = "AGPL-3.0-only"
 [lib]
 path = "src/lib.rs"
 
+# `nwasabi` : serveur web pour essayer l'émulateur (embarque la page de démonstration et la version WebAssembly).
+[[bin]]
+name = "nwasabi"
+path = "src/main.rs"
+required-features = ["serve"]
+
+# `nwasabi-cli` : outil de test natif en ligne de commande (le cœur est compilé dans le binaire).
+[[bin]]
+name = "nwasabi-cli"
+path = "src/bin/nwasabi-cli.rs"
+required-features = ["cli"]
+
+[features]
+default = ["serve"]
+serve = []
+cli = []
+wasm = []
+
 [dependencies]
