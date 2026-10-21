@@ -87,3 +87,24 @@ impl Registers {
         self.xpsr = (self.xpsr & !(0xf << 16)) | (u32::from(ge & 0xf) << 16);
     }
 
+    /// État du bloc `IT` en cours : 8 bits, `0` hors bloc (condition de base dans les 4 bits hauts).
+    pub fn it_state(&self) -> u8 {
+        (((self.xpsr >> 10) & 0x3f) << 2 | ((self.xpsr >> 25) & 3)) as u8
+    }
+
+    pub fn set_it_state(&mut self, it: u8) {
+        let it = u32::from(it);
+        self.xpsr = (self.xpsr & !(0x3f << 10) & !(3 << 25)) | ((it >> 2) << 10) | ((it & 3) << 25);
+    }
+
+    /// Fait avancer le bloc `IT` après une instruction qui y appartenait.
+    pub fn advance_it(&mut self) {
+        let it = self.it_state();
+        let next = if it & 7 == 0 {
+            0
+        } else {
+            (it & 0xe0) | ((it << 1) & 0x1f)
+        };
+        self.set_it_state(next);
+    }
+
