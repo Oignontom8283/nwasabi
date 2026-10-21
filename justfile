@@ -25,3 +25,21 @@ build-wasm:
 
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
+
+# --- Qualité et tests -------------------------------------------------------
+
+# Vérifie le formatage sans rien modifier.
+fmt-check:
+    cargo fmt --check
+
+# Formate le code.
+fmt:
+    cargo fmt
+
+# Lance clippy sur toutes les cibles et features, en refusant les avertissements.
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+# Lance les tests natifs (architecture de la machine hôte).
+test:
+    cargo test --all-features
