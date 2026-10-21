@@ -85,3 +85,25 @@ pub fn read_structures(memory: &mut Memory, exam_mode: bool) -> Structures {
         });
     }
 
+    let at = info.userland_header;
+    let Some(bytes) = read_array::<USERLAND_HEADER_SIZE>(memory, at) else {
+        return out;
+    };
+    let userland = UserlandHeader::decode(&bytes);
+    let valid = userland.is_valid();
+    out.userland_header = Some(Found {
+        address: at,
+        value: userland.clone(),
+        valid,
+    });
+    if let Some(bytes) = read_array::<12>(memory, at + USERLAND_HEADER_SIZE as u32) {
+        out.vector_table = Some(Found {
+            address: at + USERLAND_HEADER_SIZE as u32,
+            value: VectorTable::decode(&bytes),
+            valid: true,
+        });
+    }
+    if !valid {
+        return out;
+    }
+
