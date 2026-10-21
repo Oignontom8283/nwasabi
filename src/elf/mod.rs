@@ -327,3 +327,6 @@ fn parse_relocations(
     }
     Ok(relocations)
 }
+
+#[cfg(test)]
+mod tests;
