@@ -139,3 +139,43 @@ pub enum FpInstr {
     },
 }
 
+fn bits(v: u32, hi: u32, lo: u32) -> u32 {
+    (v >> lo) & ((1u32 << (hi - lo + 1)) - 1)
+}
+
+/// Décode une instruction de coprocesseur de 32 bits (flottante) ; `None` si elle n'en est pas une
+/// ou n'est pas gérée.
+pub fn decode(hw1: u16, hw2: u16) -> Option<FpInstr> {
+    let (a, b) = (u32::from(hw1), u32::from(hw2));
+    // Instructions « conditionnelles » du coprocesseur 10 (simple) ou 11 (double).
+    if a >> 10 != 0b111011 {
+        return None;
+    }
+    let double = match bits(b, 11, 8) {
+        0b1010 => false,
+        0b1011 => true,
+        _ => return None,
+    };
+    // Registre simple (Vx:bit) ou double ; on renvoie toujours un indice de registre simple.
+    let single = |hi: u32, low_bit: u32| (hi << 1 | low_bit) as u8;
+    let dreg = |hi: u32, low_bit: u32| (2 * (low_bit << 4 | hi)) as u8;
+    match bits(a, 9, 8) {
+        // 1110 1100 / 1110 1101 : accès mémoire et transferts de 64 bits.
+        0b00 | 0b01 => decode_transfer(a, b, double, single, dreg),
+        // 1110 1110 : traitement de données, ou transfert d'un registre entier.
+        _ => {
+            if bits(b, 4, 4) == 0 {
+                if double {
+                    None
+                } else {
+                    decode_data(a, b, single)
+                }
+            } else if double {
+                None
+            } else {
+                decode_core_transfer(a, b, single)
+            }
+        }
+    }
+}
+
