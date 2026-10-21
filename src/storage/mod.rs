@@ -164,3 +164,38 @@ impl Storage {
     }
 }
 
+/// Les opérations sur les fichiers.
+pub struct Fs<'a> {
+    storage: &'a mut Storage,
+    memory: &'a mut Memory,
+}
+
+fn fnv1a(data: &[u8]) -> u64 {
+    data.iter().fold(0xcbf2_9ce4_8422_2325, |h, &b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
+impl Fs<'_> {
+    /// Une copie du tampon tel qu'il est en mémoire.
+    pub fn raw(&mut self) -> Result<Vec<u8>, FsError> {
+        Ok(self
+            .memory
+            .read_bytes(self.storage.buffer_address, self.storage.size)?)
+    }
+
+    /// Remplace le tampon, en n'écrivant que la partie qui change.
+    fn store(&mut self, old: &[u8], new: &[u8]) -> Result<(), FsError> {
+        let Some(first) = old.iter().zip(new).position(|(a, b)| a != b) else {
+            return Ok(());
+        };
+        let last = old
+            .iter()
+            .zip(new)
+            .rposition(|(a, b)| a != b)
+            .unwrap_or(first);
+        let start = self.storage.buffer_address + first as u32;
+        self.memory.write_bytes(start, &new[first..=last])?;
+        Ok(())
+    }
+
