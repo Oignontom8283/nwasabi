@@ -987,3 +987,23 @@ fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
     }
 }
 
+/// Opérations parallèles (`uadd8`, `uqsub16`…).
+fn decode_parallel(a: u32, b: u32) -> Option<ParallelOp> {
+    let width_op = bits(a, 6, 4); // 000 ADD8, 001 ADD16, 100 SUB8, 101 SUB16
+    let prefix = bits(b, 6, 4); // 000 S, 001 Q, 010 SH, 100 U, 101 UQ, 110 UH
+    Some(match (prefix, width_op) {
+        (0b100, 0b000) => ParallelOp::Uadd8,
+        (0b101, 0b000) => ParallelOp::Uqadd8,
+        (0b101, 0b100) => ParallelOp::Uqsub8,
+        (0b101, 0b001) => ParallelOp::Uqadd16,
+        (0b101, 0b101) => ParallelOp::Uqsub16,
+        (0b000, 0b000) => ParallelOp::Sadd8,
+        (0b000, 0b100) => ParallelOp::Ssub8,
+        (0b100, 0b100) => ParallelOp::Usub8,
+        (0b100, 0b001) => ParallelOp::Uadd16,
+        (0b100, 0b101) => ParallelOp::Usub16,
+        (0b000, 0b001) => ParallelOp::Sadd16,
+        (0b000, 0b101) => ParallelOp::Ssub16,
+        _ => return None,
+    })
+}
