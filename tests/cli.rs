@@ -205,3 +205,24 @@ fn link_and_inspect_describe_an_application() {
     );
 }
 
+#[test]
+fn survey_reports_every_application() {
+    let Some(app) = corpus_file("sierpinski") else {
+        return support::skip_without_corpus();
+    };
+    let out = cli(&[
+        "survey",
+        app.to_str().unwrap(),
+        "--instructions",
+        "2000000",
+        "--json",
+    ]);
+    assert_eq!(out.status.code(), Some(0));
+    let v = json::parse(stdout(&out).trim()).unwrap();
+    let apps = v.get("apps").and_then(Value::as_array).unwrap();
+    assert_eq!(apps.len(), 1);
+    assert_eq!(
+        apps[0].get("app").and_then(Value::as_str),
+        Some("sierpinski.nwa")
+    );
+}
