@@ -398,3 +398,35 @@ fn branch_offset25(hw1: u32, hw2: u32) -> i32 {
     sign_extend(imm, 25)
 }
 
+/// Décode une instruction de 32 bits.
+pub fn decode32(hw1: u16, hw2: u16) -> Option<Instr> {
+    let (a, b) = (u32::from(hw1), u32::from(hw2));
+    match bits(a, 12, 11) {
+        0b01 => match bits(a, 10, 9) {
+            0b00 if !bit(a, 6) => decode_ldm_stm(a, b),
+            0b00 => decode_dual_and_table(a, b),
+            0b01 => decode_dp_shifted_register(a, b),
+            _ => fpu::decode(hw1, hw2).map(Instr::Fp),
+        },
+        0b10 => {
+            if !bit(b, 15) {
+                if bit(a, 9) {
+                    decode_dp_plain_immediate(a, b)
+                } else {
+                    decode_dp_modified_immediate(a, b)
+                }
+            } else {
+                decode_branches_and_misc(a, b)
+            }
+        }
+        _ => match bits(a, 10, 9) {
+            // Chargements et rangements d'un seul élément (0xF8xx, 0xF9xx).
+            0b00 => decode_load_store_single(a, b),
+            // Traitement de données entre registres (0xFAxx) et multiplications (0xFBxx).
+            0b01 => decode_register_and_multiply(a, b),
+            // Coprocesseur : virgule flottante.
+            _ => fpu::decode(hw1, hw2).map(Instr::Fp),
+        },
+    }
+}
+
