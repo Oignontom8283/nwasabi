@@ -179,3 +179,56 @@ fn running_without_an_app_is_an_error() {
     assert!(error(&mut s, r#"{"cmd":"run"}"#).contains("aucune application"));
 }
 
+#[test]
+fn the_session_draws_the_same_screen_as_the_corpus_reference() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("sierpinski"))
+        .unwrap();
+    let mut s = Session::new();
+    let load = format!(
+        r#"{{"cmd":"load","model":"n0110","nwa_base64":"{}"}}"#,
+        json::base64_encode(nwa)
+    );
+    let loaded = ok(&mut s, &load);
+    assert!(loaded.get("app").and_then(|a| a.get("name")).is_some());
+
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":40000000}"#);
+    assert_eq!(
+        ran.get("stop")
+            .and_then(|s| s.get("kind"))
+            .and_then(Value::as_str),
+        Some("budget")
+    );
+    let screen = ok(&mut s, r#"{"cmd":"screen","png":true}"#);
+    // Même empreinte que dans tests/golden/screens.tsv (lancement par `emulator_corpus`).
+    assert_eq!(
+        screen.get("crc32").and_then(Value::as_str),
+        Some("a6a4533d")
+    );
+    let png =
+        json::base64_decode(screen.get("png_base64").and_then(Value::as_str).unwrap()).unwrap();
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+
+    let usage = ok(&mut s, r#"{"cmd":"usage"}"#);
+    assert!(
+        usage
+            .get("stack_low_water")
+            .and_then(Value::as_i64)
+            .is_some()
+    );
+    let cpu = ok(&mut s, r#"{"cmd":"cpu"}"#);
+    assert_eq!(cpu.get("r").and_then(Value::as_array).unwrap().len(), 13);
+    let svcs = ok(&mut s, r#"{"cmd":"svc_stats"}"#);
+    assert!(
+        !svcs
+            .get("counts")
+            .and_then(Value::as_array)
+            .unwrap()
+            .is_empty()
+    );
+}
+
