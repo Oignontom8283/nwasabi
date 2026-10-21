@@ -75,3 +75,17 @@ fn vblank_aligns_time_on_the_next_frame_and_counts_it() {
     assert_eq!(emu.kernel.micros(cpu.cycles), 2 * FRAME_US);
 }
 
+#[test]
+fn time_follows_cycles_and_sleeps() {
+    let (mut emu, mut cpu) = setup();
+    cpu.cycles = 216_000 * 5; // 5 ms à 216 cycles par microseconde
+    call(&mut emu, &mut cpu, 48, &[]);
+    assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (5, 0));
+    call(&mut emu, &mut cpu, 49, &[100]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 100 }));
+    call(&mut emu, &mut cpu, 48, &[]);
+    assert_eq!(cpu.regs.r[0], 105);
+    call(&mut emu, &mut cpu, 50, &[2500]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 3 }));
+}
+
