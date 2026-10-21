@@ -141,3 +141,37 @@ impl Cpu {
         Stop::Budget
     }
 
+    fn execute<B: Bus, H: Hooks>(
+        &mut self,
+        instr: Instr,
+        ctx: Ctx,
+        bus: &mut B,
+        hooks: &mut H,
+    ) -> Result<(), Stop> {
+        match instr {
+            Instr::Dp {
+                op,
+                rd,
+                rn,
+                rhs,
+                flags,
+            } => self.exec_dp(ctx, op, rd, rn, rhs, flags)?,
+            Instr::Shift {
+                kind,
+                rd,
+                value,
+                amount,
+                flags,
+            } => {
+                let v = self.read(ctx, value);
+                let n = match amount {
+                    ShiftAmount::Imm(n) => n,
+                    ShiftAmount::Reg(r) => self.read(ctx, r) & 0xff,
+                };
+                let (result, carry) = shift_with_carry(v, kind, n, self.regs.c());
+                if Self::sets_flags(flags, ctx) {
+                    self.regs.set_nz(result);
+                    self.regs.set_c(carry);
+                }
+                self.write_result(rd, result);
+            }
