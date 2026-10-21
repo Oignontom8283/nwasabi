@@ -282,3 +282,16 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 }
             }
         }
+        // Branchement conditionnel, svc, udf.
+        0b11010 | 0b11011 => match bits(h, 11, 8) {
+            0xe => Instr::Udf {
+                imm: bits(h, 7, 0) as u16,
+            },
+            0xf => Instr::Svc {
+                imm: bits(h, 7, 0) as u8,
+            },
+            cond => Instr::BCond {
+                cond: cond as u8,
+                offset: sign_extend(bits(h, 7, 0) << 1, 9),
+            },
+        },
