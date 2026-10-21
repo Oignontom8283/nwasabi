@@ -72,3 +72,9 @@ impl Registers {
         self.xpsr |= Q;
     }
 
+    /// Met à jour N et Z d'après `result`.
+    pub fn set_nz(&mut self, result: u32) {
+        self.set_n(result >> 31 != 0);
+        self.set_z(result == 0);
+    }
+
