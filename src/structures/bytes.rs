@@ -24,3 +24,27 @@ pub(super) fn put_text8(out: &mut [u8], at: usize, text: &str) {
     out[at..at + n].copy_from_slice(&bytes[..n]);
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn words_round_trip_little_endian() {
+        let mut b = [0u8; 8];
+        put_word(&mut b, 2, 0x0102_0304);
+        assert_eq!(b, [0, 0, 4, 3, 2, 1, 0, 0]);
+        assert_eq!(word(&b, 2), 0x0102_0304);
+    }
+
+    #[test]
+    fn text_fields_are_zero_padded_and_truncated() {
+        let mut b = [0xaau8; 12];
+        put_text8(&mut b, 2, "26.4.0");
+        assert_eq!(&b[2..10], b"26.4.0\0\0");
+        assert_eq!(text8(&b, 2), "26.4.0");
+        put_text8(&mut b, 2, "0123456789");
+        assert_eq!(&b[2..10], b"01234567");
+        assert_eq!(text8(&b, 2), "01234567"); // sans zéro final : tout le champ
+        assert_eq!(b[10], 0xaa);
+    }
+}
