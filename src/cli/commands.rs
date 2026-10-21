@@ -170,3 +170,117 @@ pub fn inspect(raw: &[String]) -> Outcome {
     Ok(0)
 }
 
+// ---- link ----------------------------------------------------------------------------------------
+
+pub fn link_cmd(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json", "map"])?;
+    let path = args.one_positional("fichier .nwa")?;
+    let model = model_option(&args)?;
+    let model = Model::ALL
+        .into_iter()
+        .find(|m| m.name().eq_ignore_ascii_case(model))
+        .expect("vérifié");
+    let device =
+        DeviceImage::new(FirmwareProfile::default_for(model)).map_err(|e| e.to_string())?;
+    let data = match args.value("data") {
+        Some(p) => Some(read_file(p)?),
+        None => None,
+    };
+    let app = link(
+        &read_file(path)?,
+        data.as_deref(),
+        &device.app_layout(),
+        &LinkOptions::default(),
+    )
+    .map_err(|e| e.to_string())?;
+
+    let range = |a: u32, n: u32| Value::object().with("start", a).with("end", a + n);
+    let mut out = Value::object()
+        .with("name", app.name.as_str())
+        .with("api_level", app.api_level)
+        .with("flash_start", app.flash_start)
+        .with("flash_size", app.flash.len())
+        .with("installed_size", app.installed_size())
+        .with("entry", app.entry)
+        .with("data", range(app.data.address, app.data.size))
+        .with("bss", range(app.bss.address, app.bss.size))
+        .with("heap", range(app.heap.address, app.heap.size))
+        .with(
+            "warnings",
+            app.warnings
+                .iter()
+                .map(|w| Value::from(format!("{w:?}")))
+                .collect::<Vec<_>>(),
+        );
+    if args.flag("map") {
+        out.set(
+            "sections",
+            app.sections
+                .iter()
+                .map(|s| {
+                    Value::object()
+                        .with("name", s.name.as_str())
+                        .with("origin", format!("{:?}", s.origin).to_lowercase())
+                        .with("class", format!("{:?}", s.class).to_lowercase())
+                        .with("address", s.address)
+                        .with("flash_address", s.flash_address)
+                        .with("size", s.size)
+                        .with("alignment", s.alignment)
+                })
+                .collect::<Vec<_>>(),
+        );
+        let mut symbols: Vec<_> = app.symbols.iter().collect();
+        symbols.sort_by(|a, b| (a.address, &a.name).cmp(&(b.address, &b.name)));
+        out.set(
+            "symbols",
+            symbols
+                .iter()
+                .map(|s| {
+                    Value::object()
+                        .with("name", s.name.as_str())
+                        .with("address", s.address)
+                        .with("size", s.size)
+                        .with("origin", format!("{:?}", s.origin).to_lowercase())
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
+    print(&args, &out, || {
+        let mut text = format!(
+            "{} (API {})\nflash {:#010x}, {} octets (installé : {})\nentrée {:#010x}\ndata {:#010x}+{:#x}  bss {:#010x}+{:#x}  tas {:#010x}+{:#x}",
+            app.name,
+            app.api_level,
+            app.flash_start,
+            app.flash.len(),
+            app.installed_size(),
+            app.entry,
+            app.data.address,
+            app.data.size,
+            app.bss.address,
+            app.bss.size,
+            app.heap.address,
+            app.heap.size
+        );
+        for w in &app.warnings {
+            text += &format!("\navertissement : {w:?}");
+        }
+        if args.flag("map") {
+            text += "\n\nsections :";
+            for s in &app.sections {
+                text += &format!(
+                    "\n  {:#010x} {:>7} {:?} {}",
+                    s.address, s.size, s.class, s.name
+                );
+            }
+            let mut symbols: Vec<_> = app.symbols.iter().collect();
+            symbols.sort_by(|a, b| (a.address, &a.name).cmp(&(b.address, &b.name)));
+            text += "\n\nsymboles :";
+            for s in symbols {
+                text += &format!("\n  {:#010x} {:>6} {}", s.address, s.size, s.name);
+            }
+        }
+        text
+    });
+    Ok(0)
+}
+
