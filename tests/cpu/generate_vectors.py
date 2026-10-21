@@ -421,3 +421,36 @@ def cases_fp_core_and_status():
     return out
 
 
+def rng(prefix, first, count):
+    """Liste de registres `{s4-s7}` ; un seul registre s'écrit sans tiret."""
+    return f"{{{prefix}{first}}}" if count == 1 else f"{{{prefix}{first}-{prefix}{first + count - 1}}}"
+
+
+def cases_fp_memory():
+    out = []
+    for _ in range(140):
+        off4 = 4 * random.randrange(14)
+        d = 2 * random.randrange(8)
+        cnt = random.randrange(1, 7)
+        dcnt = random.randrange(1, 4)
+        out.append(random.choice([
+            f"vldr {sreg(32)}, [r11, #{off4}]",
+            f"vstr {sreg(32)}, [r11, #{off4}]",
+            f"vldr {dreg(8)}, [r11, #{off4}]",
+            f"vstr {dreg(8)}, [r11, #{off4}]",
+            f"vldmia r11, {rng('s', d, cnt)}",
+            f"vldmia r11!, {rng('s', d, cnt)}",
+            f"vstmia r11, {rng('s', d, cnt)}",
+            f"vstmia r11!, {rng('s', d, cnt)}",
+            f"adds r11, #40\nvstmdb r11!, {rng('s', d, cnt)}",
+            f"adds r11, #40\nvldmdb r11!, {rng('s', d, cnt)}",
+            f"vldmia r11!, {rng('d', d // 2, dcnt)}",
+            f"vstmia r11, {rng('d', d // 2, dcnt)}",
+            f"mov sp, r11\nadd sp, sp, #40\nvpush {rng('s', d, cnt)}\nmov r10, sp",
+            f"mov sp, r11\nadd sp, sp, #8\nvpop {rng('s', d, cnt)}\nmov r10, sp",
+            f"mov sp, r11\nadd sp, sp, #40\nvpush {rng('d', d // 2, dcnt)}\nmov r10, sp",
+            f"mov sp, r11\nadd sp, sp, #8\nvpop {rng('d', d // 2, dcnt)}\nmov r10, sp",
+        ]))
+    return out
+
+
