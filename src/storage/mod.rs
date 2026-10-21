@@ -126,3 +126,11 @@ pub struct Stats {
     pub records: usize,
 }
 
+/// Script Python tel que le voit l'utilisateur.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PythonSource {
+    /// Le script est importé automatiquement au démarrage de l'interpréteur.
+    pub auto_import: bool,
+    pub text: String,
+}
+
