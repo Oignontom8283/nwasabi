@@ -251,3 +251,41 @@ impl Cpu {
                 };
                 self.write(rd, result);
             }
+            Instr::Smul16 {
+                rd,
+                rn,
+                rm,
+                ra,
+                n_high,
+                m_high,
+            } => {
+                let half =
+                    |v: u32, high: bool| i32::from((if high { v >> 16 } else { v }) as u16 as i16);
+                let product = half(self.read(ctx, rn), n_high) * half(self.read(ctx, rm), m_high);
+                let result = match ra {
+                    None => product,
+                    Some(ra) => {
+                        let sum = i64::from(product) + i64::from(self.read(ctx, ra) as i32);
+                        if sum != i64::from(sum as i32) {
+                            self.regs.set_q();
+                        }
+                        sum as i32
+                    }
+                };
+                self.write(rd, result as u32);
+            }
+            Instr::Smmul {
+                rd,
+                rn,
+                rm,
+                ra,
+                round,
+            } => {
+                let product =
+                    i64::from(self.read(ctx, rn) as i32) * i64::from(self.read(ctx, rm) as i32);
+                let acc = ra.map_or(0, |ra| i64::from(self.read(ctx, ra) as i32) << 32);
+                let total =
+                    acc.wrapping_add(product)
+                        .wrapping_add(if round { 0x8000_0000 } else { 0 });
+                self.write(rd, (total >> 32) as u32);
+            }
