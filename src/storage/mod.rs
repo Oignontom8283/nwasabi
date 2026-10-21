@@ -260,3 +260,15 @@ impl Fs<'_> {
         self.write(name, &body)
     }
 
+    /// Numéro qui augmente à chaque fois que le tampon a changé depuis le dernier appel, que ce
+    /// soit par l'hôte ou par l'application. (Les changements sont détectés à l'appel : deux
+    /// modifications entre deux appels ne comptent que pour une.)
+    pub fn generation(&mut self) -> Result<u64, FsError> {
+        let hash = fnv1a(&self.raw()?);
+        if hash != self.storage.last_hash {
+            self.storage.last_hash = hash;
+            self.storage.generation += 1;
+        }
+        Ok(self.storage.generation)
+    }
+}
