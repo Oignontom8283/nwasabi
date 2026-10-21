@@ -67,3 +67,19 @@ impl Cpu {
         }
     }
 
+    /// Branchement avec échange de mode : le bit 0 doit être à 1 (Thumb) ; une valeur de type
+    /// `EXC_RETURN` en mode « handler » est un retour d'exception.
+    fn bx_write_pc<B: Bus>(&mut self, ctx: Ctx, bus: &mut B, target: u32) -> Result<(), Stop> {
+        if self.handler_mode && target >> 28 == 0xf {
+            return self.exception_return(bus, target);
+        }
+        if target & 1 == 0 {
+            return Err(Stop::UsageFault {
+                pc: ctx.addr,
+                kind: UsageFault::InvalidState,
+            });
+        }
+        self.regs.pc = target & !1;
+        Ok(())
+    }
+
