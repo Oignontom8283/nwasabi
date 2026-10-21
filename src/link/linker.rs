@@ -299,3 +299,76 @@ fn classify(section: &Section) -> Result<Option<(Class, u8)>, LinkError> {
     Ok(Some((class, 2)))
 }
 
+fn align_up(value: u64, alignment: u32) -> u64 {
+    let a = u64::from(alignment.max(1));
+    value.div_ceil(a) * a
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Placement {
+    /// Adresse d'exécution.
+    vma: u32,
+    /// Adresse de la copie en flash (absente pour `.bss`).
+    flash: Option<u32>,
+    class: Class,
+}
+
+/// Résultat du placement.
+struct Layout {
+    placements: HashMap<SecId, Placement>,
+    /// Valeurs des symboles définis par l'éditeur de liens.
+    symbols: HashMap<&'static str, u32>,
+    /// Adresse des variables communes.
+    commons: HashMap<String, u32>,
+    sections: Vec<PlacedSection>,
+    /// Longueur de l'image en flash, en octets depuis `flash_start`.
+    image_len: u32,
+    app_end: u32,
+    data: DataSegment,
+    bss: Region,
+    heap: Region,
+}
+
+struct Placer<'a, 'b> {
+    objects: &'a [Obj<'b>],
+}
+
+impl Placer<'_, '_> {
+    fn section(&self, (o, s): SecId) -> &Section {
+        &self.objects[o].elf.sections[s]
+    }
+
+    /// Place des sections à la suite, à partir de `cursor`. L'ensemble démarre à l'alignement le
+    /// plus exigeant de ses membres (au moins `min_align`) ; chaque section respecte le sien.
+    /// Renvoie l'adresse de chacune, en laissant `cursor` à la fin ; ne fait rien s'il n'y en a pas.
+    fn place(&self, cursor: &mut u64, ids: &[SecId], min_align: u32) -> Vec<u64> {
+        if ids.is_empty() {
+            return Vec::new();
+        }
+        let group_align = ids
+            .iter()
+            .map(|&id| self.section(id).alignment())
+            .fold(min_align, u32::max);
+        let mut at = align_up(*cursor, group_align);
+        let mut addresses = Vec::with_capacity(ids.len());
+        for &id in ids {
+            let section = self.section(id);
+            at = align_up(at, section.alignment());
+            addresses.push(at);
+            at += u64::from(section.size);
+        }
+        *cursor = at;
+        addresses
+    }
+
+    fn group_align(&self, ids: &[SecId], min_align: u32) -> u32 {
+        ids.iter()
+            .map(|&id| self.section(id).alignment())
+            .fold(min_align, u32::max)
+    }
+}
+
+fn to_u32(value: u64) -> u32 {
+    u32::try_from(value).expect("adresse vérifiée contre la taille des zones")
+}
+
