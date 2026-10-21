@@ -296,3 +296,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn corruption_is_located_not_fatal() {
+        let mut b = write(&empty(), "a.py", b"A").unwrap();
+        b = write(&b, "b.py", b"B").unwrap();
+        let second = parse(&b).records[1].offset;
+        b[second] = 0xff; // taille absurde
+        b[second + 1] = 0xff;
+        let p = parse(&b);
+        assert_eq!(p.corrupt_at, Some(second));
+        assert_eq!(p.records.len(), 1);
+        assert_eq!(read(&b, "a.py").unwrap(), b"A");
+        assert_eq!(
+            write(&b, "c.py", b""),
+            Err(FsError::Corrupt { offset: second })
+        );
+
+        // Un nom sans zéro final.
+        let c = [6, 0, b'a', b'b', b'c', b'd', 0, 0];
+        assert_eq!(parse(&c).corrupt_at, Some(0));
+        // Une taille trop petite.
+        assert_eq!(parse(&[3, 0, 1, 0]).corrupt_at, Some(0));
+        // Un tampon sans marque de fin.
+        assert_eq!(parse(&[]).corrupt_at, Some(0));
+    }
+
