@@ -635,3 +635,37 @@ impl Cpu {
         };
         let f = |cpu: &Cpu, i: u8| f32::from_bits(cpu.regs.s[i as usize]);
         match instr {
+            FpInstr::Arith { op, d, n, m } => {
+                let (dv, nv, mv) = (f(self, d), f(self, n), f(self, m));
+                let mut env = Env {
+                    fpscr: &mut self.regs.fpscr,
+                };
+                let result = match op {
+                    FpArith::Vadd => env.add(nv, mv, false),
+                    FpArith::Vsub => env.add(nv, mv, true),
+                    FpArith::Vmul => env.mul(nv, mv),
+                    FpArith::Vnmul => negate(env.mul(nv, mv)),
+                    FpArith::Vdiv => env.div(nv, mv),
+                    FpArith::Vmla => {
+                        let p = env.mul(nv, mv);
+                        env.add(dv, p, false)
+                    }
+                    FpArith::Vmls => {
+                        let p = env.mul(nv, mv);
+                        env.add(dv, negate(p), false)
+                    }
+                    FpArith::Vnmla => {
+                        let p = env.mul(nv, mv);
+                        env.add(negate(dv), negate(p), false)
+                    }
+                    FpArith::Vnmls => {
+                        let p = env.mul(nv, mv);
+                        env.add(negate(dv), p, false)
+                    }
+                    FpArith::Vfma => env.fused(dv, nv, mv),
+                    FpArith::Vfms => env.fused(dv, negate(nv), mv),
+                    FpArith::Vfnma => env.fused(negate(dv), negate(nv), mv),
+                    FpArith::Vfnms => env.fused(negate(dv), nv, mv),
+                };
+                self.regs.s[d as usize] = result.to_bits();
+            }
