@@ -886,3 +886,13 @@ mod tests {
         assert_eq!(fpscr, 0);
     }
 
+    #[test]
+    fn inexact_results_raise_ixc() {
+        let mut fpscr = 0;
+        env(&mut fpscr).div(1.0, 3.0);
+        assert_eq!(fpscr, FPSCR_IXC);
+        let mut fpscr = 0;
+        env(&mut fpscr).add(1.0, 1e-10, false);
+        assert_eq!(fpscr, FPSCR_IXC);
+    }
+
