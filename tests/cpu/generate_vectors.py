@@ -87,3 +87,32 @@ def modified_immediate():
 # Catalogue des cas : chaque fonction renvoie une liste d'extraits d'assembleur
 # ---------------------------------------------------------------------------------------------
 
+def cases_thumb16():
+    out = []
+    for _ in range(80):
+        rd, rm, rn = reg(LOW), reg(LOW), reg(LOW)
+        gens = [
+            lambda: f"movs.n {rd}, #{immd(8)}",
+            lambda: f"cmp.n {rn}, #{immd(8)}",
+            lambda: f"adds.n {rd}, #{immd(8)}",
+            lambda: f"subs.n {rd}, #{immd(8)}",
+            lambda: f"adds.n {rd}, {rn}, #{immd(3)}",
+            lambda: f"subs.n {rd}, {rn}, #{immd(3)}",
+            lambda: f"adds.n {rd}, {rn}, {rm}",
+            lambda: f"subs.n {rd}, {rn}, {rm}",
+            lambda: f"lsls.n {rd}, {rm}, #{random.randrange(32)}",
+            lambda: f"lsrs.n {rd}, {rm}, #{random.randrange(1, 33)}",
+            lambda: f"asrs.n {rd}, {rm}, #{random.randrange(1, 33)}",
+            lambda: f"{random.choice(['ands', 'eors', 'adcs', 'sbcs', 'orrs', 'bics'])} {rd}, {rm}",
+            lambda: f"{random.choice(['lsls', 'lsrs', 'asrs', 'rors'])} {rd}, {rm}",
+            lambda: f"muls {rd}, {rm}, {rd}",
+            lambda: f"{random.choice(['tst', 'cmn', 'cmp'])}.n {rn}, {rm}",
+            lambda: f"mvns {rd}, {rm}",
+            lambda: f"rsbs {rd}, {rm}, #0",
+            lambda: f"{random.choice(['add', 'cmp', 'mov'])}.n {reg()}, {reg()}",
+            lambda: f"{random.choice(['sxth', 'sxtb', 'uxth', 'uxtb', 'rev', 'rev16', 'revsh'])}.n {rd}, {rm}",
+        ]
+        out.append(random.choice(gens)())
+    return out
+
+
