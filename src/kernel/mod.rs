@@ -11,6 +11,8 @@ pub mod display;
 pub mod font;
 pub mod keyboard;
 mod svc;
+#[cfg(test)]
+mod tests;
 
 use crate::cpu::BusFault;
 use crate::device::FCC_ID_OFFSET;
@@ -128,6 +130,8 @@ pub struct Kernel {
     pub frames: u64,
     /// Appels système inconnus rencontrés quand `strict_svc` est faux.
     pub unknown_svcs: u32,
+    /// Nombre d'appels de chaque appel système, par numéro (statistiques).
+    pub svc_counts: Vec<u32>,
     extra_us: u64,
     random: u32,
     heap: (u32, u32),
@@ -147,6 +151,7 @@ impl Kernel {
             stdout: Vec::new(),
             frames: 0,
             unknown_svcs: 0,
+            svc_counts: vec![0; 256],
             extra_us: 0,
             random: config.random_seed.max(1),
             heap: (0, 0),
