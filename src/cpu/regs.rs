@@ -74,8 +74,24 @@ impl Registers {
 
     /// Met à jour N et Z d'après `result`.
     pub fn set_nz(&mut self, result: u32) {
-        self.set_n(result >> 31 != 0);
-        self.set_z(result == 0);
+        self.xpsr = (self.xpsr & !(N | Z)) | (result & N) | (u32::from(result == 0) << 30);
+    }
+
+    /// Fixe en une fois les quatre indicateurs `N`, `Z`, `C` et `V` (résultat d'une opération
+    /// arithmétique).
+    #[inline]
+    pub fn set_nzcv(&mut self, result: u32, carry: bool, overflow: bool) {
+        self.xpsr = (self.xpsr & !(N | Z | C | V))
+            | (result & N)
+            | (u32::from(result == 0) << 30)
+            | (u32::from(carry) << 29)
+            | (u32::from(overflow) << 28);
+    }
+
+    /// Vrai pendant un bloc `IT` (bits 26-25 et 15-10 de xPSR non nuls).
+    #[inline]
+    pub fn in_it_block(&self) -> bool {
+        self.xpsr & 0x0600_fc00 != 0
     }
 
     /// Les quatre indicateurs `GE` (un bit par octet du résultat des opérations parallèles).
