@@ -191,41 +191,7 @@ pub fn undefined(w: &mut ObjectWriter, name: &str, bind: SymbolBind) -> SymbolId
     )
 }
 
-/// Encode une image RGBA en PNG (sans compression : sert à regarder une capture d'écran).
+/// Encode une image RGBA en PNG (sert à regarder une capture d'écran).
 pub fn png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
-    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
-        out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-        let mut body = kind.to_vec();
-        body.extend_from_slice(data);
-        out.extend_from_slice(&body);
-        out.extend_from_slice(&crc32(&body).to_be_bytes());
-    }
-    let mut raw = Vec::new();
-    for row in rgba.chunks((width * 4) as usize) {
-        raw.push(0);
-        raw.extend_from_slice(row);
-    }
-    let (mut a, mut b) = (1u32, 0u32);
-    for &byte in &raw {
-        a = (a + u32::from(byte)) % 65521;
-        b = (b + a) % 65521;
-    }
-    let mut z = vec![0x78, 0x01];
-    let mut blocks = raw.chunks(65535).peekable();
-    while let Some(block) = blocks.next() {
-        z.push(u8::from(blocks.peek().is_none()));
-        z.extend_from_slice(&(block.len() as u16).to_le_bytes());
-        z.extend_from_slice(&(!(block.len() as u16)).to_le_bytes());
-        z.extend_from_slice(block);
-    }
-    z.extend_from_slice(&(b << 16 | a).to_be_bytes());
-    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
-    let mut header = Vec::new();
-    header.extend_from_slice(&width.to_be_bytes());
-    header.extend_from_slice(&height.to_be_bytes());
-    header.extend_from_slice(&[8, 6, 0, 0, 0]);
-    chunk(&mut out, b"IHDR", &header);
-    chunk(&mut out, b"IDAT", &z);
-    chunk(&mut out, b"IEND", &[]);
-    out
+    nwasabi::png::encode_rgba(width, height, rgba)
 }
