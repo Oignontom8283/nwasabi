@@ -84,6 +84,12 @@ impl Session {
             .ok_or_else(|| "aucun appareil : utiliser « new » ou « load »".to_owned())
     }
 
+    /// Les pixels de l'écran (RGB565, 320×240, ligne par ligne), s'il y a un appareil. Sert aux
+    /// hôtes qui dessinent à chaque image sans passer par du JSON.
+    pub fn framebuffer(&self) -> Option<&[u16]> {
+        self.emu.as_ref().map(|e| e.kernel.display.pixels())
+    }
+
     /// Traite une requête et rend la réponse.
     pub fn handle(&mut self, request: &Value) -> Value {
         let mut reply = match self.dispatch(request) {
