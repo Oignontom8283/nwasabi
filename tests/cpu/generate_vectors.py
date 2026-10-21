@@ -349,3 +349,32 @@ def cases_system():
     return out
 
 
+FSPECIAL = [0x00000000, 0x80000000, 0x3f800000, 0xbf800000, 0x40000000, 0x3f000000, 0x40400000,
+            0x3dcccccd, 0x42c80000, 0x7149f2ca, 0xf149f2ca, 0x0da24260, 0x00800000, 0x00000001,
+            0x007fffff, 0x7f7fffff, 0x7f800000, 0xff800000, 0x7fc00000, 0x7f800001, 0x7fc12345,
+            0xff800001, 0x80000001, 0x3fc00000, 0x4b000000, 0x4effffff, 0xcf000000, 0x40490fdb,
+            0x34000000, 0x7e967699]
+
+
+def fv():
+    """Valeur initiale de registre flottant : souvent particulière, parfois aléatoire."""
+    return random.choice(FSPECIAL) if random.random() < 0.7 else random.getrandbits(32)
+
+
+def sreg(hi=16):
+    return 's%d' % random.randrange(hi)
+
+
+def dreg(hi=8):
+    return 'd%d' % random.randrange(hi)
+
+
+FP_IMMEDIATES = ['1.0', '-1.0', '0.5', '2.0', '31.0', '-2.5', '0.125', '1.5', '10.0', '0.25']
+
+
+def ite_after_compare(d, m):
+    c = cond()
+    return (f"vcmp.f32 {d}, {m}\nvmrs APSR_nzcv, fpscr\nite {c}\nmov{c} r1, #1\n"
+            f"mov{INVERSE[c]} r2, #2")
+
+
