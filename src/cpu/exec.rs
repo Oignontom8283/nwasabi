@@ -579,3 +579,70 @@ impl Cpu {
         Ok(())
     }
 
+    fn exec_dp(
+        &mut self,
+        ctx: Ctx,
+        op: DpOp,
+        rd: Reg,
+        rn: Reg,
+        rhs: Rhs,
+        flags: FlagMode,
+    ) -> Result<(), Stop> {
+        let carry_in = self.regs.c();
+        let (b, shifter_carry) = match rhs {
+            Rhs::Imm { value, carry } => (value, carry.unwrap_or(carry_in)),
+            Rhs::Reg { rm, kind, amount } => {
+                shift_with_carry(self.read(ctx, rm), kind, amount, carry_in)
+            }
+        };
+        let a = if matches!(op, DpOp::Mov | DpOp::Mvn) {
+            0
+        } else {
+            self.read(ctx, rn)
+        };
+        // Résultat, et pour l'arithmétique (retenue, débordement) ; pour la logique, `None`.
+        let (result, arithmetic) = match op {
+            DpOp::And | DpOp::Tst => (a & b, None),
+            DpOp::Eor | DpOp::Teq => (a ^ b, None),
+            DpOp::Orr => (a | b, None),
+            DpOp::Orn => (a | !b, None),
+            DpOp::Bic => (a & !b, None),
+            DpOp::Mov => (b, None),
+            DpOp::Mvn => (!b, None),
+            DpOp::Add | DpOp::Cmn => {
+                let (r, c, v) = add_with_carry(a, b, false);
+                (r, Some((c, v)))
+            }
+            DpOp::Adc => {
+                let (r, c, v) = add_with_carry(a, b, carry_in);
+                (r, Some((c, v)))
+            }
+            DpOp::Sub | DpOp::Cmp => {
+                let (r, c, v) = add_with_carry(a, !b, true);
+                (r, Some((c, v)))
+            }
+            DpOp::Sbc => {
+                let (r, c, v) = add_with_carry(a, !b, carry_in);
+                (r, Some((c, v)))
+            }
+            DpOp::Rsb => {
+                let (r, c, v) = add_with_carry(!a, b, true);
+                (r, Some((c, v)))
+            }
+        };
+        if Self::sets_flags(flags, ctx) {
+            self.regs.set_nz(result);
+            match arithmetic {
+                Some((c, v)) => {
+                    self.regs.set_c(c);
+                    self.regs.set_v(v);
+                }
+                None => self.regs.set_c(shifter_carry),
+            }
+        }
+        if op.writes_result() {
+            self.write_result(rd, result);
+        }
+        Ok(())
+    }
+
