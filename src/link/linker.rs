@@ -672,3 +672,37 @@ impl Linked<'_, '_> {
     }
 }
 
+/// Lie les objets : suppression des sections inutiles, placement, relocations, en-tête.
+pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedApp, LinkError> {
+    let ctx = Context {
+        objects,
+        globals: build_globals(objects),
+    };
+
+    // Racines : le point d'entrée `_start` et les trois sections que l'en-tête d'application lit.
+    let mut roots: Vec<SecId> = Vec::new();
+    let start = ctx.globals.get("_start").copied();
+    match start.and_then(|r| match objects[r.obj].elf.symbols[r.index].section {
+        SymbolSection::Section(s) => Some((r.obj, s)),
+        _ => None,
+    }) {
+        Some(id) => roots.push(id),
+        None => return Err(LinkError::MissingSection("_start")),
+    }
+    for (o, obj) in objects.iter().enumerate() {
+        for (s, section) in obj.elf.sections.iter().enumerate() {
+            if matches!(
+                section.name.as_str(),
+                API_LEVEL_SECTION | NAME_SECTION | ICON_SECTION
+            ) {
+                roots.push((o, s));
+            }
+        }
+    }
+    let reach = ctx.reachability(&roots);
+    let layout = layout(objects, &reach, params)?;
+    let linked = Linked {
+        ctx: &ctx,
+        layout: &layout,
+    };
+
