@@ -66,3 +66,22 @@ pub fn read_structures(memory: &mut Memory, exam_mode: bool) -> Structures {
         valid: true,
     });
 
+    // En-tête de sécurité (8 octets) puis KernelHeader juste après.
+    let slot_header_at = info.kernel_header.wrapping_sub(SLOT_HEADER_SIZE as u32);
+    if let Some(bytes) = read_array::<SLOT_HEADER_SIZE>(memory, slot_header_at) {
+        out.slot_header = Some(Found {
+            address: slot_header_at,
+            value: SlotHeader::decode(&bytes),
+            valid: true,
+        });
+    }
+    if let Some(bytes) = read_array::<KERNEL_HEADER_SIZE>(memory, info.kernel_header) {
+        let value = KernelHeader::decode(&bytes);
+        let valid = value.is_valid();
+        out.kernel_header = Some(Found {
+            address: info.kernel_header,
+            value,
+            valid,
+        });
+    }
+
