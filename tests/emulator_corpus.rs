@@ -78,3 +78,55 @@ fn kind(stop: &RunStop) -> String {
     }
 }
 
+#[test]
+fn corpus_apps_run_and_draw_the_same_screen() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    let mut results = BTreeMap::new();
+    let mut failures = Vec::new();
+    for (name, nwa) in &apps {
+        let mut outcome = run_app(Model::N0110, nwa);
+        // Une application faite pour le N0120 sonde la RAM à 0x24000000, absente du N0110.
+        if matches!(outcome.stop, RunStop::Fault(Fault::Bus(f)) if f.address >> 24 == 0x24) {
+            outcome = run_app(Model::N0120, nwa);
+        }
+        if matches!(outcome.stop, RunStop::Fault(_)) && !outcome.needed_data {
+            failures.push(format!("{name}: {:?}", outcome.stop));
+        }
+        let line = format!(
+            "{}\t{}\t{}\t{:08x}",
+            kind(&outcome.stop),
+            outcome.frames,
+            outcome.instructions,
+            outcome.screen_crc
+        );
+        eprintln!("{name:40} {line}");
+        results.insert(name.trim_end_matches(".nwa").to_owned(), line);
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GOLDEN);
+    if std::env::var_os("NWASABI_UPDATE_GOLDEN").is_some() {
+        let mut text = String::from("# nom\tarrêt\timages\tinstructions\tcrc32_écran\n");
+        for (name, line) in &results {
+            text += &format!("{name}\t{line}\n");
+        }
+        std::fs::write(&path, text).unwrap();
+        return;
+    }
+    let golden = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!("{GOLDEN} illisible ({e}) ; le générer avec NWASABI_UPDATE_GOLDEN=1")
+    });
+    let expected: BTreeMap<&str, &str> = golden
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.is_empty())
+        .filter_map(|l| l.split_once('\t'))
+        .collect();
+    for (name, line) in &results {
+        match expected.get(name.as_str()) {
+            Some(want) => assert_eq!(line, want, "{name}: l'exécution a changé"),
+            None => eprintln!("{name} absent de {GOLDEN} : comparaison ignorée"),
+        }
+    }
+}
