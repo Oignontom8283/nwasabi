@@ -72,3 +72,26 @@ fn fallback_page(preload: Option<&Preload>) -> String {
     )
 }
 
+fn route(path: &str, preload: Option<&Preload>) -> Response {
+    match path {
+        "/__nwasabi/health" => Response::ok("application/json", b"{\"ok\":true}".to_vec()),
+        "/__nwasabi/preload" => match preload {
+            Some(p) => Response::ok("application/json", preload_json(p).into_bytes()),
+            None => Response::ok("application/json", b"null".to_vec()),
+        },
+        _ => {
+            let wanted = if path == "/" { "/index.html" } else { path };
+            if let Some((_, body)) = ASSETS.iter().find(|(url, _)| *url == wanted) {
+                return Response::ok(content_type(wanted), body.to_vec());
+            }
+            if path == "/" {
+                return Response::ok(
+                    "text/html; charset=utf-8",
+                    fallback_page(preload).into_bytes(),
+                );
+            }
+            Response::text(404, &format!("introuvable : {}", escape_json(path)))
+        }
+    }
+}
+
