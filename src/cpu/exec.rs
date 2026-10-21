@@ -558,3 +558,19 @@ impl Cpu {
                     kind: UsageFault::UndefinedInstruction,
                 });
             }
+            Instr::Mrs { rd, sysreg } => {
+                let value = self.read_sysreg(sysreg);
+                self.write(rd, value);
+            }
+            Instr::Msr { rn, sysreg, mask } => {
+                let value = self.read(ctx, rn);
+                self.write_sysreg(sysreg, mask, value);
+            }
+            Instr::Cps { disable, i, f } => {
+                if i {
+                    self.primask = disable;
+                }
+                if f {
+                    self.faultmask = disable;
+                }
+            }
