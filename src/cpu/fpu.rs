@@ -417,3 +417,30 @@ impl Env<'_> {
         x
     }
 
+    /// NaN résultant : celui de l'opérande (rendu silencieux) ou le NaN par défaut.
+    fn nan_result(&mut self, x: f32) -> f32 {
+        if *self.fpscr & FPSCR_DN != 0 {
+            f32::from_bits(DEFAULT_NAN)
+        } else {
+            f32::from_bits(x.to_bits() | 0x0040_0000)
+        }
+    }
+
+    /// Traitement des NaN en entrée : un NaN signalant prime et lève « opération invalide », sinon
+    /// un NaN silencieux est propagé. Les opérandes sont examinés dans l'ordre donné.
+    fn process_nans(&mut self, operands: &[f32]) -> Option<f32> {
+        if let Some(&x) = operands.iter().find(|&&x| is_snan(x)) {
+            self.raise(FPSCR_IOC);
+            return Some(self.nan_result(x));
+        }
+        operands
+            .iter()
+            .find(|&&x| x.is_nan())
+            .map(|&x| self.nan_result(x))
+    }
+
+    fn default_nan(&mut self) -> f32 {
+        self.raise(FPSCR_IOC);
+        f32::from_bits(DEFAULT_NAN)
+    }
+
