@@ -83,3 +83,11 @@ impl Cpu {
         Ok(())
     }
 
+    fn sets_flags(flags: FlagMode, ctx: Ctx) -> bool {
+        match flags {
+            FlagMode::Always => true,
+            FlagMode::Never => false,
+            FlagMode::OutsideIt => !ctx.in_it,
+        }
+    }
+
