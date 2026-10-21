@@ -666,3 +666,53 @@ impl Cpu {
         }
     }
 
+    fn exec_ldm<B: Bus>(
+        &mut self,
+        ctx: Ctx,
+        bus: &mut B,
+        rn: Reg,
+        regs: u16,
+        writeback: bool,
+        decrement_before: bool,
+    ) -> Result<(), Stop> {
+        let base = self.read(ctx, rn);
+        let bytes = 4 * regs.count_ones();
+        let start = if decrement_before {
+            base.wrapping_sub(bytes)
+        } else {
+            base
+        };
+        if start & 3 != 0 {
+            return Err(Stop::UsageFault {
+                pc: ctx.addr,
+                kind: UsageFault::Unaligned,
+            });
+        }
+        let mut address = start;
+        let mut pc_value = None;
+        for r in 0..16u8 {
+            if regs & (1 << r) == 0 {
+                continue;
+            }
+            let value = bus.read32(address).map_err(Stop::BusFault)?;
+            address = address.wrapping_add(4);
+            if r == 15 {
+                pc_value = Some(value);
+            } else {
+                self.write(r, value);
+            }
+        }
+        if writeback && regs & (1 << rn) == 0 {
+            let new_base = if decrement_before {
+                start
+            } else {
+                base.wrapping_add(bytes)
+            };
+            self.write(rn, new_base);
+        }
+        if let Some(target) = pc_value {
+            self.bx_write_pc(ctx, bus, target)?;
+        }
+        Ok(())
+    }
+
