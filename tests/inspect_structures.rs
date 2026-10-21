@@ -127,3 +127,48 @@ fn a_slot_info_pointing_outside_the_flash_is_ignored() {
     assert_eq!(detect_sram_base(&mut d.memory), None);
 }
 
+/// La détection de modèle d'eadkp : sonder la flash aux adresses où le `UserlandHeader` se trouvait
+/// sur les anciens firmwares (`0x9001_0000` pour N0110/N0115, `0x9002_0000` pour N0120) et compter
+/// les magics trouvés.
+fn eadkp_probe(memory: &mut Memory) -> ModelClass {
+    const MAGIC: u32 = 0xdec0_edfe;
+    let mut count = |slots: [u32; 2]| {
+        slots
+            .iter()
+            .filter(|&&a| memory.read_u32(a) == Ok(MAGIC))
+            .count()
+    };
+    let old = count([0x9001_0000, 0x9041_0000]);
+    let new = count([0x9002_0000, 0x9042_0000]);
+    if old > new {
+        ModelClass::N0110OrN0115
+    } else {
+        ModelClass::N0120
+    }
+}
+
+#[test]
+fn probing_flash_addresses_cannot_tell_n0110_26_4_0_from_an_n0120() {
+    // Sur le N0110 en Epsilon 26.4.0 (mesuré), le UserlandHeader est à 0x9002_0000 : la sonde par
+    // adresses de flash conclut « N0120 » alors que la SRAM est en 0x2000_0000.
+    let mut d = device(Model::N0110);
+    assert_eq!(eadkp_probe(&mut d.memory), ModelClass::N0120);
+    // La lecture du SlotInfo, elle, ne se trompe pas.
+    assert_eq!(
+        read_structures(&mut d.memory, false).model_class,
+        Some(ModelClass::N0110OrN0115)
+    );
+}
+
+#[test]
+fn probing_flash_addresses_works_on_a_firmware_with_the_older_layout() {
+    // Disposition plus ancienne : pas de copie du bootloader, UserlandHeader à 0x9001_0000.
+    let mut profile = FirmwareProfile::default_for(Model::N0110);
+    profile.slot_a.userland_header = 0x9001_0000;
+    profile.slot_b.userland_header = 0x9041_0000;
+    let mut d = DeviceImage::new(profile).unwrap();
+    assert_eq!(eadkp_probe(&mut d.memory), ModelClass::N0110OrN0115);
+    let s = read_structures(&mut d.memory, false);
+    assert_eq!(s.userland_header.unwrap().address, 0x9001_0000);
+    assert_eq!(s.model_class, Some(ModelClass::N0110OrN0115));
+}
