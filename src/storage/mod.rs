@@ -218,3 +218,26 @@ impl Fs<'_> {
         })
     }
 
+    pub fn read(&mut self, name: &str) -> Result<Vec<u8>, FsError> {
+        records::read(&self.raw()?, name)
+    }
+
+    /// Crée ou remplace un fichier.
+    pub fn write(&mut self, name: &str, body: &[u8]) -> Result<(), FsError> {
+        let old = self.raw()?;
+        let new = records::write(&old, name, body)?;
+        self.store(&old, &new)
+    }
+
+    pub fn remove(&mut self, name: &str) -> Result<(), FsError> {
+        let old = self.raw()?;
+        let new = records::remove(&old, name)?;
+        self.store(&old, &new)
+    }
+
+    pub fn rename(&mut self, from: &str, to: &str) -> Result<(), FsError> {
+        let old = self.raw()?;
+        let new = records::rename(&old, from, to)?;
+        self.store(&old, &new)
+    }
+
