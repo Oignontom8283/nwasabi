@@ -6,12 +6,22 @@ pub enum Width {
     U32,
 }
 
+/// Pourquoi un accès mémoire a échoué.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaultKind {
+    /// Aucune mémoire à cette adresse.
+    Unmapped,
+    /// La mémoire existe mais l'accès (lecture, écriture ou exécution) n'y est pas permis.
+    AccessDenied,
+}
+
 /// Un accès mémoire qui a échoué, signalé par un [`Bus`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BusFault {
     pub address: u32,
     pub write: bool,
     pub width: Width,
+    pub kind: FaultKind,
 }
 
 /// La mémoire que le processeur lit et écrit.
