@@ -95,3 +95,31 @@ impl From<DeviceError> for EmulatorError {
     }
 }
 
+/// Un appareil en train d'exécuter une application.
+pub struct Emulator {
+    pub device: DeviceImage,
+    pub cpu: Cpu,
+    pub kernel: Kernel,
+    app: Option<LinkedApp>,
+}
+
+impl Emulator {
+    /// Appareil du modèle demandé, avec le profil de firmware par défaut.
+    pub fn new(model: Model) -> Result<Self, EmulatorError> {
+        Self::with_profile(FirmwareProfile::default_for(model), KernelConfig::default())
+    }
+
+    pub fn with_profile(
+        profile: FirmwareProfile,
+        config: KernelConfig,
+    ) -> Result<Self, EmulatorError> {
+        let status = DeviceStatus::from_profile(&profile);
+        let device = DeviceImage::new(profile)?;
+        Ok(Self {
+            device,
+            cpu: Cpu::new(),
+            kernel: Kernel::new(config, status),
+            app: None,
+        })
+    }
+
