@@ -323,3 +323,48 @@ impl Session {
             .with("app", info))
     }
 
+    /// Exécute jusqu'à un arrêt qui demande l'hôte, `frames` images ou `instructions` instructions.
+    fn run(&mut self, req: &Value) -> Reply {
+        let budget = req
+            .get("instructions")
+            .and_then(Value::as_i64)
+            .map_or(DEFAULT_INSTRUCTIONS, |n| n.max(0) as u64);
+        let frames = req
+            .get("frames")
+            .and_then(Value::as_i64)
+            .map(|n| n.max(0) as u64);
+        let emu = self
+            .emu
+            .as_mut()
+            .ok_or("aucun appareil : utiliser « new » ou « load »")?;
+        if emu.app().is_none() {
+            return Err("aucune application installée".to_owned());
+        }
+        let start_cycles = emu.cpu.cycles;
+        let mut seen = 0u64;
+        let stop = loop {
+            let used = emu.cpu.cycles - start_cycles;
+            if used >= budget {
+                break RunStop::Budget;
+            }
+            let stop = emu.run(CHUNK.min(budget - used));
+            match stop {
+                RunStop::Frame => {
+                    seen += 1;
+                    if frames.is_some_and(|f| seen >= f) {
+                        break stop;
+                    }
+                }
+                RunStop::Sleep { .. } | RunStop::Budget => {}
+                other => break other,
+            }
+        };
+        self.frames += seen;
+        let emu = self.emu()?;
+        Ok(Value::object()
+            .with("stop", views::stop(&stop))
+            .with("frames", seen)
+            .with("instructions", emu.cpu.cycles - start_cycles)
+            .with("time_ms", emu.kernel.micros(emu.cpu.cycles) / 1000))
+    }
+
