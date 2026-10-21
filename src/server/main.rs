@@ -112,3 +112,53 @@ fn open_browser(url: &str) {
     }
 }
 
+fn run(args: &[String]) -> Result<(), String> {
+    let mut nwa_path = None;
+    let (mut model, mut data_path) = ("n0110".to_owned(), None);
+    let (mut port, mut host, mut open) = (8080u16, "127.0.0.1".to_owned(), false);
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        let mut value = |name: &str| {
+            it.next()
+                .cloned()
+                .ok_or_else(|| format!("l'option {name} attend une valeur"))
+        };
+        match arg.as_str() {
+            "--nwa" => nwa_path = Some(value("--nwa")?),
+            "--model" => model = value("--model")?,
+            "--data" => data_path = Some(value("--data")?),
+            "--port" => {
+                port = value("--port")?
+                    .parse()
+                    .map_err(|_| "--port : nombre de 0 à 65535 attendu".to_owned())?;
+            }
+            "--host" => host = value("--host")?,
+            "--open" => open = true,
+            other => return Err(format!("argument inconnu : {other}")),
+        }
+    }
+    if !["n0110", "n0115", "n0120"].contains(&model.to_ascii_lowercase().as_str()) {
+        return Err(format!("modèle inconnu : {model} (n0110, n0115 ou n0120)"));
+    }
+
+    let preload = match nwa_path {
+        Some(path) => {
+            let nwa = std::fs::read(&path).map_err(|e| format!("{path} : {e}"))?;
+            let data = match &data_path {
+                Some(p) => Some(std::fs::read(p).map_err(|e| format!("{p} : {e}"))?),
+                None => None,
+            };
+            let name = std::path::Path::new(&path)
+                .file_name()
+                .map_or(path.clone(), |n| n.to_string_lossy().into_owned());
+            Some(Preload {
+                name,
+                model: model.to_ascii_lowercase(),
+                nwa,
+                data,
+            })
+        }
+        None if data_path.is_some() => return Err("--data demande --nwa".to_owned()),
+        None => None,
+    };
+
