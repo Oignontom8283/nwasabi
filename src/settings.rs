@@ -90,3 +90,18 @@ impl Settings<'_> {
         self.change(|p| p.active_slot = slot)
     }
 
+    pub fn set_brightness(&mut self, brightness: u8) {
+        self.status.brightness = brightness;
+    }
+
+    /// Niveau de batterie de 0 à 5 et tension en volts.
+    pub fn set_battery(&mut self, level: u8, voltage: f32, charging: bool) {
+        self.status.battery_level = level.min(5);
+        self.status.battery_voltage = voltage;
+        self.status.battery_charging = charging;
+    }
+
+    pub fn set_usb_plugged(&mut self, plugged: bool) {
+        self.status.usb_plugged = plugged;
+    }
+
