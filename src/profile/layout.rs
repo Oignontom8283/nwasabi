@@ -11,3 +11,39 @@ pub const EXTERNAL_APP_SECTOR: u32 = 0x1_0000;
 /// Taille de la zone des octets persistants (nom de l'appareil, état du mode examen).
 pub const PERSISTING_BYTES_SIZE: u32 = 0x1_0000;
 
+/// Où se trouvent les structures d'un slot (A ou B) du firmware.
+///
+/// Un slot contient, dans cet ordre : un en-tête de 8 octets (niveau de sécurité, taille), le
+/// noyau (dont le `KernelHeader` juste après l'en-tête), éventuellement une copie du bootloader,
+/// le userland (dont le `UserlandHeader` en tête), puis la zone des applications externes, et
+/// enfin les octets persistants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlotLayout {
+    /// Adresse du début du slot (en-tête de sécurité).
+    pub origin: u32,
+    /// Adresse du `KernelHeader`.
+    pub kernel_header: u32,
+    /// Adresse du `UserlandHeader`.
+    pub userland_header: u32,
+    /// Zone de flash réservée aux applications externes `[début, fin)`.
+    pub apps_flash: (u32, u32),
+    /// Zone du nom de l'appareil `[début, fin)`.
+    pub device_name: (u32, u32),
+    /// Zone des octets persistants (nom + état du mode examen).
+    pub persisting_bytes: (u32, u32),
+}
+
+impl SlotLayout {
+    /// Même disposition, décalée de `delta` octets (le slot B est le slot A décalé de [`SLOT_B_OFFSET`]).
+    pub fn shifted(&self, delta: u32) -> Self {
+        let sh = |(a, b): (u32, u32)| (a + delta, b + delta);
+        Self {
+            origin: self.origin + delta,
+            kernel_header: self.kernel_header + delta,
+            userland_header: self.userland_header + delta,
+            apps_flash: sh(self.apps_flash),
+            device_name: sh(self.device_name),
+            persisting_bytes: sh(self.persisting_bytes),
+        }
+    }
+}
