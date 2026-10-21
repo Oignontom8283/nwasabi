@@ -97,3 +97,43 @@ pub fn check_name(name: &str) -> Result<(), FsError> {
     }
 }
 
+fn find<'a>(parsed: &'a Parsed, name: &str) -> Option<&'a Record> {
+    parsed.records.iter().find(|r| r.name == name)
+}
+
+fn require_sound(parsed: &Parsed) -> Result<(), FsError> {
+    match parsed.corrupt_at {
+        Some(offset) => Err(FsError::Corrupt { offset }),
+        None => Ok(()),
+    }
+}
+
+fn encode(name: &str, body: &[u8]) -> Result<Vec<u8>, FsError> {
+    let size = 2 + name.len() + 1 + body.len();
+    let size16 = u16::try_from(size).map_err(|_| FsError::TooLarge)?;
+    let mut out = Vec::with_capacity(size);
+    out.extend_from_slice(&size16.to_le_bytes());
+    out.extend_from_slice(name.as_bytes());
+    out.push(0);
+    out.extend_from_slice(body);
+    Ok(out)
+}
+
+/// Reconstruit un tampon de `capacity` octets : `head`, `middle`, `tail`, marque de fin, zéros.
+fn assemble(capacity: usize, parts: [&[u8]; 3]) -> Result<Vec<u8>, FsError> {
+    let used: usize = parts.iter().map(|p| p.len()).sum::<usize>() + END_MARK;
+    if used > capacity {
+        let available = capacity.saturating_sub(used - parts[1].len() - END_MARK + END_MARK);
+        return Err(FsError::NoSpace {
+            needed: parts[1].len(),
+            available,
+        });
+    }
+    let mut out = Vec::with_capacity(capacity);
+    for part in parts {
+        out.extend_from_slice(part);
+    }
+    out.resize(capacity, 0);
+    Ok(out)
+}
+
