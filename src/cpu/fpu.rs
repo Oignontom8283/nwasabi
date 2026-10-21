@@ -954,3 +954,15 @@ mod tests {
         assert_eq!(fpscr & FPSCR_IDC, FPSCR_IDC);
     }
 
+    #[test]
+    fn comparison_flags() {
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).compare(1.0, 1.0, false), 0b0110);
+        assert_eq!(env(&mut fpscr).compare(1.0, 2.0, false), 0b1000);
+        assert_eq!(env(&mut fpscr).compare(2.0, 1.0, false), 0b0010);
+        assert_eq!(env(&mut fpscr).compare(f32::NAN, 1.0, false), 0b0011);
+        assert_eq!(fpscr, 0, "vcmp ne signale pas un NaN silencieux");
+        env(&mut fpscr).compare(f32::NAN, 1.0, true);
+        assert_eq!(fpscr, FPSCR_IOC);
+    }
+
