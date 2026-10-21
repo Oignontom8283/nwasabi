@@ -223,3 +223,13 @@ fn sbrk_moves_the_program_break_inside_the_heap() {
     assert_eq!(emu.kernel.program_break(), 0x2002_0000);
 }
 
+#[test]
+fn write_collects_stdout_and_shows_it_on_screen() {
+    let (mut emu, mut cpu) = setup();
+    emu.device.memory.write_bytes(SCRATCH, b"ok!").unwrap();
+    call(&mut emu, &mut cpu, SVC_WRITE, &[1, SCRATCH, 3]);
+    assert_eq!(cpu.regs.r[0], 3);
+    assert_eq!(emu.kernel.stdout, b"ok!");
+    assert_eq!(emu.kernel.display.get(0, 0), Some(0xffff), "fond blanc");
+}
+
