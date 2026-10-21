@@ -235,3 +235,26 @@ def cases_extend_parallel():
     return out
 
 
+def cases_multiply():
+    out = []
+    for _ in range(140):
+        a, b, c, d = regs_distinct(4)
+        out.append(random.choice([
+            f"mul.w {a}, {b}, {c}",
+            f"mla {a}, {b}, {c}, {d}",
+            f"mls {a}, {b}, {c}, {d}",
+            f"umull {a}, {b}, {c}, {d}",
+            f"smull {a}, {b}, {c}, {d}",
+            f"umlal {a}, {b}, {c}, {d}",
+            f"smlal {a}, {b}, {c}, {d}",
+            f"umaal {a}, {b}, {c}, {d}",
+            f"sdiv {a}, {b}, {c}",
+            f"udiv {a}, {b}, {c}",
+            f"smul{random.choice(['bb', 'bt', 'tb', 'tt'])} {a}, {b}, {c}",
+            f"smla{random.choice(['bb', 'bt', 'tb', 'tt'])} {a}, {b}, {c}, {d}",
+            f"smmul{random.choice(['', 'r'])} {a}, {b}, {c}",
+            f"smmla{random.choice(['', 'r'])} {a}, {b}, {c}, {d}",
+        ]))
+    return out
+
+
