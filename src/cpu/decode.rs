@@ -295,3 +295,11 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 offset: sign_extend(bits(h, 7, 0) << 1, 9),
             },
         },
+        // Branchement inconditionnel.
+        0b11100 => Instr::B {
+            offset: sign_extend(bits(h, 10, 0) << 1, 12),
+        },
+        _ => return None,
+    })
+}
+
