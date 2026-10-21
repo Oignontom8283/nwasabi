@@ -308,3 +308,26 @@ def cases_memory():
     return out
 
 
+def cases_branches():
+    out = []
+    for i in range(120):
+        c = cond()
+        a, b = reg(), reg()
+        n = random.randrange(0, 3)
+        out.append(random.choice([
+            f"cmp {a}, {b}\nb{c}.n 1f\nmovs r0, #1\n1:\nmovs r1, #2",
+            f"cmp {a}, {b}\nb{c}.w 1f\nmovs r0, #1\n1:\nmovs r1, #2",
+            f"cmp {a}, {b}\nb{c}.n 1f\nmovs r0, #1\nmovs r2, #4\n1:",
+            f"cbz {reg(LOW)}, 1f\nmovs r0, #3\n1:\nmovs r1, #5",
+            f"cbnz {reg(LOW)}, 1f\nmovs r0, #3\n1:\nmovs r1, #5",
+            "b.n 1f\nmovs r0, #9\n1:\nmovs r1, #7",
+            "b.w 1f\nmovs r0, #9\nmovs r2, #8\n1:\nmovs r1, #7",
+            "bl 1f\nb.n 2f\n1:\nmovs r0, #4\nbx lr\n2:\nmovs r1, #6",
+            f"movs r1, #{n}\ntbb [pc, r1]\n.Ltb{i}:\n.byte (.La{i}-.Ltb{i})/2, (.Lb{i}-.Ltb{i})/2, (.Lc{i}-.Ltb{i})/2, 0\n"
+            f".align 1\n.La{i}:\nmovs r2, #1\nb.n .Ld{i}\n.Lb{i}:\nmovs r2, #2\nb.n .Ld{i}\n.Lc{i}:\nmovs r2, #3\n.Ld{i}:",
+            f"movs r1, #{n}\ntbh [pc, r1, lsl #1]\n.Lth{i}:\n.short (.Lta{i}-.Lth{i})/2, (.Ltb{i}-.Lth{i})/2, (.Ltc{i}-.Lth{i})/2\n"
+            f".align 1\n.Lta{i}:\nmovs r2, #1\nb.n .Ltd{i}\n.Ltb{i}:\nmovs r2, #2\nb.n .Ltd{i}\n.Ltc{i}:\nmovs r2, #3\n.Ltd{i}:",
+        ]))
+    return out
+
+
