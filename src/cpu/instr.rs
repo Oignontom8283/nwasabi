@@ -20,3 +20,31 @@ pub enum FlagMode {
     OutsideIt,
 }
 
+/// Opérations arithmétiques et logiques à deux opérandes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DpOp {
+    And,
+    Eor,
+    Sub,
+    Rsb,
+    Add,
+    Adc,
+    Sbc,
+    Orr,
+    Orn,
+    Bic,
+    Mov,
+    Mvn,
+    Tst,
+    Teq,
+    Cmp,
+    Cmn,
+}
+
+impl DpOp {
+    /// L'opération range-t-elle un résultat dans `rd` ? (non pour `tst`, `teq`, `cmp`, `cmn`)
+    pub fn writes_result(self) -> bool {
+        !matches!(self, Self::Tst | Self::Teq | Self::Cmp | Self::Cmn)
+    }
+}
+
