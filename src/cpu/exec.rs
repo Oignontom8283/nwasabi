@@ -474,3 +474,55 @@ impl Cpu {
                     self.write(rn, new_base);
                 }
             }
+            Instr::Ldrd {
+                rt,
+                rt2,
+                rn,
+                offset,
+                mode,
+            }
+            | Instr::Strd {
+                rt,
+                rt2,
+                rn,
+                offset,
+                mode,
+            } => {
+                let base = if rn == 15 {
+                    ctx.pc4 & !3
+                } else {
+                    self.read(ctx, rn)
+                };
+                let offset_address = base.wrapping_add(offset as u32);
+                let address = if mode == IndexMode::PostIndex {
+                    base
+                } else {
+                    offset_address
+                };
+                if address & 3 != 0 {
+                    return Err(Stop::UsageFault {
+                        pc: ctx.addr,
+                        kind: UsageFault::Unaligned,
+                    });
+                }
+                if matches!(instr, Instr::Ldrd { .. }) {
+                    let (a, b) = (
+                        bus.read32(address).map_err(Stop::BusFault)?,
+                        bus.read32(address.wrapping_add(4))
+                            .map_err(Stop::BusFault)?,
+                    );
+                    if mode != IndexMode::Offset {
+                        self.write(rn, offset_address);
+                    }
+                    self.write(rt, a);
+                    self.write(rt2, b);
+                } else {
+                    let (a, b) = (self.read(ctx, rt), self.read(ctx, rt2));
+                    bus.write32(address, a).map_err(Stop::BusFault)?;
+                    bus.write32(address.wrapping_add(4), b)
+                        .map_err(Stop::BusFault)?;
+                    if mode != IndexMode::Offset {
+                        self.write(rn, offset_address);
+                    }
+                }
+            }
