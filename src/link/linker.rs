@@ -706,3 +706,35 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         layout: &layout,
     };
 
+    // Image de la flash : on y recopie le contenu de chaque section placée, relocations appliquées.
+    let mut image = vec![0u8; layout.image_len as usize];
+    for (&(o, s), placement) in &layout.placements {
+        let elf = &objects[o].elf;
+        let section = &elf.sections[s];
+        let Some(flash) = placement.flash else {
+            continue;
+        };
+        let mut bytes = elf.section_data(s).to_vec();
+        for reloc in elf.relocations(s) {
+            if reloc.kind == R_ARM_NONE {
+                continue;
+            }
+            let r = SymRef {
+                obj: o,
+                index: reloc.symbol as usize,
+            };
+            let target = linked.target((o, s), r)?;
+            let place = placement.vma.wrapping_add(reloc.offset);
+            relocate::apply(reloc.kind, &mut bytes, reloc.offset, place, target).map_err(
+                |error| LinkError::Relocation {
+                    section: section.name.clone(),
+                    offset: reloc.offset,
+                    symbol: display_name(objects, r),
+                    error,
+                },
+            )?;
+        }
+        let start = (flash - params.flash_start) as usize;
+        image[start..start + bytes.len()].copy_from_slice(&bytes);
+    }
+
