@@ -9,3 +9,5 @@
 #![forbid(unsafe_code)]
 
 pub mod cpu;
+pub mod elf;
+pub mod link;
