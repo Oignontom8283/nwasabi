@@ -154,3 +154,72 @@ impl Memory {
         self.write_bytes(address, &vec![value; len as usize])
     }
 
+    // ---- suivi ---------------------------------------------------------------------------------
+
+    /// Indicateurs d'accès de la zone `name`, un octet par ligne de 32 octets
+    /// (combinaison de [`access::READ`], [`access::WRITE`], [`access::EXECUTE`]).
+    pub fn access_map(&self, name: &str) -> Option<&[u8]> {
+        self.regions
+            .iter()
+            .find(|r| r.spec.name == name)
+            .map(|r| r.access.as_slice())
+    }
+
+    /// Efface tous les indicateurs d'accès (par exemple au lancement d'une application).
+    pub fn clear_access(&mut self) {
+        for r in &mut self.regions {
+            r.access.fill(0);
+        }
+    }
+
+    /// Valeur actuelle du compteur de modifications ; à passer plus tard à [`Memory::changes_since`].
+    pub fn change_cursor(&self) -> u64 {
+        self.tick
+    }
+
+    /// Plages modifiées (par le programme ou par l'hôte) depuis `cursor`, fusionnées par zone et
+    /// triées par adresse. La granularité est la ligne de 32 octets.
+    pub fn changes_since(&self, cursor: u64) -> Vec<ChangedRange> {
+        let mut ranges: Vec<ChangedRange> = Vec::new();
+        let mut order: Vec<&Region> = self.regions.iter().collect();
+        order.sort_by_key(|r| r.spec.base);
+        for region in order {
+            let Some(stamps) = &region.stamps else {
+                continue;
+            };
+            let mut open: Option<(usize, usize)> = None;
+            for (line, &stamp) in stamps.iter().enumerate() {
+                match (stamp > cursor, open) {
+                    (true, Some((start, _))) => open = Some((start, line)),
+                    (true, None) => open = Some((line, line)),
+                    (false, Some((start, end))) => {
+                        ranges.push(line_span(region.spec.base, start, end));
+                        open = None;
+                    }
+                    (false, None) => {}
+                }
+            }
+            if let Some((start, end)) = open {
+                ranges.push(line_span(region.spec.base, start, end));
+            }
+        }
+        ranges
+    }
+
+    /// Nombre de pages de 4 Kio effectivement allouées dans la zone `name` (consommation réelle).
+    pub fn allocated_pages(&self, name: &str) -> Option<usize> {
+        self.regions
+            .iter()
+            .find(|r| r.spec.name == name)
+            .map(Region::allocated_pages)
+    }
+}
+
+fn line_span(base: u32, first: usize, last: usize) -> ChangedRange {
+    let start = base + first as u32 * LINE_SIZE;
+    ChangedRange {
+        start,
+        len: (last - first + 1) as u32 * LINE_SIZE,
+    }
+}
+
