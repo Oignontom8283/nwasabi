@@ -259,3 +259,15 @@ fn bus_faults_stop_the_processor() {
     assert!(matches!(stop, Stop::BusFault(f) if f.address == 0x4000_0000 && !f.write));
 }
 
+#[test]
+fn bx_to_an_even_address_is_an_invalid_state() {
+    let (_, _, stop) = run(&[0x4708], |c| c.regs.r[1] = 0x200, 1);
+    assert_eq!(
+        stop,
+        Stop::UsageFault {
+            pc: START,
+            kind: UsageFault::InvalidState
+        }
+    );
+}
+
