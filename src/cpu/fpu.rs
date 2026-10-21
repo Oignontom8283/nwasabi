@@ -444,3 +444,23 @@ impl Env<'_> {
         f32::from_bits(DEFAULT_NAN)
     }
 
+    /// Finalise un résultat fini : débordement, soupassement, inexactitude, mise à zéro en sortie.
+    fn finish(&mut self, result: f32, inexact: bool, inputs_finite: bool) -> f32 {
+        if inputs_finite && result.is_infinite() {
+            self.raise(FPSCR_OFC | FPSCR_IXC);
+            return result;
+        }
+        let tiny = result != 0.0 && !result.is_normal() && result.is_finite();
+        if (tiny || (result == 0.0 && inexact)) && self.flush_zero() {
+            self.raise(FPSCR_UFC);
+            return if result.is_sign_negative() { -0.0 } else { 0.0 };
+        }
+        if inexact {
+            if tiny || result == 0.0 {
+                self.raise(FPSCR_UFC);
+            }
+            self.raise(FPSCR_IXC);
+        }
+        result
+    }
+
