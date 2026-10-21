@@ -69,3 +69,79 @@ fn print(args: &Args, json_value: &Value, text: impl FnOnce() -> String) {
     }
 }
 
+// ---- run -----------------------------------------------------------------------------------------
+
+pub fn run(raw: &[String]) -> Outcome {
+    let args = Args::parse(raw, &["json"])?;
+    let path = args.one_positional("fichier .nwa")?;
+    let mut session = Session::new();
+    call(&mut session, load_request(&args, &read_file(path)?)?)?;
+
+    for key in args.values("press") {
+        call(
+            &mut session,
+            Value::object()
+                .with("cmd", "key")
+                .with("key", key.as_str())
+                .with("action", "press"),
+        )?;
+    }
+    let mut request = Value::object().with("cmd", "run");
+    if let Some(n) = args.number("instructions")? {
+        request.set("instructions", n);
+    }
+    if let Some(n) = args.number("frames")? {
+        request.set("frames", n);
+    }
+    let ran = call(&mut session, request)?;
+    let screen = call(
+        &mut session,
+        Value::object()
+            .with("cmd", "screen")
+            .with("png", args.value("screenshot").is_some()),
+    )?;
+    if let Some(out) = args.value("screenshot") {
+        let png = json::base64_decode(
+            screen
+                .get("png_base64")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        )
+        .ok_or("capture illisible")?;
+        write_file(out, &png)?;
+    }
+
+    let stop = ran.get("stop").cloned().unwrap_or(Value::Null);
+    let kind = stop
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("?")
+        .to_owned();
+    let stdout = call(&mut session, Value::object().with("cmd", "stdout"))?;
+    let summary = Value::object()
+        .with("stop", stop)
+        .with("frames", ran.get("frames").cloned())
+        .with("instructions", ran.get("instructions").cloned())
+        .with("time_ms", ran.get("time_ms").cloned())
+        .with("screen_crc32", screen.get("crc32").cloned())
+        .with("stdout", stdout.get("text").cloned());
+    print(&args, &summary, || {
+        format!(
+            "arrêt : {}\nimages : {}\ninstructions : {}\ntemps virtuel : {} ms\nécran (crc32) : {}\nsortie standard : {:?}",
+            summary.get("stop").map_or(String::new(), |s| s.to_string()),
+            summary
+                .get("frames")
+                .map_or(String::new(), |v| v.to_string()),
+            summary
+                .get("instructions")
+                .map_or(String::new(), |v| v.to_string()),
+            summary
+                .get("time_ms")
+                .map_or(String::new(), |v| v.to_string()),
+            screen.get("crc32").and_then(Value::as_str).unwrap_or(""),
+            stdout.get("text").and_then(Value::as_str).unwrap_or(""),
+        )
+    });
+    Ok(if kind == "fault" { 3 } else { 0 })
+}
+
