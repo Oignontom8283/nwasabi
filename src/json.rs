@@ -154,3 +154,71 @@ impl<T: Into<Value>> From<Option<T>> for Value {
     }
 }
 
+// ---- écriture ----------------------------------------------------------------------------------
+
+fn write_string(out: &mut String, s: &str) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+impl fmt::Display for Value {
+    /// JSON compact sur une seule ligne.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut out = String::new();
+        self.write(&mut out);
+        f.write_str(&out)
+    }
+}
+
+impl Value {
+    fn write(&self, out: &mut String) {
+        match self {
+            Self::Null => out.push_str("null"),
+            Self::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+            Self::Int(i) => out.push_str(&i.to_string()),
+            Self::Float(x) if x.is_finite() => {
+                let text = format!("{x}");
+                out.push_str(&text);
+                if !text.contains(['.', 'e', 'E']) {
+                    out.push_str(".0");
+                }
+            }
+            Self::Float(_) => out.push_str("null"),
+            Self::Str(s) => write_string(out, s),
+            Self::Array(items) => {
+                out.push('[');
+                for (i, v) in items.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    v.write(out);
+                }
+                out.push(']');
+            }
+            Self::Object(entries) => {
+                out.push('{');
+                for (i, (k, v)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    write_string(out, k);
+                    out.push(':');
+                    v.write(out);
+                }
+                out.push('}');
+            }
+        }
+    }
+}
+
