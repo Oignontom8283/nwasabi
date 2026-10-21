@@ -161,3 +161,4 @@ batches! {
     multiply_and_divide_match_qemu => "05_multiply",
     memory_accesses_match_qemu => "06_memory",
     branches_match_qemu => "07_branches",
+    system_instructions_match_qemu => "08_system",
