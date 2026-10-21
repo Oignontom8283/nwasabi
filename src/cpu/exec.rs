@@ -546,7 +546,7 @@ impl Cpu {
             Instr::It { firstcond, mask } => self.regs.set_it_state((firstcond << 4) | mask),
             Instr::Nop | Instr::Barrier => {}
             Instr::Wfi | Instr::Wfe => return Err(Stop::WaitForInterrupt),
-            Instr::Svc { imm } => match hooks.on_svc(imm, self) {
+            Instr::Svc { imm } => match hooks.on_svc(imm, self, bus) {
                 SvcAction::Handled => {}
                 SvcAction::HandledAndStop => return Err(Stop::Requested),
                 SvcAction::Raise => self.take_exception(bus, super::exception::EXC_SVCALL)?,

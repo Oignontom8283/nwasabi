@@ -73,7 +73,7 @@ struct RecordingHooks {
 }
 
 impl Hooks for RecordingHooks {
-    fn on_svc(&mut self, imm8: u8, _cpu: &mut Cpu) -> SvcAction {
+    fn on_svc<B: Bus>(&mut self, imm8: u8, _cpu: &mut Cpu, _bus: &mut B) -> SvcAction {
         self.svcs.push(imm8);
         SvcAction::HandledAndStop
     }
