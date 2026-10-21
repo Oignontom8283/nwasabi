@@ -123,3 +123,91 @@ fn resolve(objects: &[Obj<'_>], globals: &HashMap<&str, SymRef>, r: SymRef) -> R
     }
 }
 
+// === 2. Suppression des sections inutiles ===
+
+/// Résultat de la recherche des sections utiles.
+struct Reachability {
+    /// `live[o][s]` vaut vrai pour les sections à garder.
+    live: Vec<Vec<bool>>,
+    /// Variables communes (`COMMON`) réellement utilisées, par nom.
+    commons: HashSet<String>,
+}
+
+struct Context<'a, 'b> {
+    objects: &'a [Obj<'b>],
+    globals: HashMap<&'a str, SymRef>,
+}
+
+impl Context<'_, '_> {
+    fn resolve(&self, r: SymRef) -> Resolved {
+        resolve(self.objects, &self.globals, r)
+    }
+
+    /// Marque `start` et tout ce qu'elle référence.
+    fn mark(&self, reach: &mut Reachability, start: SecId) {
+        let mut pending = vec![start];
+        while let Some((o, s)) = pending.pop() {
+            if reach.live[o][s] || !self.objects[o].elf.sections[s].is_alloc() {
+                continue;
+            }
+            reach.live[o][s] = true;
+            // Les relocations « NONE » ne changent rien au contenu mais comptent comme des
+            // dépendances (c'est ainsi qu'une table d'exceptions retient sa routine).
+            for reloc in self.objects[o].elf.relocations(s) {
+                let target = SymRef {
+                    obj: o,
+                    index: reloc.symbol as usize,
+                };
+                if let Resolved::Def(def) = self.resolve(target) {
+                    let sym = &self.objects[def.obj].elf.symbols[def.index];
+                    match sym.section {
+                        SymbolSection::Section(next) => pending.push((def.obj, next)),
+                        SymbolSection::Common => {
+                            reach.commons.insert(sym.name.clone());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    fn reachability(&self, roots: &[SecId]) -> Reachability {
+        let mut reach = Reachability {
+            live: self
+                .objects
+                .iter()
+                .map(|o| vec![false; o.elf.sections.len()])
+                .collect(),
+            commons: HashSet::new(),
+        };
+        for &root in roots {
+            self.mark(&mut reach, root);
+        }
+        // Les tables de déroulement (`.ARM.exidx`) sont gardées avec le code qu'elles décrivent :
+        // elles désignent des routines (`__aeabi_unwind_cpp_pr0`…) que l'éditeur de liens officiel
+        // conserve donc aussi. Les tables elles-mêmes ne sont pas placées (voir `classify`).
+        loop {
+            let mut changed = false;
+            for (o, obj) in self.objects.iter().enumerate() {
+                for (s, section) in obj.elf.sections.iter().enumerate() {
+                    if section.kind == SHT_ARM_EXIDX
+                        && !reach.live[o][s]
+                        && reach.live[o]
+                            .get(section.link as usize)
+                            .copied()
+                            .unwrap_or(false)
+                    {
+                        self.mark(&mut reach, (o, s));
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        reach
+    }
+}
+
