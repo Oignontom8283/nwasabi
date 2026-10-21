@@ -216,3 +216,22 @@ def cases_bitfield():
     return out
 
 
+def cases_extend_parallel():
+    out = []
+    par_ops = ['uadd8', 'usub8', 'sadd8', 'ssub8', 'uqadd8', 'uqsub8', 'uadd16', 'usub16',
+               'sadd16', 'ssub16', 'uqadd16', 'uqsub16']
+    for _ in range(140):
+        rd, rn, rm = reg(), reg(), reg()
+        rot = random.choice(['', ', ror #8', ', ror #16', ', ror #24'])
+        par = random.choice(par_ops)
+        out.append(random.choice([
+            f"{random.choice(['sxtb', 'sxth', 'uxtb', 'uxth', 'uxtb16', 'sxtb16'])}.w {rd}, {rm}{rot}",
+            f"{random.choice(['sxtab', 'sxtah', 'uxtab', 'uxtah', 'uxtab16', 'sxtab16'])} {rd}, {rn}, {rm}{rot}",
+            f"{par} {rd}, {rn}, {rm}",
+            f"{par} {rd}, {rn}, {rm}\nsel {reg()}, {reg()}, {reg()}",
+            f"pkhbt {rd}, {rn}, {rm}, lsl #{random.randrange(32)}",
+            f"pkhtb {rd}, {rn}, {rm}, asr #{random.randrange(1, 33)}",
+        ]))
+    return out
+
+
