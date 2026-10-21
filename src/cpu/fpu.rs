@@ -896,3 +896,20 @@ mod tests {
         assert_eq!(fpscr, FPSCR_IXC);
     }
 
+    #[test]
+    fn division_by_zero_and_invalid_operations() {
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).div(1.0, 0.0), f32::INFINITY);
+        assert_eq!(fpscr, FPSCR_DZC);
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).div(0.0, 0.0).to_bits(), DEFAULT_NAN);
+        assert_eq!(fpscr, FPSCR_IOC);
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).sqrt(-1.0).to_bits(), DEFAULT_NAN);
+        assert_eq!(
+            env(&mut fpscr).mul(f32::INFINITY, 0.0).to_bits(),
+            DEFAULT_NAN
+        );
+        assert_eq!(fpscr, FPSCR_IOC);
+    }
+
