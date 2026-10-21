@@ -24,3 +24,27 @@ fn call(emu: &mut Emulator, cpu: &mut Cpu, number: u8, args: &[u32]) -> SvcActio
 /// Adresse de RAM libre pour y placer des arguments.
 const SCRATCH: u32 = 0x2002_0000;
 
+#[test]
+fn rectangle_fill_push_and_pull_go_through_memory() {
+    let (mut emu, mut cpu) = setup();
+    let rect = [10 | 20 << 16, 2 | 2 << 16];
+    assert_eq!(
+        call(&mut emu, &mut cpu, 20, &[rect[0], rect[1], 0xf800]),
+        SvcAction::Handled
+    );
+    assert_eq!(emu.kernel.display.get(11, 21), Some(0xf800));
+
+    for i in 0..4u32 {
+        emu.device
+            .memory
+            .write_bytes(SCRATCH + 2 * i, &(0x100 + i as u16).to_le_bytes())
+            .unwrap();
+    }
+    call(&mut emu, &mut cpu, 19, &[rect[0], rect[1], SCRATCH]);
+    assert_eq!(emu.kernel.display.get(11, 21), Some(0x103));
+
+    call(&mut emu, &mut cpu, 18, &[rect[0], rect[1], SCRATCH + 64]);
+    let back = emu.device.memory.read_bytes(SCRATCH + 64, 8).unwrap();
+    assert_eq!(back, [0, 1, 1, 1, 2, 1, 3, 1]);
+}
+
