@@ -89,3 +89,13 @@ fn time_follows_cycles_and_sleeps() {
     assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 3 }));
 }
 
+#[test]
+fn keyboard_scan_returns_the_pressed_keys() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Ok);
+    emu.kernel.keyboard.press(Key::Exe);
+    call(&mut emu, &mut cpu, 34, &[]);
+    assert_eq!(cpu.regs.r[0], 1 << 4);
+    assert_eq!(cpu.regs.r[1], 1 << (52 - 32));
+}
+
