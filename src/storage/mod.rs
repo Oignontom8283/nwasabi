@@ -199,3 +199,22 @@ impl Fs<'_> {
         Ok(())
     }
 
+    pub fn list(&mut self) -> Result<Listing, FsError> {
+        let parsed = records::parse(&self.raw()?);
+        Ok(Listing {
+            files: parsed.records.iter().map(FileInfo::of).collect(),
+            corrupt_at: parsed.corrupt_at,
+        })
+    }
+
+    pub fn stats(&mut self) -> Result<Stats, FsError> {
+        let buffer = self.raw()?;
+        let parsed = records::parse(&buffer);
+        Ok(Stats {
+            total: buffer.len(),
+            used: parsed.used,
+            free: buffer.len() - parsed.used,
+            records: parsed.records.len(),
+        })
+    }
+
