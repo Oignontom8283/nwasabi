@@ -37,3 +37,42 @@ pub fn add_with_carry(x: u32, y: u32, carry_in: bool) -> (u32, bool, bool) {
     )
 }
 
+/// Décale `value` et renvoie le résultat et la retenue sortante. `amount` est le nombre de bits
+/// (pour `Rrx`, il vaut 1 implicitement). Un décalage de 0 laisse la valeur et la retenue.
+pub fn shift_with_carry(value: u32, kind: ShiftKind, amount: u32, carry_in: bool) -> (u32, bool) {
+    if kind == ShiftKind::Rrx {
+        return ((u32::from(carry_in) << 31) | (value >> 1), value & 1 != 0);
+    }
+    if amount == 0 {
+        return (value, carry_in);
+    }
+    match kind {
+        ShiftKind::Lsl => match amount {
+            1..=31 => (value << amount, (value >> (32 - amount)) & 1 != 0),
+            32 => (0, value & 1 != 0),
+            _ => (0, false),
+        },
+        ShiftKind::Lsr => match amount {
+            1..=31 => (value >> amount, (value >> (amount - 1)) & 1 != 0),
+            32 => (0, value >> 31 != 0),
+            _ => (0, false),
+        },
+        ShiftKind::Asr => {
+            let sign = (value as i32) >> 31;
+            match amount {
+                1..=31 => (
+                    ((value as i32) >> amount) as u32,
+                    (value >> (amount - 1)) & 1 != 0,
+                ),
+                _ => (sign as u32, value >> 31 != 0),
+            }
+        }
+        ShiftKind::Ror => {
+            let n = amount % 32;
+            let result = value.rotate_right(n);
+            (result, result >> 31 != 0)
+        }
+        ShiftKind::Rrx => unreachable!("traité plus haut"),
+    }
+}
+
