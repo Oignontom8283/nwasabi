@@ -222,3 +222,40 @@ impl Value {
     }
 }
 
+// ---- analyse -----------------------------------------------------------------------------------
+
+/// Erreur d'analyse, avec la position (en octets) du problème.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseError {
+    pub position: usize,
+    pub message: &'static str,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "JSON invalide à l'octet {} : {}",
+            self.position, self.message
+        )
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+/// Profondeur maximale d'imbrication acceptée (protège la pile contre des entrées hostiles).
+const MAX_DEPTH: usize = 64;
+
+struct Parser<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl Parser<'_> {
+    fn err<T>(&self, message: &'static str) -> Result<T, ParseError> {
+        Err(ParseError {
+            position: self.pos,
+            message,
+        })
+    }
+
