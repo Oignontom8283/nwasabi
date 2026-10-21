@@ -389,3 +389,132 @@ fn the_extended_runtime_is_opt_in() {
     );
 }
 
+#[test]
+fn flash_and_ram_capacity_are_checked() {
+    let small_flash = LayoutParams {
+        flash_length: 0x40,
+        ..n0110_layout()
+    };
+    assert!(matches!(
+        link_with(synthetic_app(), &small_flash),
+        Err(LinkError::FlashOverflow { .. })
+    ));
+
+    let mut app = synthetic_app();
+    let bss = app
+        .writer
+        .add_nobits(".bss.big", SHF_ALLOC | SHF_WRITE, 4, 4096);
+    let big = app.writer.add_symbol(
+        "big",
+        0,
+        4096,
+        SymbolBind::Global,
+        SymbolKind::Object,
+        SymbolSection::Section(bss.0),
+    );
+    app.word_ref(big);
+    let small_ram = LayoutParams {
+        ram_length: 1024,
+        ..n0110_layout()
+    };
+    assert!(matches!(
+        link_with(app, &small_ram),
+        Err(LinkError::RamOverflow { .. })
+    ));
+}
+
+#[test]
+fn thread_local_sections_are_refused() {
+    let mut app = synthetic_app();
+    let tls = app
+        .writer
+        .add_section(".tdata", SHF_ALLOC | SHF_WRITE | SHF_TLS, 4, &[0; 4]);
+    let var = app.writer.add_symbol(
+        "tls_var",
+        0,
+        4,
+        SymbolBind::Global,
+        SymbolKind::Tls,
+        SymbolSection::Section(tls.0),
+    );
+    app.word_ref(var);
+    assert!(matches!(link_app(app), Err(LinkError::Unsupported(_))));
+}
+
+#[test]
+fn a_data_image_crossing_a_sector_boundary_is_reported() {
+    // On règle la taille des constantes pour que le champ « fin » tombe juste avant la limite d'un
+    // secteur de 64 Kio alors que l'image `.data` la franchit.
+    let build = |rodata: usize| {
+        let mut app = synthetic_app();
+        let ro = app
+            .writer
+            .add_section(".rodata.pad", SHF_ALLOC, 1, &vec![0; rodata]);
+        let ro = app.writer.add_symbol(
+            "pad",
+            0,
+            rodata as u32,
+            SymbolBind::Global,
+            SymbolKind::Object,
+            SymbolSection::Section(ro.0),
+        );
+        let data = app
+            .writer
+            .add_section(".data.d", SHF_ALLOC | SHF_WRITE, 4, &[7; 16]);
+        let d = app.writer.add_symbol(
+            "d",
+            0,
+            16,
+            SymbolBind::Global,
+            SymbolKind::Object,
+            SymbolSection::Section(data.0),
+        );
+        app.word_ref(ro);
+        app.word_ref(d);
+        link_app(app).unwrap()
+    };
+    let base = build(0);
+    let offset = base.app_end - base.flash_start;
+    let rodata = (APP_SECTOR_SIZE - 8 - offset) as usize;
+    let app = build(rodata);
+    assert_eq!(app.app_end - app.flash_start, APP_SECTOR_SIZE - 8);
+    assert!(app.flash.len() as u32 > APP_SECTOR_SIZE);
+    assert_eq!(
+        app.warnings,
+        [LinkWarning::AppSizeMismatch {
+            system_next_offset: APP_SECTOR_SIZE,
+            installed_next_offset: 2 * APP_SECTOR_SIZE
+        }]
+    );
+    // Sans débordement, aucun avertissement.
+    assert!(build(0).warnings.is_empty());
+}
+
+#[test]
+fn installed_size_adds_a_whole_sector_when_already_aligned() {
+    let mut app = link_app(synthetic_app()).unwrap();
+    assert_eq!(app.installed_size(), APP_SECTOR_SIZE);
+    app.flash = vec![0; APP_SECTOR_SIZE as usize];
+    assert_eq!(app.installed_size(), 2 * APP_SECTOR_SIZE);
+    app.flash = vec![0; APP_SECTOR_SIZE as usize + 1];
+    assert_eq!(app.installed_size(), 2 * APP_SECTOR_SIZE);
+}
+
+#[test]
+fn sections_are_listed_with_their_class_and_origin() {
+    let mut app = synthetic_app();
+    let callee = app.function("callee");
+    app.call(callee);
+    let linked = link_app(app).unwrap();
+    let find = |name: &str| {
+        linked
+            .sections
+            .iter()
+            .find(|s| s.name == name)
+            .unwrap_or_else(|| panic!("{name}"))
+    };
+    assert_eq!(find(".text.callee").class, SectionClass::Text);
+    assert_eq!(find(".rodata.eadk_app_name").class, SectionClass::Header);
+    assert_eq!(find(".text._start").origin, nwasabi::link::Origin::Runtime);
+    assert_eq!(find(".text.callee").origin, nwasabi::link::Origin::App);
+}
