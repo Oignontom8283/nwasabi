@@ -123,3 +123,22 @@ impl Emulator {
         })
     }
 
+    /// Lie un `.nwa` (avec ses données externes éventuelles), l'installe en flash et le prépare
+    /// à démarrer.
+    pub fn install_nwa(
+        &mut self,
+        nwa: &[u8],
+        external_data: Option<&[u8]>,
+    ) -> Result<(), EmulatorError> {
+        let layout = self.device.app_layout();
+        let app = link(nwa, external_data, &layout, &LinkOptions::default())?;
+        self.device.install(&app)?;
+        self.app = Some(app);
+        self.launch()
+    }
+
+    /// L'application installée en dernier.
+    pub fn app(&self) -> Option<&LinkedApp> {
+        self.app.as_ref()
+    }
+
