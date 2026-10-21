@@ -80,3 +80,13 @@ impl Settings<'_> {
         })
     }
 
+    pub fn set_security_level(&mut self, level: u32) -> Result<(), DeviceError> {
+        self.change(|p| p.security_level = level)
+    }
+
+    /// Slot (A ou B) que l'appareil exécute : change l'adresse publiée du `UserlandHeader` et
+    /// la zone des applications. Les applications déjà installées restent dans l'autre slot.
+    pub fn set_active_slot(&mut self, slot: Slot) -> Result<(), DeviceError> {
+        self.change(|p| p.active_slot = slot)
+    }
+
