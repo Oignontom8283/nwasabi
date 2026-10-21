@@ -73,3 +73,37 @@ fn body_of(req: &Value) -> Result<Vec<u8>, String> {
     json::base64_decode(b64).ok_or_else(|| "base64 invalide".to_owned())
 }
 
+impl Session {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn emu(&mut self) -> Result<&mut Emulator, String> {
+        self.emu
+            .as_mut()
+            .ok_or_else(|| "aucun appareil : utiliser « new » ou « load »".to_owned())
+    }
+
+    /// Traite une requête et rend la réponse.
+    pub fn handle(&mut self, request: &Value) -> Value {
+        let mut reply = match self.dispatch(request) {
+            Ok(v) => Value::object().with("ok", true).merged(v),
+            Err(e) => Value::object().with("ok", false).with("error", e),
+        };
+        if let Some(id) = request.get("id") {
+            reply.set("id", id.clone());
+        }
+        reply
+    }
+
+    /// Variante pour du texte : une ligne JSON en entrée, une ligne JSON en sortie.
+    pub fn handle_line(&mut self, line: &str) -> String {
+        match json::parse(line) {
+            Ok(request) => self.handle(&request).to_string(),
+            Err(e) => Value::object()
+                .with("ok", false)
+                .with("error", e.to_string())
+                .to_string(),
+        }
+    }
+
