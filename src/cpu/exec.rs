@@ -389,3 +389,48 @@ impl Cpu {
                 self.write(rd, result);
             }
 
+            Instr::B { offset } => self.regs.pc = ctx.pc4.wrapping_add(offset as u32),
+            Instr::BCond { cond, offset } => {
+                if self.cond_passed(cond) {
+                    self.regs.pc = ctx.pc4.wrapping_add(offset as u32);
+                }
+            }
+            Instr::Bl { offset } => {
+                self.regs.lr = self.regs.pc | 1;
+                self.regs.pc = ctx.pc4.wrapping_add(offset as u32);
+            }
+            Instr::Bx { rm } => {
+                let target = self.read(ctx, rm);
+                self.bx_write_pc(ctx, bus, target)?;
+            }
+            Instr::Blx { rm } => {
+                let target = self.read(ctx, rm);
+                self.regs.lr = self.regs.pc | 1;
+                self.bx_write_pc(ctx, bus, target)?;
+            }
+            Instr::Cbz {
+                rn,
+                offset,
+                nonzero,
+            } => {
+                if (self.read(ctx, rn) != 0) == nonzero {
+                    self.regs.pc = ctx.pc4.wrapping_add(offset);
+                }
+            }
+            Instr::TableBranch { half, rn, rm } => {
+                let base = self.read(ctx, rn);
+                let index = self.read(ctx, rm);
+                let entry = if half {
+                    u32::from(
+                        bus.read16(base.wrapping_add(index << 1))
+                            .map_err(Stop::BusFault)?,
+                    )
+                } else {
+                    u32::from(
+                        bus.read8(base.wrapping_add(index))
+                            .map_err(Stop::BusFault)?,
+                    )
+                };
+                self.regs.pc = ctx.pc4.wrapping_add(entry << 1);
+            }
+
