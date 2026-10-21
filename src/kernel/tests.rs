@@ -142,3 +142,18 @@ fn event_get_waits_then_times_out() {
     assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 0);
 }
 
+#[test]
+fn event_get_wakes_up_when_a_key_arrives() {
+    let (mut emu, mut cpu) = setup();
+    cpu.regs.pc = 0x9020_0102;
+    emu.device.memory.write_u32(SCRATCH, u32::MAX).unwrap(); // -1 : sans limite
+    call(&mut emu, &mut cpu, 23, &[SCRATCH]);
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent { remaining_ms: None })
+    );
+    emu.kernel.keyboard.press(Key::Up);
+    assert_eq!(call(&mut emu, &mut cpu, 23, &[SCRATCH]), SvcAction::Handled);
+    assert_eq!(cpu.regs.r[0], 1);
+}
+
