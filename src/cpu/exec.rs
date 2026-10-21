@@ -126,3 +126,18 @@ impl Cpu {
         outcome
     }
 
+    /// Exécute des instructions jusqu'à épuisement de `max_instructions` ou arrêt.
+    pub fn run<B: Bus, H: Hooks>(
+        &mut self,
+        bus: &mut B,
+        hooks: &mut H,
+        max_instructions: u64,
+    ) -> Stop {
+        for _ in 0..max_instructions {
+            if let Err(stop) = self.step(bus, hooks) {
+                return stop;
+            }
+        }
+        Stop::Budget
+    }
+
