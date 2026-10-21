@@ -103,3 +103,14 @@ fn small_arithmetic_program() {
     assert_eq!(cpu.regs.pc, START + 6);
 }
 
+#[test]
+fn adds_sets_flags_outside_an_it_block() {
+    // movs r0, #0xff ; adds r0, #1 ; (0xff + 1 = 0x100, pas de retenue sur 32 bits)
+    let (cpu, ..) = run(&[0x20ff, 0x3001], |_| {}, 2);
+    assert_eq!(cpu.regs.r[0], 0x100);
+    assert!(!cpu.regs.z() && !cpu.regs.c());
+    // subs r0, r0, r0 -> 0, Z et C levés.
+    let (cpu, ..) = run(&[0x1a00], |c| c.regs.r[0] = 5, 1);
+    assert!(cpu.regs.z() && cpu.regs.c() && !cpu.regs.n());
+}
+
