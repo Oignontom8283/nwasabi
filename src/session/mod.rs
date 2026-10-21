@@ -125,3 +125,116 @@ impl Session {
                     "inspect",
                     "regions",
                     "usage",
+                    "memory_read",
+                    "memory_write",
+                    "changes",
+                    "watch",
+                    "unwatch",
+                    "watch_hits",
+                    "svc_stats",
+                    "fs_list",
+                    "fs_stats",
+                    "fs_read",
+                    "fs_write",
+                    "fs_remove",
+                    "fs_rename",
+                    "settings_get",
+                    "settings_set",
+                ],
+            )),
+            "new" => self.new_device(req),
+            "load" => self.load(req),
+            "launch" => {
+                let emu = self.emu()?;
+                emu.launch().map_err(|e| e.to_string())?;
+                Ok(Value::object())
+            }
+            "run" => self.run(req),
+            "key" => self.key(req),
+            "advance" => {
+                let ms = number(req, "ms")?;
+                self.emu()?.kernel.advance_time(u64::from(ms) * 1000);
+                Ok(Value::object().with("time_ms", self.time_ms()?))
+            }
+            "screen" => self.screen(req),
+            "stdout" => {
+                let emu = self.emu()?;
+                let out = String::from_utf8_lossy(&emu.kernel.stdout).into_owned();
+                if req.get("clear").and_then(Value::as_bool) == Some(true) {
+                    emu.kernel.stdout.clear();
+                }
+                Ok(Value::object().with("text", out))
+            }
+            "cpu" => {
+                let emu = self.emu()?;
+                let r = &emu.cpu.regs;
+                Ok(Value::object()
+                    .with("r", r.r.iter().map(|&v| Value::from(v)).collect::<Vec<_>>())
+                    .with("sp", r.sp)
+                    .with("lr", r.lr)
+                    .with("pc", r.pc)
+                    .with("xpsr", r.xpsr)
+                    .with("fpscr", r.fpscr)
+                    .with("instructions", emu.cpu.cycles))
+            }
+            "inspect" => {
+                let emu = self.emu()?;
+                let exam = emu.device.exam_mode;
+                let structures = read_structures(&mut emu.device.memory, exam);
+                let mut out = Value::object().with("structures", views::structures(&structures));
+                if let Some(app) = emu.app() {
+                    out.set("app", views::app(app));
+                }
+                Ok(out)
+            }
+            "regions" => {
+                let emu = self.emu()?;
+                Ok(Value::object().with("regions", views::regions(&emu.device.memory.regions())))
+            }
+            "usage" => {
+                let emu = self.emu()?;
+                let usage = emu.usage().ok_or("aucune application installée")?;
+                Ok(views::usage(&usage))
+            }
+            "memory_read" => {
+                let (address, length) = (number(req, "address")?, number(req, "length")?);
+                if length > MAX_TRANSFER {
+                    return Err(format!("lecture limitée à {MAX_TRANSFER} octets"));
+                }
+                let bytes = self
+                    .emu()?
+                    .device
+                    .memory
+                    .read_bytes(address, length)
+                    .map_err(|e| e.to_string())?;
+                Ok(Value::object().with("hex", json::hex_encode(&bytes)))
+            }
+            "memory_write" => {
+                let address = number(req, "address")?;
+                let bytes = json::hex_decode(text(req, "hex")?).ok_or("hexadécimal invalide")?;
+                if bytes.len() as u32 > MAX_TRANSFER {
+                    return Err(format!("écriture limitée à {MAX_TRANSFER} octets"));
+                }
+                self.emu()?
+                    .device
+                    .memory
+                    .write_bytes(address, &bytes)
+                    .map_err(|e| e.to_string())?;
+                Ok(Value::object().with("written", bytes.len()))
+            }
+            "changes" => {
+                let memory = &self.emu()?.device.memory;
+                let since = req
+                    .get("cursor")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0)
+                    .max(0) as u64;
+                let ranges = memory
+                    .changes_since(since)
+                    .iter()
+                    .map(|r| Value::object().with("start", r.start).with("len", r.len))
+                    .collect::<Vec<_>>();
+                Ok(Value::object()
+                    .with("ranges", ranges)
+                    .with("cursor", memory.change_cursor()))
+            }
