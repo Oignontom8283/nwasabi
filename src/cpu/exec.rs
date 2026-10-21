@@ -39,3 +39,31 @@ impl Cpu {
         base != (cond & 1 != 0)
     }
 
+    fn read(&self, ctx: Ctx, r: Reg) -> u32 {
+        match r {
+            15 => ctx.pc4,
+            13 => self.regs.sp,
+            14 => self.regs.lr,
+            n => self.regs.r[n as usize],
+        }
+    }
+
+    /// Écrit un registre autre que PC (les deux bits de poids faible de SP sont toujours nuls).
+    fn write(&mut self, r: Reg, value: u32) {
+        match r {
+            13 => self.regs.sp = value & !3,
+            14 => self.regs.lr = value,
+            15 => unreachable!("PC s'écrit par un branchement"),
+            n => self.regs.r[n as usize] = value,
+        }
+    }
+
+    /// Écrit le résultat d'une opération : un branchement si la destination est PC.
+    fn write_result(&mut self, rd: Reg, value: u32) {
+        if rd == 15 {
+            self.regs.pc = value & !1;
+        } else {
+            self.write(rd, value);
+        }
+    }
+
