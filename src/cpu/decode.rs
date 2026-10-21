@@ -577,3 +577,99 @@ fn decode_dp_modified_immediate(a: u32, b: u32) -> Option<Instr> {
     })
 }
 
+/// Traitement de données avec constante simple de 12 ou 16 bits, champs de bits, saturation.
+fn decode_dp_plain_immediate(a: u32, b: u32) -> Option<Instr> {
+    let op = bits(a, 8, 4);
+    let rn = bits(a, 3, 0) as Reg;
+    let rd = bits(b, 11, 8) as Reg;
+    let imm12 = (bits(a, 10, 10) << 11) | (bits(b, 14, 12) << 8) | bits(b, 7, 0);
+    let imm5 = (bits(b, 14, 12) << 2) | bits(b, 7, 6);
+    let imm16 = (bits(a, 3, 0) << 12) | imm12;
+    Some(match op {
+        0b00000 if rn == 15 => Instr::Adr {
+            rd,
+            offset: imm12 as i32,
+        },
+        0b00000 => Instr::AddSubImm12 {
+            rd,
+            rn,
+            imm: imm12,
+            sub: false,
+        },
+        0b00100 => Instr::Movw {
+            rd,
+            imm: imm16 as u16,
+        },
+        0b01010 if rn == 15 => Instr::Adr {
+            rd,
+            offset: -(imm12 as i32),
+        },
+        0b01010 => Instr::AddSubImm12 {
+            rd,
+            rn,
+            imm: imm12,
+            sub: true,
+        },
+        0b01100 => Instr::Movt {
+            rd,
+            imm: imm16 as u16,
+        },
+        // ssat (sh = bit 5 : décalage arithmétique ; sans décalage et sh = 1 : ssat16, non géré).
+        0b10000 | 0b10010 => {
+            if op == 0b10010 && imm5 == 0 {
+                return None;
+            }
+            let (kind, amount) = decode_imm_shift(bits(a, 5, 5) << 1, imm5);
+            Instr::Sat {
+                signed: true,
+                rd,
+                rn,
+                bits: (bits(b, 4, 0) + 1) as u8,
+                kind,
+                amount,
+            }
+        }
+        0b10100 => Instr::Bfx {
+            signed: true,
+            rd,
+            rn,
+            lsb: imm5 as u8,
+            width: (bits(b, 4, 0) + 1) as u8,
+        },
+        0b10110 => {
+            let msb = bits(b, 4, 0);
+            if msb < imm5 {
+                return None;
+            }
+            Instr::Bfi {
+                rd,
+                rn: if rn == 15 { None } else { Some(rn) },
+                lsb: imm5 as u8,
+                width: (msb - imm5 + 1) as u8,
+            }
+        }
+        0b11000 | 0b11010 => {
+            if op == 0b11010 && imm5 == 0 {
+                return None;
+            }
+            let (kind, amount) = decode_imm_shift(bits(a, 5, 5) << 1, imm5);
+            Instr::Sat {
+                signed: false,
+                rd,
+                rn,
+                bits: bits(b, 4, 0) as u8,
+                kind,
+                amount,
+            }
+        }
+        0b11100 => Instr::Bfx {
+            signed: false,
+            rd,
+            rn,
+            lsb: imm5 as u8,
+            width: (bits(b, 4, 0) + 1) as u8,
+        },
+        _ => return None,
+    })
+}
+
