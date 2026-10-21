@@ -181,3 +181,17 @@ fn run(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args
+        .iter()
+        .any(|a| a == "--help" || a == "-h" || a == "help")
+    {
+        println!("{USAGE}");
+        return;
+    }
+    if let Err(message) = run(&args) {
+        eprintln!("erreur : {message}\n\n{USAGE}");
+        std::process::exit(2);
+    }
+}
