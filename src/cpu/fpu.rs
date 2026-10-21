@@ -537,3 +537,30 @@ impl Env<'_> {
         self.finish(result, inexact, true)
     }
 
+    /// `addend + a × b` avec un seul arrondi.
+    fn fused(&mut self, addend: f32, a: f32, b: f32) -> f32 {
+        let (addend, a, b) = (self.input(addend), self.input(a), self.input(b));
+        if let Some(n) = self.process_nans(&[addend, a, b]) {
+            return n;
+        }
+        if (a.is_infinite() && b == 0.0) || (a == 0.0 && b.is_infinite()) {
+            return self.default_nan();
+        }
+        let product_inf = a.is_infinite() || b.is_infinite();
+        if product_inf && addend.is_infinite() {
+            let product_negative = a.is_sign_negative() != b.is_sign_negative();
+            if product_negative != addend.is_sign_negative() {
+                return self.default_nan();
+            }
+        }
+        let result = a.mul_add(b, addend);
+        // Le produit de deux f32 est exact dans f64 ; la somme est vérifiée par TwoSum.
+        let (x, y) = (f64::from(a) * f64::from(b), f64::from(addend));
+        let sum = x + y;
+        let bb = sum - x;
+        let error = (x - (sum - bb)) + (y - bb);
+        let finite = a.is_finite() && b.is_finite() && addend.is_finite();
+        let inexact = f64::from(result) != sum || error != 0.0;
+        self.finish(result, finite && inexact, finite)
+    }
+
