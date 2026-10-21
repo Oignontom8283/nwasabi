@@ -13,6 +13,7 @@ pub mod device;
 pub mod elf;
 pub mod emulator;
 pub mod inspect;
+pub mod json;
 pub mod kernel;
 pub mod link;
 pub mod memory;
