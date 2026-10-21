@@ -163,3 +163,24 @@ pub enum Instr {
         amount: ShiftAmount,
         flags: FlagMode,
     },
+    Movw {
+        rd: Reg,
+        imm: u16,
+    },
+    Movt {
+        rd: Reg,
+        imm: u16,
+    },
+    /// `addw`/`subw` : base + constante de 12 bits, sans modifier les indicateurs.
+    AddSubImm12 {
+        rd: Reg,
+        rn: Reg,
+        imm: u32,
+        sub: bool,
+    },
+    /// `adr` : adresse relative au PC (aligné sur 4).
+    Adr {
+        rd: Reg,
+        offset: i32,
+    },
+
