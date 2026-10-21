@@ -223,3 +223,5 @@ fn line_span(base: u32, first: usize, last: usize) -> ChangedRange {
     }
 }
 
+#[cfg(test)]
+mod tests;
