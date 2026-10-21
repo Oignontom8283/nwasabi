@@ -82,6 +82,57 @@ impl Display {
         }
     }
 
+    /// Comme [`Display::push`], mais depuis des octets (pixels de 16 bits little-endian), ligne par
+    /// ligne : la partie visible de chaque ligne est recopiée d'un seul bloc.
+    pub fn push_bytes(&mut self, rect: Rect, source: &[u8]) {
+        let stride = rect.width as usize * 2;
+        let visible = (WIDTH.saturating_sub(rect.x).min(rect.width)) as usize;
+        if visible == 0 {
+            return;
+        }
+        for row in 0..rect.height as usize {
+            let y = rect.y as usize + row;
+            if y >= HEIGHT as usize {
+                break;
+            }
+            let Some(line) = source.get(row * stride..row * stride + visible * 2) else {
+                break;
+            };
+            let start = y * WIDTH as usize + rect.x as usize;
+            for (pixel, bytes) in self.pixels[start..start + visible]
+                .iter_mut()
+                .zip(line.chunks_exact(2))
+            {
+                *pixel = u16::from_le_bytes([bytes[0], bytes[1]]);
+            }
+        }
+    }
+
+    /// Comme [`Display::pull`], mais en octets (pixels de 16 bits little-endian) ; ce qui est hors
+    /// de l'écran vaut 0.
+    pub fn pull_bytes(&self, rect: Rect) -> Vec<u8> {
+        let mut out = vec![0u8; rect.area() as usize * 2];
+        let visible = (WIDTH.saturating_sub(rect.x).min(rect.width)) as usize;
+        if visible == 0 {
+            return out;
+        }
+        for row in 0..rect.height as usize {
+            let y = rect.y as usize + row;
+            if y >= HEIGHT as usize {
+                break;
+            }
+            let start = y * WIDTH as usize + rect.x as usize;
+            let line = &mut out[row * rect.width as usize * 2..][..visible * 2];
+            for (bytes, pixel) in line
+                .chunks_exact_mut(2)
+                .zip(&self.pixels[start..start + visible])
+            {
+                bytes.copy_from_slice(&pixel.to_le_bytes());
+            }
+        }
+        out
+    }
+
     pub fn fill(&mut self, rect: Rect, color: u16) {
         for row in 0..rect.height {
             for col in 0..rect.width {
@@ -190,6 +241,34 @@ mod tests {
         assert_eq!(d.get(10, 10), Some(0x1234));
         assert!((0..14).any(|y| (0..7).any(|x| d.get(10 + x, 10 + y) == Some(0xffff))));
         assert_eq!(d.get(17, 10), Some(0));
+    }
+
+    #[test]
+    fn byte_transfers_match_pixel_transfers() {
+        let mut a = Display::new();
+        let mut b = Display::new();
+        let rect = rect(315, 237, 10, 5); // dépasse à droite et en bas
+        let pixels: Vec<u16> = (0..rect.area() as u16).map(|i| i * 3 + 1).collect();
+        let bytes: Vec<u8> = pixels.iter().flat_map(|p| p.to_le_bytes()).collect();
+        a.push(rect, &pixels);
+        b.push_bytes(rect, &bytes);
+        assert_eq!(a, b);
+        let pulled: Vec<u8> = a
+            .pull(rect)
+            .into_iter()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        assert_eq!(b.pull_bytes(rect), pulled);
+        // Rectangle entièrement hors de l'écran.
+        let far = Rect {
+            x: 400,
+            y: 0,
+            width: 3,
+            height: 2,
+        };
+        assert_eq!(a.pull_bytes(far), vec![0; 12]);
+        b.push_bytes(far, &[1; 12]);
+        assert_eq!(a, b);
     }
 
     #[test]

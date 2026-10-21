@@ -15,15 +15,6 @@ const MAX_WRITE: u32 = 1 << 16;
 /// Taille du numéro de série copié, zéro final compris.
 const SERIAL_BUFFER: usize = 17;
 
-fn read_u16_block<B: Bus>(bus: &mut B, address: u32, count: u32) -> Result<Vec<u16>, BusFault> {
-    let mut bytes = vec![0u8; count as usize * 2];
-    bus.read_block(address, &mut bytes)?;
-    Ok(bytes
-        .chunks_exact(2)
-        .map(|p| u16::from_le_bytes([p[0], p[1]]))
-        .collect())
-}
-
 fn read_bytes<B: Bus>(bus: &mut B, address: u32, count: u32) -> Result<Vec<u8>, BusFault> {
     let mut bytes = vec![0u8; count as usize];
     bus.read_block(address, &mut bytes)?;
@@ -109,19 +100,13 @@ impl Kernel {
             4 => cpu.regs.r[0] = u32::from(self.status.battery_level),
             5 => cpu.regs.s[0] = self.status.battery_voltage.to_bits(),
             18 => {
-                let rect = Rect::from_registers(r0, r1);
-                let bytes: Vec<u8> = self
-                    .display
-                    .pull(rect)
-                    .into_iter()
-                    .flat_map(u16::to_le_bytes)
-                    .collect();
+                let bytes = self.display.pull_bytes(Rect::from_registers(r0, r1));
                 bus.write_block(r2, &bytes)?;
             }
             19 => {
                 let rect = Rect::from_registers(r0, r1);
-                let pixels = read_u16_block(bus, r2, rect.area())?;
-                self.display.push(rect, &pixels);
+                let bytes = read_bytes(bus, r2, rect.area().saturating_mul(2))?;
+                self.display.push_bytes(rect, &bytes);
             }
             20 => self.display.fill(Rect::from_registers(r0, r1), r2 as u16),
             21 => {
