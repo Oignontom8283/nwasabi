@@ -141,3 +141,12 @@ pub fn decode16(hw: u16) -> Option<Instr> {
                 }
             }
         },
+        // ldr rt, [pc, #imm]
+        0b01001 => Instr::Load {
+            size: MemSize::Word,
+            signed: false,
+            rt: low3(8),
+            addr: Addr::Literal {
+                offset: (bits(h, 7, 0) << 2) as i32,
+            },
+        },
