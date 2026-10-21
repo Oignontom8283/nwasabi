@@ -167,3 +167,37 @@ impl LinkedApp {
     }
 }
 
+/// Lie une application.
+///
+/// - `nwa` : le contenu du fichier `.nwa` ;
+/// - `external_data` : les données externes, si l'application en réclame (`eadk_external_data`) ;
+/// - `layout` : zones de flash et de RAM réservées aux applications.
+pub fn link(
+    nwa: &[u8],
+    external_data: Option<&[u8]>,
+    layout: &LayoutParams,
+    options: &LinkOptions,
+) -> Result<LinkedApp, LinkError> {
+    let runtime_bytes = runtime::build_runtime(options.extended_runtime);
+    let data_bytes = external_data.map(runtime::build_external_data);
+
+    // L'ordre compte : en cas de définitions multiples, la première gagne (le runtime d'abord,
+    // comme `eadk.o` avant l'application dans l'outil de flashage officiel).
+    let mut objects = vec![
+        linker::Obj {
+            origin: Origin::Runtime,
+            elf: ElfObject::parse(&runtime_bytes, &options.limits)?,
+        },
+        linker::Obj {
+            origin: Origin::App,
+            elf: ElfObject::parse(nwa, &options.limits)?,
+        },
+    ];
+    if let Some(bytes) = &data_bytes {
+        objects.push(linker::Obj {
+            origin: Origin::ExternalData,
+            elf: ElfObject::parse(bytes, &options.limits)?,
+        });
+    }
+    linker::run(&objects, layout)
+}
