@@ -26,10 +26,10 @@ build-wasm:
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
 
-# Prépare la page d'exemple : copie le module WebAssembly et son enveloppe JavaScript.
-example: build-wasm
+# Prépare la page d'exemple : copie le module WebAssembly et @nwasabi/js (compilé) à côté de la page.
+example: build-wasm build-js
     cp target/{{wasm_target}}/wasm/nwasabi.wasm example/nwasabi.wasm
-    cp web/src/nwasabi.js example/nwasabi.js
+    rm -rf example/js && cp -r packages/js/dist example/js
 
 # Prépare la page d'exemple puis la sert sur http://localhost:8000/ (à lancer de n'importe quel dossier).
 example-serve: example
@@ -48,14 +48,19 @@ wasm_file := "target/" + wasm_target + "/wasm/nwasabi.wasm"
 npm-install dir:
     @cd {{dir}} && if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then npm ci --no-audit --no-fund; fi
 
-# Compile le module WebAssembly puis l'émulateur (web/) en release dans web/dist, sans le lancer.
-build-emulator: build-wasm (npm-install "web")
-    @cd web && if [ ! -f dist/index.html ] || [ -n "$(find src index.html vite.config.js package.json ../{{wasm_file}} -newer dist/index.html | head -n 1)" ]; then npm run build; else echo "émulateur à jour (web/dist)"; fi
+# Compile @nwasabi/js (TypeScript) dans packages/js/dist.
+[private]
+build-js: (npm-install ".")
+    @if [ ! -f packages/js/dist/index.js ] || [ -n "$(find packages/js/src packages/js/package.json packages/js/tsconfig.json -newer packages/js/dist/index.js | head -n 1)" ]; then npm run build -w @nwasabi/js; else echo "@nwasabi/js à jour"; fi
+
+# Compile le module WebAssembly, @nwasabi/js puis l'émulateur (web/) en release dans web/dist, sans le lancer.
+build-emulator: build-wasm build-js
+    @cd web && if [ ! -f dist/index.html ] || [ -n "$(find src index.html vite.config.js package.json ../packages/js/dist ../{{wasm_file}} -newer dist/index.html | head -n 1)" ]; then npm run build; else echo "émulateur à jour (web/dist)"; fi
 
 alias build-emu := build-emulator
 
 # Lance l'émulateur seul dans le navigateur (Vite en développement, rechargement à chaud), comme `nwasabi` le sert.
-emulator: build-wasm (npm-install "web")
+emulator: build-wasm build-js
     cd web && npm run dev -- --open
 
 alias emu := emulator
@@ -77,6 +82,17 @@ docs: docs-emulator (npm-install "docs")
     cd docs && npm run dev -- --open
 
 alias doc := docs
+
+# --- Paquets npm ---------------------------------------------------------------
+
+# Prépare @nwasabi/js et @nwasabi/wasm (compilation TypeScript, module .wasm copié) ; ne publie rien.
+build-npm: build-wasm (npm-install ".")
+    npm run build -w @nwasabi/js -w @nwasabi/wasm
+    npm run copy-wasm -w @nwasabi/wasm
+
+# Montre ce que contiendraient les paquets npm, sans rien écrire ni publier.
+pack-npm: build-npm
+    npm pack --dry-run -w @nwasabi/js -w @nwasabi/wasm
 
 # --- Lancement --------------------------------------------------------------
 
@@ -111,7 +127,7 @@ test-corpus corpus:
     NWASABI_CORPUS={{corpus}} cargo test --all-features
 
 # Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm local/nwa`).
-test-wasm corpus="": build-wasm
+test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
 
 # Régénère les résultats de référence de l'édition de liens après un changement voulu.
@@ -119,7 +135,7 @@ update-golden corpus:
     NWASABI_UPDATE_GOLDEN=1 NWASABI_CORPUS={{corpus}} cargo test --test link_corpus --test emulator_corpus
 
 # Séquence complète avant de proposer un changement : formatage, clippy, tests, WebAssembly.
-ci: fmt-check clippy test build-wasm
+ci: fmt-check clippy test build-wasm build-js
 
 # --- Ménage -----------------------------------------------------------------
 

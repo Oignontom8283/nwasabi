@@ -9,6 +9,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@nwasabi/js": "*",
     "vue": "^3.5.44"
   },
   "devDependencies": {

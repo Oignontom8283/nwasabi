@@ -1,0 +1,39 @@
+{
+  "name": "@nwasabi/wasm",
+  "version": "0.1.0",
+  "description": "Le module WebAssembly de nwasabi, émulateur d'applications externes NumWorks (.nwa), à utiliser avec @nwasabi/js.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Oignontom8283",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./nwasabi.wasm": "./nwasabi.wasm"
+  },
+  "files": [
+    "dist",
+    "nwasabi.wasm",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "sideEffects": false,
+  "keywords": ["numworks", "emulator", "webassembly", "wasm", "nwa", "epsilon"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Oignontom8283/nwasabi.git",
+    "directory": "packages/wasm"
+  },
+  "homepage": "https://github.com/Oignontom8283/nwasabi#readme",
+  "bugs": "https://github.com/Oignontom8283/nwasabi/issues",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "copy-wasm": "node scripts/copy-wasm.mjs",
+    "prepack": "npm run build && npm run copy-wasm"
+  }
+}

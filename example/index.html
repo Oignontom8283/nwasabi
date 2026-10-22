@@ -24,8 +24,9 @@
     <p id="status">chargement du module…</p>
 
     <script type="module">
-      // Les deux fichiers viennent de `just example` (nwasabi.js et nwasabi.wasm, à copier à côté de cette page).
-      import { Nwasabi, toBase64 } from "./nwasabi.js";
+      // Les fichiers viennent de `just example` : le dossier js/ (@nwasabi/js compilé) et nwasabi.wasm,
+      // à copier à côté de cette page.
+      import { Nwasabi, toBase64 } from "./js/index.js";
 
       const emu = await Nwasabi.load(await fetch("./nwasabi.wasm"));
       const canvas = document.getElementById("screen");

@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, provide } from "vue";
 import { useEmulator } from "./emulator.js";
-import { PHYSICAL } from "./keys.js";
+import { PHYSICAL_KEYS } from "@nwasabi/js";
 import ScreenPanel from "./components/ScreenPanel.vue";
 import KeyPad from "./components/KeyPad.vue";
 import FilesPanel from "./components/FilesPanel.vue";
@@ -52,7 +52,7 @@ function onDrop(event) {
 
 function onKey(event, down) {
   if (event.target.closest("input, textarea, select")) return;
-  const name = PHYSICAL[event.key];
+  const name = PHYSICAL_KEYS[event.key];
   if (!name) return;
   event.preventDefault();
   emulator.key(name, down);

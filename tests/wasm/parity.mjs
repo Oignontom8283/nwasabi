@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import { Nwasabi, toBase64, fromBase64 } from "../../web/src/nwasabi.js";
+import { Nwasabi, toBase64, fromBase64 } from "../../packages/js/dist/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");

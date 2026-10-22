@@ -30,8 +30,11 @@ local/
 **/cache/
 
 # Interface web : dépendances et site construit à la main (build.rs construit le sien dans target/).
-example/nwasabi.js
+example/js
 example/nwasabi.wasm
 
 # Site vitrine (docs/) : dépendances, sorties de VitePress et émulateur copié par `just site`.
 docs/public/emulator
+
+# Paquets npm : le module .wasm n'est copié que pour publier.
+packages/wasm/nwasabi.wasm
