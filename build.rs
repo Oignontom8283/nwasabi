@@ -103,7 +103,8 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
     for file in ["package.json", "package-lock.json"] {
         fs::copy(manifest.join(file), work.join(file)).map_err(|e| format!("{file} : {e}"))?;
     }
-    for dir in ["packages", "web"] {
+    // Le site n'utilise que @nwasabi/js : le paquet @nwasabi/wasm (publication) n'est pas nécessaire.
+    for dir in ["packages/js", "web"] {
         copy_site_sources(&manifest.join(dir), &work.join(dir))?;
     }
     if !work.join("node_modules").exists() {
@@ -169,8 +170,6 @@ fn main() {
         "packages/js/src",
         "packages/js/package.json",
         "packages/js/tsconfig.json",
-        "packages/wasm/src",
-        "packages/wasm/package.json",
         "package.json",
         "package-lock.json",
         "Cargo.toml",
