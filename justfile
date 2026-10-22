@@ -31,6 +31,10 @@ example: build-wasm
     cp target/{{wasm_target}}/wasm/nwasabi.wasm example/nwasabi.wasm
     cp web/src/nwasabi.js example/nwasabi.js
 
+# Prépare la page d'exemple puis la sert sur http://localhost:8000/ (à lancer de n'importe quel dossier).
+example-serve: example
+    python3 -m http.server -d {{justfile_directory()}}/example 8000
+
 # --- Lancement --------------------------------------------------------------
 
 # Lance l'outil de test natif : `just cli run app.nwa --json`.
