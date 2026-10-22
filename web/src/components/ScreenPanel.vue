@@ -5,6 +5,19 @@ const { state, attach } = inject("emulator");
 const canvas = ref(null);
 onMounted(() => attach(canvas.value));
 
+// La capture est faite par le site : le cœur ne fournit que les pixels, le navigateur les encode.
+function capture() {
+  canvas.value.toBlob((blob) => {
+    const name = (state.appName || "nwasabi").replace(/\.nwa$/, "");
+    const link = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: `${name}.png`,
+    });
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, "image/png");
+}
+
 function describe(stop) {
   if (!stop) return "—";
   switch (stop.kind) {
@@ -23,6 +36,7 @@ function describe(stop) {
     <canvas ref="canvas" width="320" height="240" />
     <p class="status mono" :class="{ error: state.stop?.kind === 'fault' }">
       {{ describe(state.stop) }} · {{ state.frames }} images
+      <button class="capture" title="Enregistrer l'écran en PNG" @click="capture">Capture</button>
     </p>
     <p v-if="state.error" class="error">{{ state.error }}</p>
   </div>
@@ -40,4 +54,5 @@ canvas {
   display: block;
 }
 .status { margin: 6px 0 0; color: var(--muted); }
+.capture { margin-left: 8px; padding: 1px 8px; font-size: 12px; }
 </style>
