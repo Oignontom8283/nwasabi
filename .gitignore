@@ -23,8 +23,8 @@ rustc-ice-*.txt
 #.idea/
 
 local/
-# Interface web : dépendances et module WebAssembly copié avant la construction.
+# Interface web : dépendances et site construit à la main (build.rs construit le sien dans target/).
 web/node_modules
-web/src/nwasabi.wasm
+web/dist
 example/nwasabi.js
 example/nwasabi.wasm
