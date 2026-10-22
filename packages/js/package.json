@@ -1,0 +1,36 @@
+{
+  "name": "@nwasabi/js",
+  "version": "0.1.0",
+  "description": "Pilote le module WebAssembly de nwasabi, émulateur d'applications externes NumWorks (.nwa) : protocole, écran, touches et boucle d'exécution.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Oignontom8283",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "sideEffects": false,
+  "keywords": ["numworks", "emulator", "webassembly", "wasm", "nwa", "epsilon"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Oignontom8283/nwasabi.git",
+    "directory": "packages/js"
+  },
+  "homepage": "https://github.com/Oignontom8283/nwasabi#readme",
+  "bugs": "https://github.com/Oignontom8283/nwasabi/issues",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  }
+}
