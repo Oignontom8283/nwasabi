@@ -23,14 +23,15 @@ rustc-ice-*.txt
 #.idea/
 
 local/
+
+# Ignorer tous les dossiers node_modules, dist et cache à n'importe quel niveau
+**/node_modules/
+**/dist/
+**/cache/
+
 # Interface web : dépendances et site construit à la main (build.rs construit le sien dans target/).
-web/node_modules
-web/dist
 example/nwasabi.js
 example/nwasabi.wasm
 
 # Site vitrine (docs/) : dépendances, sorties de VitePress et émulateur copié par `just site`.
-docs/node_modules
-docs/.vitepress/dist
-docs/.vitepress/cache
 docs/public/emulator
