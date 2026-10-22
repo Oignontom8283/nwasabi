@@ -35,6 +35,49 @@ example: build-wasm
 example-serve: example
     python3 -m http.server -d {{justfile_directory()}}/example 8000
 
+# --- Émulateur web et site de documentation ---------------------------------
+# Les recettes qui lancent un site (`emulator`, `docs`) utilisent Vite/VitePress en développement ; celles
+# qui construisent (`build-emulator`, `build-docs`) compilent en release. Chaque recette s'appuie sur les
+# précédentes et saute ce qui est déjà à jour : relancée sans changement, elle ne reconstruit rien ; si une
+# étape manque ou est périmée, elle la refait.
+
+wasm_file := "target/" + wasm_target + "/wasm/nwasabi.wasm"
+
+# Installe les paquets npm d'un dossier s'ils manquent ou si le fichier de verrouillage a changé.
+[private]
+npm-install dir:
+    @cd {{dir}} && if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then npm ci --no-audit --no-fund; fi
+
+# Compile le module WebAssembly puis l'émulateur (web/) en release dans web/dist, sans le lancer.
+build-emulator: build-wasm (npm-install "web")
+    @cd web && if [ ! -f dist/index.html ] || [ -n "$(find src index.html vite.config.js package.json ../{{wasm_file}} -newer dist/index.html | head -n 1)" ]; then npm run build; else echo "émulateur à jour (web/dist)"; fi
+
+alias build-emu := build-emulator
+
+# Lance l'émulateur seul dans le navigateur (Vite en développement, rechargement à chaud), comme `nwasabi` le sert.
+emulator: build-wasm (npm-install "web")
+    cd web && npm run dev -- --open
+
+alias emu := emulator
+alias web := emulator
+
+# Place l'émulateur (compilé en release) dans le site de documentation, à l'adresse /emulator/.
+[private]
+docs-emulator: build-emulator
+    @if [ ! -f docs/public/emulator/index.html ] || [ web/dist/index.html -nt docs/public/emulator/index.html ]; then rm -rf docs/public/emulator && mkdir -p docs/public && cp -r web/dist docs/public/emulator; else echo "émulateur déjà dans la documentation"; fi
+
+# `SITE_BASE=/nwasabi/ just build-docs` pour un site publié dans un sous-dossier. Construit le site statique complet (VitePress + émulateur à /emulator/) dans docs/.vitepress/dist.
+build-docs: docs-emulator (npm-install "docs")
+    @cd docs && if [ ! -f .vitepress/dist/index.html ] || [ -n "$(find index.html index.md .vitepress/config.mjs public package.json -newer .vitepress/dist/index.html 2>/dev/null | head -n 1)" ]; then npm run build; else echo "documentation à jour (docs/.vitepress/dist)"; fi
+
+alias build-doc := build-docs
+
+# Lance le site de documentation (VitePress en développement) ; son émulateur à /emulator/ est la version release.
+docs: docs-emulator (npm-install "docs")
+    cd docs && npm run dev -- --open
+
+alias doc := docs
+
 # --- Lancement --------------------------------------------------------------
 
 # Lance l'outil de test natif : `just cli run app.nwa --json`.
