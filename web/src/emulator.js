@@ -6,7 +6,7 @@
 
 import { reactive, shallowRef } from "vue";
 import { Nwasabi, toBase64 } from "./nwasabi.js";
-import wasmUrl from "./nwasabi.wasm?url";
+import wasmUrl from "nwasabi.wasm?url";
 
 /** Instructions au plus par image du navigateur (au-delà, on rend la main pour ne pas figer la page). */
 const SLICE = 2_000_000;

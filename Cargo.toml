@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 description = "Cœur d'émulation des applications externes (.nwa) des calculatrices NumWorks"
 license = "AGPL-3.0-only"
+# Le paquet publié ne contient que ce qui sert à compiler : le code (`src/`), le script de
+# construction et les sources de l'interface web. Ni les tests (et leurs références), ni l'exemple,
+# ni les recettes `just`.
+exclude = ["/tests", "/example", "/docs", "/justfile", "/web/node_modules", "/web/dist", "/local"]
 
 [lib]
 path = "src/lib.rs"
@@ -24,11 +28,20 @@ required-features = ["cli"]
 
 [features]
 default = ["serve"]
-serve = []
-cli = []
+serve = ["dep:axum", "dep:tokio", "dep:rust-embed", "dep:clap"]
+cli = ["dep:clap", "dep:png"]
 wasm = []
 
 [dependencies]
+serde_json = "1"
+png = { version = "0.18", optional = true }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"], optional = true }
+rust-embed = { version = "8", features = ["debug-embed", "mime-guess", "interpolate-folder-path"], optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+
+[dev-dependencies]
+png = "0.18"
 
 # Les tests du corpus exécutent des dizaines de millions d'instructions émulées.
 [profile.test]

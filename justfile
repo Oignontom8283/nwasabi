@@ -31,11 +31,6 @@ example: build-wasm
     cp target/{{wasm_target}}/wasm/nwasabi.wasm example/nwasabi.wasm
     cp web/src/nwasabi.js example/nwasabi.js
 
-# Construit le site web (Vue) dans `web-dist/`, que le serveur `nwasabi` embarque.
-build-web: build-wasm
-    cp target/{{wasm_target}}/wasm/nwasabi.wasm web/src/nwasabi.wasm
-    cd web && npm install --no-audit --no-fund && npm run build
-
 # --- Lancement --------------------------------------------------------------
 
 # Lance l'outil de test natif : `just cli run app.nwa --json`.

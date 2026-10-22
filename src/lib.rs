@@ -11,6 +11,7 @@
 #![cfg_attr(not(feature = "wasm"), forbid(unsafe_code))]
 #![cfg_attr(feature = "wasm", deny(unsafe_code))]
 
+pub mod checksum;
 pub mod cpu;
 pub mod device;
 pub mod elf;
@@ -20,7 +21,6 @@ pub mod json;
 pub mod kernel;
 pub mod link;
 pub mod memory;
-pub mod png;
 pub mod profile;
 pub mod session;
 pub mod settings;

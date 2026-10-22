@@ -44,12 +44,15 @@ fn corpus_file(prefix: &str) -> Option<PathBuf> {
 fn usage_and_exit_codes() {
     let help = cli(&["help"]);
     assert_eq!(help.status.code(), Some(0));
-    assert!(stdout(&help).contains("session --stdio"));
+    assert!(stdout(&help).contains("session"));
     assert_eq!(cli(&[]).status.code(), Some(2));
     assert_eq!(cli(&["nimporte"]).status.code(), Some(2));
-    let missing = cli(&["run"]);
-    assert_eq!(missing.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&missing.stderr).contains("fichier .nwa manquant"));
+    // Un argument obligatoire manquant est un mauvais usage (code 2), pas une erreur d'exécution.
+    assert_eq!(cli(&["run"]).status.code(), Some(2));
+    assert_eq!(
+        cli(&["run", "a.nwa", "--model", "n9999"]).status.code(),
+        Some(2)
+    );
     assert_eq!(cli(&["run", "/inexistant.nwa"]).status.code(), Some(1));
 }
 

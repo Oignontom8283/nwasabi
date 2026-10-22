@@ -2,38 +2,34 @@
 
 use std::fs;
 use std::io::{BufRead, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nwasabi::device::DeviceImage;
-use nwasabi::json::{self, Value};
+use nwasabi::json::{self, Value, ValueExt};
 use nwasabi::kernel::Key;
 use nwasabi::link::{LinkOptions, link};
 use nwasabi::profile::{FirmwareProfile, Model};
 use nwasabi::session::Session;
 use nwasabi::storage::records;
 
-use crate::args::Args;
+use crate::options::{
+    DeviceOpts, FirmwareOpt, FsArgs, FsOp, InspectArgs, KeysArgs, LinkArgs, RunArgs, SessionArgs,
+    SurveyArgs,
+};
 
 /// Taille du tampon du système de fichiers d'un N0110 (octets).
 const STORAGE_SIZE: usize = 0xa800;
 
 pub type Outcome = Result<i32, String>;
 
-fn model_option(args: &Args) -> Result<&str, String> {
-    let name = args.value("model").unwrap_or("n0110");
-    Model::ALL
-        .into_iter()
-        .find(|m| m.name().eq_ignore_ascii_case(name))
-        .map(|_| name)
-        .ok_or_else(|| format!("modèle inconnu : {name} (n0110, n0115 ou n0120)"))
+fn read_file(path: impl AsRef<Path>) -> Result<Vec<u8>, String> {
+    let path = path.as_ref();
+    fs::read(path).map_err(|e| format!("{} : {e}", path.display()))
 }
 
-fn read_file(path: &str) -> Result<Vec<u8>, String> {
-    fs::read(path).map_err(|e| format!("{path} : {e}"))
-}
-
-fn write_file(path: &str, data: &[u8]) -> Result<(), String> {
-    fs::write(path, data).map_err(|e| format!("{path} : {e}"))
+fn write_file(path: impl AsRef<Path>, data: &[u8]) -> Result<(), String> {
+    let path = path.as_ref();
+    fs::write(path, data).map_err(|e| format!("{} : {e}", path.display()))
 }
 
 /// Envoie une requête à la session ; une réponse « ok: false » devient une erreur.
@@ -50,37 +46,61 @@ fn call(session: &mut Session, request: Value) -> Result<Value, String> {
     }
 }
 
-fn load_request(args: &Args, nwa: &[u8]) -> Result<Value, String> {
-    let mut request = Value::object()
-        .with("cmd", "load")
-        .with("model", model_option(args)?)
-        .with("nwa_base64", json::base64_encode(nwa));
-    if let Some(firmware) = args.value("firmware") {
-        request.set("firmware", firmware);
-    }
-    if let Some(path) = args.value("data") {
+/// Requête `new` ou `load` pour l'appareil demandé.
+fn device_request(command: &str, device: &DeviceOpts) -> Value {
+    Value::object()
+        .with("cmd", command)
+        .with("model", device.model.as_str())
+        .with("firmware", device.firmware.as_str())
+}
+
+fn load_request(device: &DeviceOpts, nwa: &[u8]) -> Result<Value, String> {
+    let mut request = device_request("load", device).with("nwa_base64", json::base64_encode(nwa));
+    if let Some(path) = &device.data {
         request.set("data_base64", json::base64_encode(&read_file(path)?));
     }
     Ok(request)
 }
 
-fn print(args: &Args, json_value: &Value, text: impl FnOnce() -> String) {
-    if args.flag("json") {
-        println!("{json_value}");
+fn print(json: bool, value: &Value, text: impl FnOnce() -> String) {
+    if json {
+        println!("{value}");
     } else {
         println!("{}", text());
     }
 }
 
+/// Les pixels bruts d'une réponse `screen` (`rgba_base64`) encodés en PNG : l'encodage est fait ici,
+/// côté hôte, le cœur ne rend que des pixels.
+fn png_from_reply(screen: &Value) -> Result<Vec<u8>, String> {
+    let rgba = screen
+        .get("rgba_base64")
+        .and_then(Value::as_str)
+        .and_then(json::base64_decode)
+        .ok_or("capture illisible")?;
+    let width = screen.get("width").and_then(Value::as_u64).unwrap_or(0) as u32;
+    let height = screen.get("height").and_then(Value::as_u64).unwrap_or(0) as u32;
+    let mut out = Vec::new();
+    let mut encoder = png::Encoder::new(&mut out, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Fast);
+    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
+    writer.write_image_data(&rgba).map_err(|e| e.to_string())?;
+    writer.finish().map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
 // ---- run -----------------------------------------------------------------------------------------
 
-pub fn run(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json"])?;
-    let path = args.one_positional("fichier .nwa")?;
+pub fn run(args: RunArgs) -> Outcome {
     let mut session = Session::new();
-    call(&mut session, load_request(&args, &read_file(path)?)?)?;
+    call(
+        &mut session,
+        load_request(&args.device, &read_file(&args.app)?)?,
+    )?;
 
-    for key in args.values("press") {
+    for key in &args.press {
         call(
             &mut session,
             Value::object()
@@ -90,10 +110,10 @@ pub fn run(raw: &[String]) -> Outcome {
         )?;
     }
     let mut request = Value::object().with("cmd", "run");
-    if let Some(n) = args.number("instructions")? {
+    if let Some(n) = args.instructions {
         request.set("instructions", n);
     }
-    if let Some(n) = args.number("frames")? {
+    if let Some(n) = args.frames {
         request.set("frames", n);
     }
     let ran = call(&mut session, request)?;
@@ -101,17 +121,10 @@ pub fn run(raw: &[String]) -> Outcome {
         &mut session,
         Value::object()
             .with("cmd", "screen")
-            .with("png", args.value("screenshot").is_some()),
+            .with("rgba_base64", args.screenshot.is_some()),
     )?;
-    if let Some(out) = args.value("screenshot") {
-        let png = json::base64_decode(
-            screen
-                .get("png_base64")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
-        )
-        .ok_or("capture illisible")?;
-        write_file(out, &png)?;
+    if let Some(out) = &args.screenshot {
+        write_file(out, &png_from_reply(&screen)?)?;
     }
 
     let stop = ran.get("stop").cloned().unwrap_or(Value::Null);
@@ -128,7 +141,7 @@ pub fn run(raw: &[String]) -> Outcome {
         .with("time_ms", ran.get("time_ms").cloned())
         .with("screen_crc32", screen.get("crc32").cloned())
         .with("stdout", stdout.get("text").cloned());
-    print(&args, &summary, || {
+    print(args.json, &summary, || {
         format!(
             "arrêt : {}\nimages : {}\ninstructions : {}\ntemps virtuel : {} ms\nécran (crc32) : {}\nsortie standard : {:?}",
             summary.get("stop").map_or(String::new(), |s| s.to_string()),
@@ -150,22 +163,15 @@ pub fn run(raw: &[String]) -> Outcome {
 
 // ---- inspect -------------------------------------------------------------------------------------
 
-pub fn inspect(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json"])?;
+pub fn inspect(args: InspectArgs) -> Outcome {
     let mut session = Session::new();
-    match args.positional.as_slice() {
-        [] => {
-            call(
-                &mut session,
-                Value::object()
-                    .with("cmd", "new")
-                    .with("model", model_option(&args)?),
-            )?;
+    match &args.app {
+        None => {
+            call(&mut session, device_request("new", &args.device))?;
         }
-        [path] => {
-            call(&mut session, load_request(&args, &read_file(path)?)?)?;
+        Some(path) => {
+            call(&mut session, load_request(&args.device, &read_file(path)?)?)?;
         }
-        _ => return Err("trop d'arguments".to_owned()),
     }
     let reply = call(&mut session, Value::object().with("cmd", "inspect"))?;
     // Toujours en JSON : c'est le format de référence de cette vue.
@@ -175,22 +181,22 @@ pub fn inspect(raw: &[String]) -> Outcome {
 
 // ---- link ----------------------------------------------------------------------------------------
 
-pub fn link_cmd(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json", "map"])?;
-    let path = args.one_positional("fichier .nwa")?;
-    let model = model_option(&args)?;
+pub fn link_cmd(args: LinkArgs) -> Outcome {
     let model = Model::ALL
         .into_iter()
-        .find(|m| m.name().eq_ignore_ascii_case(model))
-        .expect("vérifié");
-    let device =
-        DeviceImage::new(FirmwareProfile::default_for(model)).map_err(|e| e.to_string())?;
-    let data = match args.value("data") {
+        .find(|m| m.name().eq_ignore_ascii_case(args.device.model.as_str()))
+        .expect("modèle connu de clap");
+    let profile = match args.device.firmware {
+        FirmwareOpt::V24 => FirmwareProfile::epsilon_24(model),
+        FirmwareOpt::V26 => FirmwareProfile::epsilon_26_4_0(model),
+    };
+    let device = DeviceImage::new(profile).map_err(|e| e.to_string())?;
+    let data = match &args.device.data {
         Some(p) => Some(read_file(p)?),
         None => None,
     };
     let app = link(
-        &read_file(path)?,
+        &read_file(&args.app)?,
         data.as_deref(),
         &device.app_layout(),
         &LinkOptions::default(),
@@ -215,7 +221,7 @@ pub fn link_cmd(raw: &[String]) -> Outcome {
                 .map(|w| Value::from(format!("{w:?}")))
                 .collect::<Vec<_>>(),
         );
-    if args.flag("map") {
+    if args.map {
         out.set(
             "sections",
             app.sections
@@ -248,7 +254,7 @@ pub fn link_cmd(raw: &[String]) -> Outcome {
                 .collect::<Vec<_>>(),
         );
     }
-    print(&args, &out, || {
+    print(args.json, &out, || {
         let mut text = format!(
             "{} (API {})\nflash {:#010x}, {} octets (installé : {})\nentrée {:#010x}\ndata {:#010x}+{:#x}  bss {:#010x}+{:#x}  tas {:#010x}+{:#x}",
             app.name,
@@ -267,7 +273,7 @@ pub fn link_cmd(raw: &[String]) -> Outcome {
         for w in &app.warnings {
             text += &format!("\navertissement : {w:?}");
         }
-        if args.flag("map") {
+        if args.map {
             text += "\n\nsections :";
             for s in &app.sections {
                 text += &format!(
@@ -290,33 +296,23 @@ pub fn link_cmd(raw: &[String]) -> Outcome {
 // ---- fs ------------------------------------------------------------------------------------------
 
 /// Manipule une image du système de fichiers (le tampon de 42 Kio) stockée dans un fichier.
-pub fn fs_cmd(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json"])?;
-    let image_path = args
-        .value("image")
-        .ok_or("--image <fichier> est obligatoire")?;
-    let (op, rest) = args
-        .positional
-        .split_first()
-        .ok_or("opération manquante (list, stats, read, write, remove, rename)")?;
+pub fn fs_cmd(args: FsArgs) -> Outcome {
+    let image_path = &args.image;
+    let shown = image_path.display();
     let mut buffer = match fs::read(image_path) {
         Ok(bytes) if bytes.len() == STORAGE_SIZE => bytes,
         Ok(bytes) => {
             return Err(format!(
-                "{image_path} : {} octets au lieu de {STORAGE_SIZE}",
+                "{shown} : {} octets au lieu de {STORAGE_SIZE}",
                 bytes.len()
             ));
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => vec![0; STORAGE_SIZE],
-        Err(e) => return Err(format!("{image_path} : {e}")),
+        Err(e) => return Err(format!("{shown} : {e}")),
     };
     let e = |e: nwasabi::storage::FsError| e.to_string();
-    let name = || {
-        rest.first()
-            .ok_or_else(|| "nom de fichier manquant".to_owned())
-    };
-    match op.as_str() {
-        "list" => {
+    match &args.op {
+        FsOp::List => {
             let parsed = records::parse(&buffer);
             let files: Vec<Value> = parsed
                 .records
@@ -331,7 +327,7 @@ pub fn fs_cmd(raw: &[String]) -> Outcome {
             let out = Value::object()
                 .with("files", files)
                 .with("corrupt_at", parsed.corrupt_at);
-            print(&args, &out, || {
+            print(args.json, &out, || {
                 let mut t = String::new();
                 for r in &parsed.records {
                     t += &format!("{:>6}  {}\n", r.body_len, r.name);
@@ -342,14 +338,14 @@ pub fn fs_cmd(raw: &[String]) -> Outcome {
                 t.trim_end().to_owned()
             });
         }
-        "stats" => {
+        FsOp::Stats => {
             let parsed = records::parse(&buffer);
             let out = Value::object()
                 .with("total", buffer.len())
                 .with("used", parsed.used)
                 .with("free", buffer.len() - parsed.used)
                 .with("records", parsed.records.len());
-            print(&args, &out, || {
+            print(args.json, &out, || {
                 format!(
                     "{} octets utilisés sur {}, {} fichier(s)",
                     parsed.used,
@@ -358,48 +354,43 @@ pub fn fs_cmd(raw: &[String]) -> Outcome {
                 )
             });
         }
-        "read" => {
-            let body = records::read(&buffer, name()?).map_err(e)?;
-            match args.value("out") {
+        FsOp::Read { name, out } => {
+            let body = records::read(&buffer, name).map_err(e)?;
+            match out {
                 Some(path) => write_file(path, &body)?,
                 None => std::io::stdout()
                     .write_all(&body)
                     .map_err(|e| e.to_string())?,
             }
         }
-        "write" => {
-            let body = match (args.value("from"), args.value("text")) {
+        FsOp::Write { name, from, text } => {
+            let body = match (from, text) {
                 (Some(path), _) => read_file(path)?,
                 (None, Some(t)) => t.as_bytes().to_vec(),
-                (None, None) => return Err("--from <fichier> ou --text <texte> attendu".to_owned()),
+                (None, None) => unreachable!("clap exige --from ou --text"),
             };
-            buffer = records::write(&buffer, name()?, &body).map_err(e)?;
+            buffer = records::write(&buffer, name, &body).map_err(e)?;
             write_file(image_path, &buffer)?;
         }
-        "remove" => {
-            buffer = records::remove(&buffer, name()?).map_err(e)?;
+        FsOp::Remove { name } => {
+            buffer = records::remove(&buffer, name).map_err(e)?;
             write_file(image_path, &buffer)?;
         }
-        "rename" => {
-            let [from, to] = rest else {
-                return Err("usage : rename <ancien> <nouveau>".to_owned());
-            };
+        FsOp::Rename { from, to } => {
             buffer = records::rename(&buffer, from, to).map_err(e)?;
             write_file(image_path, &buffer)?;
         }
-        other => return Err(format!("opération inconnue : {other}")),
     }
     Ok(0)
 }
 
 // ---- survey --------------------------------------------------------------------------------------
 
-fn collect_apps(paths: &[String]) -> Result<Vec<String>, String> {
+fn collect_apps(paths: &[PathBuf]) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
-    for p in paths {
-        let path = Path::new(p);
+    for path in paths {
         if path.is_dir() {
-            let entries = fs::read_dir(path).map_err(|e| format!("{p} : {e}"))?;
+            let entries = fs::read_dir(path).map_err(|e| format!("{} : {e}", path.display()))?;
             let mut found: Vec<String> = entries
                 .filter_map(Result::ok)
                 .map(|e| e.path())
@@ -409,20 +400,19 @@ fn collect_apps(paths: &[String]) -> Result<Vec<String>, String> {
             found.sort();
             files.extend(found);
         } else {
-            files.push(p.clone());
+            files.push(path.to_string_lossy().into_owned());
         }
     }
     Ok(files)
 }
 
 /// Lance chaque application sans touche et résume ce qui s'est passé (comme le test du corpus).
-pub fn survey(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json"])?;
-    let files = collect_apps(&args.positional)?;
+pub fn survey(args: SurveyArgs) -> Outcome {
+    let files = collect_apps(&args.paths)?;
     if files.is_empty() {
         return Err("aucun fichier .nwa (donner des fichiers ou un dossier)".to_owned());
     }
-    let budget = args.number("instructions")?.unwrap_or(40_000_000);
+    let budget = args.instructions.unwrap_or(40_000_000);
     let mut results = Vec::new();
     let mut faults = 0;
     for path in &files {
@@ -482,7 +472,7 @@ pub fn survey(raw: &[String]) -> Outcome {
         }
         results.push(entry.with("app", name));
     }
-    if args.flag("json") {
+    if args.json {
         println!("{}", Value::object().with("apps", results));
     } else {
         for r in &results {
@@ -525,9 +515,9 @@ fn read_paths(request: &mut Value) -> Result<(), String> {
     if request.get("save_png").is_some() {
         // Le PNG est demandé pour l'écrire dans le fichier ; il ne reste dans la réponse que si
         // l'appelant l'avait réclamé lui-même.
-        let asked = request.get("png").is_some();
-        request.set("png", true);
-        request.set("_strip_png", !asked);
+        let asked = request.get("rgba_base64").is_some();
+        request.set("rgba_base64", true);
+        request.set("_strip_rgba", !asked);
     }
     Ok(())
 }
@@ -536,33 +526,28 @@ fn write_paths(request: &Value, reply: &mut Value) -> Result<(), String> {
     if reply.get("ok").and_then(Value::as_bool) != Some(true) {
         return Ok(());
     }
-    for (path_key, content_key) in [("save_png", "png_base64"), ("save_path", "base64")] {
-        if let Some(path) = request.get(path_key).and_then(Value::as_str) {
-            let content = reply.get(content_key).and_then(Value::as_str).unwrap_or("");
-            write_file(
-                path,
-                &json::base64_decode(content).ok_or("contenu illisible")?,
-            )?;
-            reply.set("saved", path);
-            if path_key == "save_png"
-                && request.get("_strip_png").and_then(Value::as_bool) == Some(true)
-                && let Value::Object(entries) = reply
-            {
-                entries.retain(|(k, _)| k != content_key);
-            }
+    if let Some(path) = request.get("save_png").and_then(Value::as_str) {
+        write_file(path, &png_from_reply(reply)?)?;
+        reply.set("saved", path);
+        if request.get("_strip_rgba").and_then(Value::as_bool) == Some(true)
+            && let Value::Object(entries) = reply
+        {
+            entries.remove("rgba_base64");
         }
+    }
+    if let Some(path) = request.get("save_path").and_then(Value::as_str) {
+        let content = reply.get("base64").and_then(Value::as_str).unwrap_or("");
+        write_file(
+            path,
+            &json::base64_decode(content).ok_or("contenu illisible")?,
+        )?;
+        reply.set("saved", path);
     }
     Ok(())
 }
 
 /// Une requête JSON par ligne sur l'entrée standard, une réponse par ligne sur la sortie.
-pub fn session(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["stdio"])?;
-    if !args.positional.is_empty() {
-        return Err(
-            "« session » ne prend pas d'argument (requêtes sur l'entrée standard)".to_owned(),
-        );
-    }
+pub fn session(_args: SessionArgs) -> Outcome {
     let mut session = Session::new();
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
@@ -574,7 +559,7 @@ pub fn session(raw: &[String]) -> Outcome {
         let reply = match json::parse(&line) {
             Err(e) => Value::object()
                 .with("ok", false)
-                .with("error", e.to_string()),
+                .with("error", format!("JSON invalide : {e}")),
             Ok(request) if request.get("cmd").and_then(Value::as_str) == Some("quit") => break,
             Ok(mut request) => match read_paths(&mut request) {
                 Err(e) => Value::object().with("ok", false).with("error", e),
@@ -595,13 +580,12 @@ pub fn session(raw: &[String]) -> Outcome {
 
 // ---- keys ----------------------------------------------------------------------------------------
 
-pub fn keys(raw: &[String]) -> Outcome {
-    let args = Args::parse(raw, &["json"])?;
+pub fn keys(args: KeysArgs) -> Outcome {
     let list: Vec<Value> = Key::ALL
         .iter()
         .map(|k| Value::object().with("name", k.name()).with("bit", k.bit()))
         .collect();
-    print(&args, &Value::object().with("keys", list), || {
+    print(args.json, &Value::object().with("keys", list), || {
         Key::ALL
             .iter()
             .map(|k| format!("{:>2}  {}", k.bit(), k.name()))

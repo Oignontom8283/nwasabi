@@ -2,7 +2,7 @@
 
 use crate::emulator::{Fault, RunStop, Usage};
 use crate::inspect::{Found, ModelClass, Structures};
-use crate::json::Value;
+use crate::json::{Value, ValueExt};
 use crate::link::LinkedApp;
 use crate::memory::RegionInfo;
 use crate::storage::{FileKind, Listing, Stats};

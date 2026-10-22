@@ -18,13 +18,13 @@
 
 mod views;
 
+use crate::checksum;
 use crate::emulator::{Emulator, RunStop};
 use crate::inspect::read_structures;
-use crate::json::{self, Value};
+use crate::json::{self, Value, ValueExt};
 use crate::kernel::KernelConfig;
 use crate::kernel::Key;
 use crate::memory::WatchKind;
-use crate::png;
 use crate::profile::{FirmwareProfile, Model, Slot};
 use crate::storage::PythonSource;
 
@@ -108,7 +108,7 @@ impl Session {
     /// Traite une requête et rend la réponse.
     pub fn handle(&mut self, request: &Value) -> Value {
         let mut reply = match self.dispatch(request) {
-            Ok(v) => Value::object().with("ok", true).merged(v),
+            Ok(v) => merged(Value::object().with("ok", true), v),
             Err(e) => Value::object().with("ok", false).with("error", e),
         };
         if let Some(id) = request.get("id") {
@@ -123,7 +123,7 @@ impl Session {
             Ok(request) => self.handle(&request).to_string(),
             Err(e) => Value::object()
                 .with("ok", false)
-                .with("error", e.to_string())
+                .with("error", format!("JSON invalide : {e}"))
                 .to_string(),
         }
     }
@@ -426,18 +426,19 @@ impl Session {
         let mut out = Value::object()
             .with("width", crate::kernel::display::WIDTH)
             .with("height", crate::kernel::display::HEIGHT)
-            .with("crc32", format!("{:08x}", png::crc32(&bytes)))
+            .with("crc32", format!("{:08x}", checksum::crc32(&bytes)))
             .with(
                 "lit_pixels",
                 display.pixels().iter().filter(|&&p| p != 0).count(),
             );
-        if req.get("png").and_then(Value::as_bool) == Some(true) {
-            let image = png::encode_rgba(
-                crate::kernel::display::WIDTH,
-                crate::kernel::display::HEIGHT,
-                &display.to_rgba(),
+        if req.get("png").is_some() {
+            return Err(
+                "l'encodage PNG se fait côté hôte : demander « rgba_base64 » (pixels RGBA bruts)"
+                    .to_owned(),
             );
-            out.set("png_base64", json::base64_encode(&image));
+        }
+        if req.get("rgba_base64").and_then(Value::as_bool) == Some(true) {
+            out.set("rgba_base64", json::base64_encode(&display.to_rgba()));
         }
         if req.get("rgb565_base64").and_then(Value::as_bool) == Some(true) {
             out.set("rgb565_base64", json::base64_encode(&bytes));
@@ -603,14 +604,12 @@ impl Session {
     }
 }
 
-impl Value {
-    /// Ajoute les clés de `other` (un objet) à `self`.
-    fn merged(mut self, other: Value) -> Value {
-        if let Value::Object(entries) = other {
-            for (k, v) in entries {
-                self.set(&k, v);
-            }
+/// Ajoute les clés de `other` (un objet) à `base`.
+fn merged(mut base: Value, other: Value) -> Value {
+    if let Value::Object(entries) = other {
+        for (k, v) in entries {
+            base.set(&k, v);
         }
-        self
     }
+    base
 }

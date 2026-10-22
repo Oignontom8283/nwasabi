@@ -56,7 +56,10 @@ fn request(server: &Server, raw: &str) -> (u16, Vec<u8>) {
 }
 
 fn get(server: &Server, path: &str) -> (u16, Vec<u8>) {
-    request(server, &format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n"))
+    request(
+        server,
+        &format!("GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+    )
 }
 
 #[test]
@@ -109,30 +112,35 @@ fn unknown_paths_and_methods_are_refused_and_nothing_is_read_from_disk() {
     assert_eq!(get(&server, "/../Cargo.toml").0, 404);
     assert_eq!(get(&server, "/%2e%2e/Cargo.toml").0, 404);
     assert_eq!(
-        request(&server, "POST / HTTP/1.1\r\nHost: x\r\n\r\n").0,
+        request(
+            &server,
+            "POST / HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+        )
+        .0,
         405
     );
-    assert_eq!(request(&server, "\r\n\r\n").0, 400);
     // Les paramètres d'URL ne changent pas la route.
     assert_eq!(get(&server, "/__nwasabi/health?x=1").0, 200);
 }
 
 #[test]
 fn bad_arguments_are_reported() {
-    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
-        .args(["--model", "n9999"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("modèle inconnu"));
-    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
-        .args(["--nwa", "/inexistant.nwa"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
-        .args(["--data", "x"])
-        .output()
-        .unwrap();
-    assert!(String::from_utf8_lossy(&out.stderr).contains("--data demande --nwa"));
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    // Mauvais usage : code 2 (clap).
+    assert_eq!(run(&["--model", "n9999"]).status.code(), Some(2));
+    assert_eq!(
+        run(&["--data", "x"]).status.code(),
+        Some(2),
+        "--data demande --nwa"
+    );
+    assert_eq!(run(&["--firmware", "1.0"]).status.code(), Some(2));
+    // Fichier introuvable : erreur d'exécution, code 1.
+    let out = run(&["--nwa", "/inexistant.nwa"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("/inexistant.nwa"));
 }

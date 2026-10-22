@@ -86,9 +86,9 @@ if (!corpus) {
       assert.equal(crc, golden.get(name).crc, "empreinte de l'écran différente du natif");
     });
   }
-  check("capture PNG", () => {
-    const png = fromBase64(emu.call({ cmd: "screen", png: true }).png_base64);
-    assert.deepEqual([...png.slice(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  check("capture : pixels RGBA bruts", () => {
+    const rgba = fromBase64(emu.call({ cmd: "screen", rgba_base64: true }).rgba_base64);
+    assert.equal(rgba.length, 320 * 240 * 4);
   });
 }
 
