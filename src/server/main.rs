@@ -4,33 +4,74 @@
 //! s'exécute dans le navigateur, pas dans ce binaire. Avec `--nwa`, la page est servie déjà chargée
 //! avec l'application : elle la récupère sur `/__nwasabi/preload`.
 //!
-//! Le serveur n'accède jamais au disque pour répondre : il ne sert que ce qui est embarqué dans le
-//! binaire (voir `build.rs`) et l'application donnée au démarrage.
+//! Le site (construit par `build.rs`) est embarqué dans le binaire par `rust-embed` : le serveur ne lit
+//! jamais le disque pour répondre, il ne sert que ce qui est embarqué et l'application donnée au
+//! démarrage.
 
-mod http;
-
-use std::net::TcpListener;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use http::{Response, content_type};
+use axum::extract::State;
+use axum::http::{StatusCode, Uri, header};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
+use axum::{Json, Router};
+use clap::{Parser, ValueEnum};
+use rust_embed::RustEmbed;
+use serde_json::{Value, json};
 
-include!(concat!(env!("OUT_DIR"), "/assets.rs"));
+/// Le site, construit par `build.rs` (dossier donné par `NWASABI_WEB_DIST`).
+#[derive(RustEmbed)]
+#[folder = "$NWASABI_WEB_DIST"]
+struct Site;
 
-const USAGE: &str = "\
-nwasabi — serveur web de démonstration de l'émulateur d'applications NumWorks (.nwa)
+/// Modèle de calculatrice.
+#[derive(Clone, Copy, ValueEnum)]
+enum ModelOpt {
+    N0110,
+    N0115,
+    N0120,
+}
 
-USAGE :
-  nwasabi [--nwa <app.nwa>] [--model n0110|n0115|n0120] [--data <fichier>]
-          [--firmware 24|26.4.0] [--port <n>] [--host <adresse>] [--open]
+/// Disposition du firmware émulé.
+#[derive(Clone, Copy, ValueEnum)]
+enum FirmwareOpt {
+    /// Appareils relevés (Epsilon 23–24), celle que supposent les applications eadkp
+    #[value(name = "24")]
+    V24,
+    /// Epsilon 26.4.0 officiel
+    #[value(name = "26.4.0")]
+    V26,
+}
 
-  --nwa     application à précharger dans la page
-  --model   modèle de calculatrice (défaut : n0110)
-  --firmware  disposition du firmware : 24 (appareils relevés, défaut) ou 26.4.0
-  --data    données externes de l'application
-  --port    port d'écoute (défaut : 8080 ; 0 : un port libre)
-  --host    adresse d'écoute (défaut : 127.0.0.1, accessible depuis cette machine seulement)
-  --open    ouvre la page dans le navigateur";
+/// nwasabi : serveur web de démonstration de l'émulateur d'applications NumWorks (.nwa).
+#[derive(Parser)]
+#[command(name = "nwasabi", version)]
+struct Options {
+    /// Application à précharger dans la page
+    #[arg(long, value_name = "FICHIER.nwa")]
+    nwa: Option<PathBuf>,
+    /// Modèle de calculatrice
+    #[arg(long, value_enum, ignore_case = true, default_value = "n0110")]
+    model: ModelOpt,
+    /// Disposition du firmware
+    #[arg(long, value_enum, default_value = "24")]
+    firmware: FirmwareOpt,
+    /// Données externes de l'application
+    #[arg(long, value_name = "FICHIER", requires = "nwa")]
+    data: Option<PathBuf>,
+    /// Port d'écoute (0 : un port libre)
+    #[arg(long, default_value_t = 8080)]
+    port: u16,
+    /// Adresse d'écoute (par défaut : cette machine seulement)
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+    /// Ouvre la page dans le navigateur
+    #[arg(long)]
+    open: bool,
+}
 
+/// L'application donnée avec `--nwa`, servie à la page.
 struct Preload {
     name: String,
     model: String,
@@ -39,62 +80,47 @@ struct Preload {
     data: Option<Vec<u8>>,
 }
 
-fn escape_json(s: &str) -> String {
-    nwasabi::json::Value::from(s).to_string()
+type Shared = Arc<Option<Preload>>;
+
+async fn health() -> Json<Value> {
+    Json(json!({ "ok": true }))
 }
 
-fn preload_json(p: &Preload) -> String {
-    use nwasabi::json::{Value, base64_encode};
-    Value::object()
-        .with("name", p.name.as_str())
-        .with("model", p.model.as_str())
-        .with("firmware", p.firmware.as_str())
-        .with("nwa_base64", base64_encode(&p.nwa))
-        .with("data_base64", p.data.as_deref().map(base64_encode))
-        .to_string()
+async fn preload(State(preload): State<Shared>) -> Json<Value> {
+    use nwasabi::json::base64_encode;
+    Json(match preload.as_ref() {
+        Some(p) => json!({
+            "name": p.name,
+            "model": p.model,
+            "firmware": p.firmware,
+            "nwa_base64": base64_encode(&p.nwa),
+            "data_base64": p.data.as_deref().map(base64_encode),
+        }),
+        None => Value::Null,
+    })
 }
 
-/// Page affichée quand le site n'a pas été construit dans ce binaire.
-fn fallback_page(preload: Option<&Preload>) -> String {
-    let app = match preload {
-        Some(p) => format!(
-            "<p>Application préchargée : <b>{}</b> ({}). Ses octets sont disponibles sur \
-             <a href=\"/__nwasabi/preload\">/__nwasabi/preload</a>.</p>",
-            p.name.replace('<', "&lt;"),
-            p.model
-        ),
-        None => "<p>Aucune application préchargée (option <code>--nwa</code>).</p>".to_owned(),
+/// Un fichier du site ; le type MIME (dont `application/wasm`, indispensable pour compiler un
+/// module en continu) est déduit de l'extension par `rust-embed`.
+async fn site(uri: Uri) -> Response {
+    let path = match uri.path().trim_start_matches('/') {
+        "" => "index.html",
+        other => other,
     };
-    format!(
-        "<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>nwasabi</title>\
-         <body style=\"font-family:sans-serif;max-width:40em;margin:2em auto;padding:0 1em\">\
-         <h1>nwasabi</h1>\
-         <p>Le serveur fonctionne, mais l'interface web n'est pas incluse dans ce binaire \
-         (dossier <code>web-dist/</code> absent à la compilation).</p>{app}\
-         <p>En attendant, l'outil <code>nwasabi-cli</code> permet de tout essayer en ligne de commande.</p>"
-    )
-}
-
-fn route(path: &str, preload: Option<&Preload>) -> Response {
-    match path {
-        "/__nwasabi/health" => Response::ok("application/json", b"{\"ok\":true}".to_vec()),
-        "/__nwasabi/preload" => match preload {
-            Some(p) => Response::ok("application/json", preload_json(p).into_bytes()),
-            None => Response::ok("application/json", b"null".to_vec()),
-        },
-        _ => {
-            let wanted = if path == "/" { "/index.html" } else { path };
-            if let Some((_, body)) = ASSETS.iter().find(|(url, _)| *url == wanted) {
-                return Response::ok(content_type(wanted), body.to_vec());
-            }
-            if path == "/" {
-                return Response::ok(
-                    "text/html; charset=utf-8",
-                    fallback_page(preload).into_bytes(),
-                );
-            }
-            Response::text(404, &format!("introuvable : {}", escape_json(path)))
-        }
+    match Site::get(path) {
+        Some(file) => (
+            [
+                (header::CONTENT_TYPE, file.metadata.mimetype().to_owned()),
+                (header::CACHE_CONTROL, "no-cache".to_owned()),
+            ],
+            file.data,
+        )
+            .into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            format!("introuvable : {}", uri.path()),
+        )
+            .into_response(),
     }
 }
 
@@ -115,92 +141,61 @@ fn open_browser(url: &str) {
     }
 }
 
-fn run(args: &[String]) -> Result<(), String> {
-    let mut nwa_path = None;
-    let (mut model, mut data_path) = ("n0110".to_owned(), None);
-    let mut firmware = "24".to_owned();
-    let (mut port, mut host, mut open) = (8080u16, "127.0.0.1".to_owned(), false);
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        let mut value = |name: &str| {
-            it.next()
-                .cloned()
-                .ok_or_else(|| format!("l'option {name} attend une valeur"))
-        };
-        match arg.as_str() {
-            "--nwa" => nwa_path = Some(value("--nwa")?),
-            "--model" => model = value("--model")?,
-            "--data" => data_path = Some(value("--data")?),
-            "--firmware" => firmware = value("--firmware")?,
-            "--port" => {
-                port = value("--port")?
-                    .parse()
-                    .map_err(|_| "--port : nombre de 0 à 65535 attendu".to_owned())?;
-            }
-            "--host" => host = value("--host")?,
-            "--open" => open = true,
-            other => return Err(format!("argument inconnu : {other}")),
-        }
-    }
-    if !["n0110", "n0115", "n0120"].contains(&model.to_ascii_lowercase().as_str()) {
-        return Err(format!("modèle inconnu : {model} (n0110, n0115 ou n0120)"));
-    }
-
-    if !["24", "26.4.0"].contains(&firmware.as_str()) {
-        return Err(format!("firmware inconnu : {firmware} (24 ou 26.4.0)"));
-    }
-    let preload = match nwa_path {
+async fn run(options: Options) -> Result<(), String> {
+    let model = match options.model {
+        ModelOpt::N0110 => "n0110",
+        ModelOpt::N0115 => "n0115",
+        ModelOpt::N0120 => "n0120",
+    };
+    let firmware = match options.firmware {
+        FirmwareOpt::V24 => "24",
+        FirmwareOpt::V26 => "26.4.0",
+    };
+    let preload_data = match &options.nwa {
         Some(path) => {
-            let nwa = std::fs::read(&path).map_err(|e| format!("{path} : {e}"))?;
-            let data = match &data_path {
-                Some(p) => Some(std::fs::read(p).map_err(|e| format!("{p} : {e}"))?),
+            let shown = path.display();
+            let nwa = std::fs::read(path).map_err(|e| format!("{shown} : {e}"))?;
+            let data = match &options.data {
+                Some(p) => Some(std::fs::read(p).map_err(|e| format!("{} : {e}", p.display()))?),
                 None => None,
             };
-            let name = std::path::Path::new(&path)
+            let name = path
                 .file_name()
-                .map_or(path.clone(), |n| n.to_string_lossy().into_owned());
+                .map_or(shown.to_string(), |n| n.to_string_lossy().into_owned());
             Some(Preload {
                 name,
-                model: model.to_ascii_lowercase(),
-                firmware,
+                model: model.to_owned(),
+                firmware: firmware.to_owned(),
                 nwa,
                 data,
             })
         }
-        None if data_path.is_some() => return Err("--data demande --nwa".to_owned()),
         None => None,
     };
 
-    let listener =
-        TcpListener::bind((host.as_str(), port)).map_err(|e| format!("{host}:{port} : {e}"))?;
+    let app = Router::new()
+        .route("/__nwasabi/health", get(health))
+        .route("/__nwasabi/preload", get(preload))
+        .fallback(get(site))
+        .with_state(Arc::new(preload_data));
+
+    let (host, port) = (options.host.as_str(), options.port);
+    let listener = tokio::net::TcpListener::bind((host, port))
+        .await
+        .map_err(|e| format!("{host}:{port} : {e}"))?;
     let address = listener.local_addr().map_err(|e| e.to_string())?;
     let url = format!("http://{address}/");
     println!("{url}");
-    if open {
+    if options.open {
         open_browser(&url);
     }
-
-    let preload = Arc::new(preload);
-    for stream in listener.incoming().filter_map(Result::ok) {
-        let preload = Arc::clone(&preload);
-        std::thread::spawn(move || {
-            http::serve_connection(stream, &|path| route(path, preload.as_ref().as_ref()));
-        });
-    }
-    Ok(())
+    axum::serve(listener, app).await.map_err(|e| e.to_string())
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args
-        .iter()
-        .any(|a| a == "--help" || a == "-h" || a == "help")
-    {
-        println!("{USAGE}");
-        return;
-    }
-    if let Err(message) = run(&args) {
-        eprintln!("erreur : {message}\n\n{USAGE}");
-        std::process::exit(2);
+#[tokio::main]
+async fn main() {
+    if let Err(message) = run(Options::parse()).await {
+        eprintln!("erreur : {message}");
+        std::process::exit(1);
     }
 }
