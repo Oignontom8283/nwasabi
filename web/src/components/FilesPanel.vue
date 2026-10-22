@@ -1,6 +1,6 @@
 <script setup>
 import { inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { fromBase64, toBase64 } from "../nwasabi.js";
+import { fromBase64, toBase64 } from "@nwasabi/js";
 
 const { state, call } = inject("emulator");
 const files = ref([]);
