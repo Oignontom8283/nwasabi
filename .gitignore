@@ -28,3 +28,9 @@ web/node_modules
 web/dist
 example/nwasabi.js
 example/nwasabi.wasm
+
+# Site vitrine (docs/) : dépendances, sorties de VitePress et émulateur copié par `just site`.
+docs/node_modules
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/public/emulator
