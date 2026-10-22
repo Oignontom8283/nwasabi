@@ -203,15 +203,17 @@ fn the_session_draws_the_same_screen_as_the_corpus_reference() {
             .and_then(Value::as_str),
         Some("budget")
     );
-    let screen = ok(&mut s, r#"{"cmd":"screen","png":true}"#);
+    let screen = ok(&mut s, r#"{"cmd":"screen","rgba_base64":true}"#);
     // Même empreinte que dans tests/golden/screens.tsv (lancement par `emulator_corpus`).
     assert_eq!(
         screen.get("crc32").and_then(Value::as_str),
         Some("a6a4533d")
     );
-    let png =
-        json::base64_decode(screen.get("png_base64").and_then(Value::as_str).unwrap()).unwrap();
-    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    let rgba =
+        json::base64_decode(screen.get("rgba_base64").and_then(Value::as_str).unwrap()).unwrap();
+    assert_eq!(rgba.len(), 320 * 240 * 4);
+    // Le PNG est l'affaire de l'hôte : le cœur le refuse.
+    assert!(error(&mut s, r#"{"cmd":"screen","png":true}"#).contains("côté hôte"));
 
     let usage = ok(&mut s, r#"{"cmd":"usage"}"#);
     assert!(
