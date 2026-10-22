@@ -4,8 +4,8 @@
 //! 1. s'assurer que la cible `wasm32-unknown-unknown` est installée (`rustup target add`) ;
 //! 2. compiler le module WebAssembly de nwasabi avec un `cargo` imbriqué (dossier de cibles à part,
 //!    sinon le verrou de cargo bloquerait) ;
-//! 3. construire l'interface Vue (`web/`) avec Node (`npm ci` puis `npm run build`), sur une copie
-//!    de `web/` placée dans `OUT_DIR`.
+//! 3. construire avec Node (`npm ci`, puis `@nwasabi/js` en TypeScript, puis l'interface Vue de `web/`)
+//!    sur une copie des workspaces npm (`package.json`, `packages/`, `web/`) placée dans `OUT_DIR`.
 //!
 //! Les chemins sont décidés ici puis donnés aux outils : à Vite par `NWASABI_WASM` et
 //! `NWASABI_WEB_OUT`, au reste de la compilation par `NWASABI_WEB_DIST` (lu par `rust-embed`).
@@ -96,25 +96,39 @@ fn build_wasm(manifest: &Path, out: &Path) -> Result<PathBuf, String> {
 
 fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(), String> {
     let hint = "Installer Node.js (https://nodejs.org) ou définir NWASABI_NO_WEB=1 pour compiler sans l'interface web.";
-    // Copie de travail : les paquets npm s'installent ici, pas dans `web/`.
-    let web = out.join("web-src");
-    copy_site_sources(&manifest.join("web"), &web)?;
-    if !web.join("node_modules").exists() {
+    // Copie de travail des workspaces npm (racine, paquets et site) : les paquets npm s'installent ici,
+    // pas dans l'arbre source.
+    let work = out.join("web-src");
+    fs::create_dir_all(&work).map_err(|e| format!("{} : {e}", work.display()))?;
+    for file in ["package.json", "package-lock.json"] {
+        fs::copy(manifest.join(file), work.join(file)).map_err(|e| format!("{file} : {e}"))?;
+    }
+    for dir in ["packages", "web"] {
+        copy_site_sources(&manifest.join(dir), &work.join(dir))?;
+    }
+    if !work.join("node_modules").exists() {
         run(
             Command::new("npm")
                 .args(["ci", "--no-audit", "--no-fund"])
-                .current_dir(&web),
+                .current_dir(&work),
             "« npm ci »",
             hint,
         )?;
     }
     run(
         Command::new("npm")
-            .args(["run", "build"])
-            .current_dir(&web)
+            .args(["run", "build", "-w", "@nwasabi/js"])
+            .current_dir(&work),
+        "« npm run build -w @nwasabi/js »",
+        hint,
+    )?;
+    run(
+        Command::new("npm")
+            .args(["run", "build", "-w", "nwasabi-web"])
+            .current_dir(&work)
             .env("NWASABI_WASM", wasm)
             .env("NWASABI_WEB_OUT", dist),
-        "« npm run build »",
+        "« npm run build -w nwasabi-web »",
         hint,
     )
 }
@@ -152,7 +166,13 @@ fn main() {
         "web/index.html",
         "web/vite.config.js",
         "web/package.json",
-        "web/package-lock.json",
+        "packages/js/src",
+        "packages/js/package.json",
+        "packages/js/tsconfig.json",
+        "packages/wasm/src",
+        "packages/wasm/package.json",
+        "package.json",
+        "package-lock.json",
         "Cargo.toml",
     ] {
         println!("cargo:rerun-if-changed={path}");
