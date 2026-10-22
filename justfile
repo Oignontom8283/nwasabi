@@ -87,12 +87,13 @@ alias doc := docs
 
 # Prépare @nwasabi/js et @nwasabi/wasm (compilation TypeScript, module .wasm copié) ; ne publie rien.
 build-npm: build-wasm (npm-install ".")
-    npm run build -w @nwasabi/js -w @nwasabi/wasm
-    npm run copy-wasm -w @nwasabi/wasm
+    npm run build -w @nwasabi/js
+    cd packages/wasm && npm run build && npm run copy-wasm
 
 # Montre ce que contiendraient les paquets npm, sans rien écrire ni publier.
 pack-npm: build-npm
-    npm pack --dry-run -w @nwasabi/js -w @nwasabi/wasm
+    npm pack --dry-run -w @nwasabi/js
+    cd packages/wasm && npm pack --dry-run
 
 # --- Lancement --------------------------------------------------------------
 

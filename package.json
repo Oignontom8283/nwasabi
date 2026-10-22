@@ -1,10 +1,10 @@
 {
   "name": "nwasabi-workspace",
   "private": true,
-  "description": "Racine des workspaces npm de nwasabi : l'émulateur web et les paquets @nwasabi/js et @nwasabi/wasm. Rien n'est publié depuis ici.",
+  "description": "Racine des workspaces npm de nwasabi : l'émulateur web et le paquet @nwasabi/js (le paquet @nwasabi/wasm est autonome, dans packages/wasm). Rien n'est publié depuis ici.",
   "workspaces": [
     "web",
-    "packages/*"
+    "packages/js"
   ],
   "devDependencies": {
     "typescript": "^5.9.0"
