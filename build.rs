@@ -20,6 +20,16 @@ use std::process::Command;
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
+/// Nom du programme npm. Sous Windows, Node installe `npm.cmd` (pas de `npm.exe`) : les interpréteurs de
+/// commandes le trouvent grâce à `PATHEXT`, mais `Command` crée le processus directement et n'essaie
+/// que `.exe`. `cfg!` désigne ici la machine qui exécute ce script (l'hôte), qui est aussi celle où
+/// tourne npm, même quand on compile pour une autre cible.
+const NPM: &str = if cfg!(windows) { "npm.cmd" } else { "npm" };
+
+fn npm() -> Command {
+    Command::new(NPM)
+}
+
 /// Lance une commande et rend une erreur lisible si elle manque ou échoue.
 fn run(command: &mut Command, what: &str, hint: &str) -> Result<(), String> {
     let status = command
@@ -109,7 +119,7 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
     }
     if !work.join("node_modules").exists() {
         run(
-            Command::new("npm")
+            npm()
                 .args(["ci", "--no-audit", "--no-fund"])
                 .current_dir(&work),
             "« npm ci »",
@@ -117,14 +127,14 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
         )?;
     }
     run(
-        Command::new("npm")
+        npm()
             .args(["run", "build", "-w", "@nwasabi/js"])
             .current_dir(&work),
         "« npm run build -w @nwasabi/js »",
         hint,
     )?;
     run(
-        Command::new("npm")
+        npm()
             .args(["run", "build", "-w", "nwasabi-web"])
             .current_dir(&work)
             .env("NWASABI_WASM", wasm)
