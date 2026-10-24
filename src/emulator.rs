@@ -187,6 +187,14 @@ impl Emulator {
         Ok(())
     }
 
+    /// Temps de simulation écoulé depuis le début, en microsecondes : celui que voit l'application
+    /// (`timing_millis`) et qui sert à ses attentes. Il avance quand l'hôte fait passer du temps
+    /// (voir [`Kernel::advance_time`] et `ClockMode`), y compris pendant que l'application dort, et
+    /// reste figé tant que l'hôte n'en fait pas passer (simulation en pause).
+    pub fn time_us(&self) -> u64 {
+        self.kernel.micros(self.cpu.cycles)
+    }
+
     /// Exécute au plus `max_instructions` instructions de l'application.
     pub fn run(&mut self, max_instructions: u64) -> RunStop {
         if self.kernel.keyboard.exit_requested() {
