@@ -31,6 +31,8 @@ export interface PlayerState {
   instructions: number;
   error: string;
   stdout: string;
+  /** Temps de simulation écoulé depuis le début de l'application, en millisecondes (mis à jour à chaque image). */
+  timeMs: number;
   /** Augmente quand les vues dérivées (fichiers, mémoire…) doivent se rafraîchir. */
   revision: number;
 }
@@ -40,12 +42,19 @@ export interface PlayerOptions {
   state?: PlayerState;
   /** Instructions au plus par image du navigateur (défaut : 2 millions). */
   slice?: number;
+  /**
+   * Temps réel maximal donné à l'application pour une seule image, en millisecondes (défaut : 250).
+   * Une image très en retard (machine surchargée, débogueur…) est ramenée à cette valeur : ce n'est
+   * qu'un garde-fou. La pause (onglet caché, bouton…) est l'affaire de l'application hôte, qui appelle
+   * `stop()` et `start()`.
+   */
+  maxElapsedMs?: number;
 }
 
 /** Durée d'une image de la calculatrice (60 Hz), en millisecondes. */
 const FRAME_MS = 1000 / 60;
-/** Plus de temps que cela entre deux images (onglet caché…) compte comme une pause : l'application ne le voit pas. */
-const MAX_ELAPSED_MS = 250;
+/** Garde-fou par défaut contre une image très en retard (voir `PlayerOptions.maxElapsedMs`). */
+const DEFAULT_MAX_ELAPSED_MS = 250;
 /** Garde-fou : nombre maximal d'exécutions successives dans une même image du navigateur. */
 const MAX_RUNS_PER_TICK = 1000;
 
@@ -56,6 +65,7 @@ export class Player {
   readonly nwasabi: Nwasabi;
   readonly state: PlayerState;
   private readonly slice: number;
+  private readonly maxElapsedMs: number;
   private canvas: HTMLCanvasElement | null = null;
   private image: ImageData | null = null;
   private last = 0;
@@ -81,6 +91,7 @@ export class Player {
       instructions: 0,
       error: "",
       stdout: "",
+      timeMs: 0,
       revision: 0,
     };
   }
@@ -89,6 +100,7 @@ export class Player {
     this.nwasabi = nwasabi;
     this.state = options.state ?? Player.initialState();
     this.slice = options.slice ?? DEFAULT_SLICE;
+    this.maxElapsedMs = options.maxElapsedMs ?? DEFAULT_MAX_ELAPSED_MS;
   }
 
   /** Charge le module WebAssembly (à fournir, voir `Nwasabi.load`) et crée un appareil vide. */
@@ -125,6 +137,16 @@ export class Player {
     }
   }
 
+  /**
+   * Temps de simulation écoulé depuis le début de l'application, en millisecondes, à l'instant de
+   * l'appel. C'est le temps que voit l'application elle-même (`timing_millis`). Il continue de
+   * défiler pendant qu'elle dort et reste figé tant que le lecteur est en pause.
+   */
+  time(): number {
+    const reply = this.nwasabi.request({ cmd: "time" });
+    return reply.ok ? (reply.time_us as number) / 1000 : this.state.timeMs;
+  }
+
   /** Signale que les vues dérivées doivent se rafraîchir. */
   bump(): void {
     this.state.revision++;
@@ -146,6 +168,7 @@ export class Player {
     state.error = "";
     state.stdout = "";
     state.frames = 0;
+    state.timeMs = 0;
     this.pressed.clear();
     this.sampled.clear();
     this.deferred.clear();
@@ -201,8 +224,8 @@ export class Player {
   /**
    * Une image du navigateur. L'application ne voit passer que le temps réellement écoulé depuis la
    * dernière image, jamais plus : ce temps est un « budget » qu'elle consomme en dormant ou en
-   * attendant une touche, et dont le reste lui est donné à la fin. En pause, ou si l'onglet est
-   * caché, aucun temps ne lui est donné : pour elle, le temps s'arrête.
+   * attendant une touche, et dont le reste lui est donné à la fin. En pause (`stop()`), aucun temps ne
+   * lui est donné : pour elle, le temps s'arrête.
    */
   private tick(now: number): void {
     const state = this.state;
@@ -212,7 +235,7 @@ export class Player {
       this.frame = requestAnimationFrame((time) => this.tick(time));
       return;
     }
-    let budget = Math.max(0, Math.min(now - this.last, MAX_ELAPSED_MS));
+    let budget = Math.max(0, Math.min(now - this.last, this.maxElapsedMs));
     this.last = now;
     for (let runs = 0; runs < MAX_RUNS_PER_TICK && state.running; runs++) {
       const reply = this.call({ cmd: "run", instructions: this.slice, frames: 1 });
@@ -242,6 +265,7 @@ export class Player {
       }
       break;
     }
+    state.timeMs = this.time();
     this.draw();
     if (state.frames % 10 === 0 || !state.running) {
       const out = this.call({ cmd: "stdout" });
