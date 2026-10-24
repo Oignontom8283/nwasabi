@@ -21,8 +21,19 @@ export interface Reply {
   [field: string]: any;
 }
 
-/** Ce que `Nwasabi.load` accepte : une réponse HTTP, des octets ou un module déjà compilé. */
-export type WasmSource = Response | ArrayBuffer | Uint8Array | WebAssembly.Module;
+/** Une réponse HTTP (ce que rend `fetch`), vue sous l'angle dont on a besoin : ce paquet ne suppose pas le navigateur. */
+export interface ResponseLike {
+  clone(): ResponseLike;
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+/** Ce que `Nwasabi.load` accepte : une réponse HTTP, des octets (par exemple `fs.readFileSync`) ou un module déjà compilé. */
+export type WasmSource = ResponseLike | ArrayBuffer | Uint8Array | WebAssembly.Module;
+
+/** Une image RGBA à remplir : un `ImageData` du navigateur, ou n'importe quel objet qui a un tampon `data`. */
+export interface RgbaTarget {
+  data: Uint8ClampedArray;
+}
 
 /** Les fonctions exportées par le module (voir `src/wasm.rs` dans le dépôt de nwasabi). */
 interface Exports {
@@ -55,6 +66,15 @@ export function fromBase64(text: string): Uint8Array {
   return bytes;
 }
 
+function isResponse(source: WasmSource): source is ResponseLike {
+  return (
+    typeof source === "object" &&
+    typeof (source as ResponseLike).clone === "function" &&
+    typeof (source as ResponseLike).arrayBuffer === "function" &&
+    typeof WebAssembly.instantiateStreaming === "function"
+  );
+}
+
 export class Nwasabi {
   private readonly wasm: Exports;
 
@@ -70,12 +90,14 @@ export class Nwasabi {
     let instance: WebAssembly.Instance;
     if (source instanceof WebAssembly.Module) {
       instance = await WebAssembly.instantiate(source, {});
-    } else if (typeof Response !== "undefined" && source instanceof Response) {
+    } else if (isResponse(source)) {
       // La compilation « en continu » exige le type MIME `application/wasm`, que certains serveurs
       // (anciens `python -m http.server`…) ne donnent pas : dans ce cas on recharge les octets.
       const copy = source.clone();
       try {
-        instance = (await WebAssembly.instantiateStreaming(source, {})).instance;
+        instance = (
+          await WebAssembly.instantiateStreaming(source as unknown as Response, {})
+        ).instance;
       } catch (error) {
         if (!(error instanceof TypeError)) throw error;
         instance = (await WebAssembly.instantiate(await copy.arrayBuffer(), {})).instance;
@@ -114,11 +136,14 @@ export class Nwasabi {
     return new Uint16Array(this.wasm.memory.buffer, pointer, this.wasm.nwasabi_framebuffer_len());
   }
 
-  /** Recopie l'écran dans une `ImageData` (RGBA) de 320×240 ; faux s'il n'y a pas d'appareil. */
-  drawTo(image: ImageData): boolean {
+  /**
+   * L'écran en RGBA (4 octets par pixel, 320×240, ligne par ligne) : dans `target` si on en donne un
+   * (par exemple un `ImageData`), sinon dans un nouveau tampon. `null` s'il n'y a pas d'appareil.
+   */
+  rgba(target?: RgbaTarget): Uint8ClampedArray | null {
     const pixels = this.framebuffer();
-    if (!pixels) return false;
-    const out = image.data;
+    if (!pixels) return null;
+    const out = target?.data ?? new Uint8ClampedArray(pixels.length * 4);
     for (let i = 0; i < pixels.length; i++) {
       const p = pixels[i] ?? 0;
       const r = (p >> 11) & 31;
@@ -129,6 +154,11 @@ export class Nwasabi {
       out[i * 4 + 2] = (b << 3) | (b >> 2);
       out[i * 4 + 3] = 255;
     }
-    return true;
+    return out;
+  }
+
+  /** Recopie l'écran dans une image RGBA (`ImageData`…) de 320×240 ; faux s'il n'y a pas d'appareil. */
+  drawTo(image: RgbaTarget): boolean {
+    return this.rgba(image) !== null;
   }
 }
