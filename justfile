@@ -130,6 +130,7 @@ test-corpus corpus:
 # Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm local/nwa`).
 test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
+    NWASABI_CORPUS={{corpus}} node tests/wasm/player.mjs
 
 # Régénère les résultats de référence de l'édition de liens après un changement voulu.
 update-golden corpus:
