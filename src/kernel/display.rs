@@ -1,6 +1,6 @@
 //! L'écran : 320×240 pixels en RGB565, comme celui de la calculatrice.
 
-use super::font::{self, LARGE, SMALL};
+use super::font::{self, Cell, MAX_LEVEL};
 
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 240;
@@ -29,6 +29,21 @@ impl Rect {
     pub fn area(self) -> u32 {
         self.width * self.height
     }
+}
+
+/// Mélange deux couleurs RGB565 : `bg` pour le niveau 0, `fg` pour le niveau [`MAX_LEVEL`].
+fn blend(bg: u16, fg: u16, level: u8) -> u16 {
+    if level >= MAX_LEVEL {
+        return fg;
+    }
+    let level = i32::from(level);
+    let mix = |shift: u32, bits: u32| {
+        let max = (1i32 << bits) - 1;
+        let (b, f) = (i32::from(bg >> shift) & max, i32::from(fg >> shift) & max);
+        ((b * (i32::from(MAX_LEVEL) - level) + f * level + i32::from(MAX_LEVEL) / 2)
+            / i32::from(MAX_LEVEL)) as u16
+    };
+    mix(11, 5) << 11 | mix(5, 6) << 5 | mix(0, 5)
 }
 
 /// Le contenu de l'écran.
@@ -152,11 +167,12 @@ impl Display {
         out
     }
 
-    /// Écrit du texte à partir du point `(x, y)` : une cellule par caractère, sans retour à la
-    /// ligne. Les pixels éteints de la cellule prennent la couleur de fond.
+    /// Écrit du texte (UTF-8) à partir du point `(x, y)` : une cellule par caractère, sans retour à la
+    /// ligne. Le fond de chaque cellule prend la couleur `bg` ; les glyphes, en 16 niveaux de gris,
+    /// sont mélangés entre `bg` et `fg`.
     pub fn draw_text(&mut self, text: &[u8], x: u32, y: u32, large: bool, fg: u16, bg: u16) {
-        let cell = if large { LARGE } else { SMALL };
-        for (i, &c) in text.iter().enumerate() {
+        let cell = Cell::of(large);
+        for (i, code_point) in font::code_points(text).enumerate() {
             let left = x.saturating_add(i as u32 * cell.width);
             self.fill(
                 Rect {
@@ -167,7 +183,9 @@ impl Display {
                 },
                 bg,
             );
-            font::draw_glyph(c, large, |dx, dy| self.set(left + dx, y + dy, fg));
+            font::draw_glyph(code_point, large, |dx, dy, level| {
+                self.set(left + dx, y + dy, blend(bg, fg, level));
+            });
         }
     }
 
@@ -235,12 +253,37 @@ mod tests {
     }
 
     #[test]
-    fn text_fills_the_cell_background() {
+    fn text_fills_the_cell_background_and_draws_the_glyph() {
         let mut d = Display::new();
         d.draw_text(b"A", 10, 10, false, 0xffff, 0x1234);
         assert_eq!(d.get(10, 10), Some(0x1234));
         assert!((0..14).any(|y| (0..7).any(|x| d.get(10 + x, 10 + y) == Some(0xffff))));
         assert_eq!(d.get(17, 10), Some(0));
+    }
+
+    #[test]
+    fn utf8_text_takes_one_cell_per_character() {
+        let mut a = Display::new();
+        let mut b = Display::new();
+        a.draw_text("é".as_bytes(), 0, 0, true, 0xffff, 0);
+        b.draw_text(&[0xc3, 0xa9], 0, 0, true, 0xffff, 0);
+        assert_eq!(a, b);
+        // Un seul caractère : la cellule suivante (x = 10) est intacte.
+        a.draw_text("é".as_bytes(), 0, 20, true, 0xffff, 0);
+        assert!((0..18).all(|y| a.get(10, 20 + y) == Some(0)));
+    }
+
+    #[test]
+    fn blending_goes_from_background_to_foreground() {
+        assert_eq!(blend(0x0000, 0xffff, 0), 0x0000);
+        assert_eq!(blend(0x0000, 0xffff, MAX_LEVEL), 0xffff);
+        let middle = blend(0x0000, 0xffff, 8);
+        assert!(middle > 0x0000 && middle < 0xffff);
+        assert_eq!(
+            blend(0x1234, 0x1234, 7),
+            0x1234,
+            "même couleur : rien ne change"
+        );
     }
 
     #[test]
