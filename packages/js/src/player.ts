@@ -1,12 +1,15 @@
-// Boucle d'exécution de l'émulateur dans un navigateur (ou tout environnement qui a `requestAnimationFrame`).
+// Boucle d'exécution de l'émulateur, dans un navigateur comme dans Node.js.
 //
-// Le cœur ne dort jamais : c'est cette boucle qui fait passer le temps. À chaque image de l'écran du
-// navigateur (~60 Hz), on exécute l'application jusqu'à sa prochaine image (`wait_for_vblank`) et on
+// Rien ici ne suppose le navigateur : le rythme vient d'un `Scheduler` (par défaut `requestAnimationFrame`
+// s'il existe, sinon des minuteries à 60 Hz) et l'écran sort sous forme de pixels bruts (`onFrame`,
+// `framebuffer()`, `rgba()`) ; dessiner dans un canvas (`attach`) n'est qu'un confort.
+//
+// Le cœur ne dort jamais : c'est cette boucle qui fait passer le temps. À chaque image (~60 Hz), on exécute l'application jusqu'à sa prochaine image (`wait_for_vblank`) et on
 // dessine l'écran. Elle gère aussi les touches (un appui plus court qu'une image est prolongé) et la
 // reprise des applications qui attendent une touche.
 
 import { Nwasabi, toBase64, SCREEN_HEIGHT, SCREEN_WIDTH } from "./nwasabi.js";
-import type { Reply, Request, WasmSource } from "./nwasabi.js";
+import type { Reply, Request, RgbaTarget, WasmSource } from "./nwasabi.js";
 import type { KeyName } from "./keys.js";
 
 export type Model = "n0110" | "n0115" | "n0120";
@@ -37,7 +40,66 @@ export interface PlayerState {
   revision: number;
 }
 
+/** Ce qui rythme le lecteur : l'heure, et « rappelle-moi à la prochaine image ». */
+export interface Scheduler {
+  /** Heure actuelle en millisecondes (n'importe quelle origine, mais croissante). */
+  now(): number;
+  /** Demande un appel de `callback(heure)` à la prochaine image. */
+  request(callback: (time: number) => void): unknown;
+  /** Annule une demande faite par `request`. */
+  cancel(handle: unknown): void;
+}
+
+/**
+ * Le planificateur par défaut : `requestAnimationFrame` quand il existe (navigateur), sinon des
+ * minuteries (`setTimeout`) à environ 60 Hz, par exemple dans Node.js.
+ */
+export function defaultScheduler(): Scheduler {
+  const g = globalThis as unknown as {
+    requestAnimationFrame?: (callback: (time: number) => void) => unknown;
+    cancelAnimationFrame?: (handle: unknown) => void;
+    performance?: { now(): number };
+  };
+  const now = () => (g.performance ? g.performance.now() : Date.now());
+  if (typeof g.requestAnimationFrame === "function" && typeof g.cancelAnimationFrame === "function") {
+    return {
+      now,
+      request: (callback) => g.requestAnimationFrame!(callback),
+      cancel: (handle) => g.cancelAnimationFrame!(handle),
+    };
+  }
+  return {
+    now,
+    request: (callback) => setTimeout(() => callback(now()), FRAME_MS),
+    cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  };
+}
+
+/** Un canvas 2D, ou tout ce qui lui ressemble (`HTMLCanvasElement`, `OffscreenCanvas`, `node-canvas`…). */
+export interface CanvasLike {
+  getContext(type: "2d"): {
+    createImageData(width: number, height: number): RgbaTarget;
+    putImageData(image: never, x: number, y: number): void;
+  } | null;
+}
+
+/** Une image de l'écran, brute. Les tableaux ne sont valables que pendant l'appel de l'écouteur. */
+export interface Frame {
+  width: number;
+  height: number;
+  /** Pixels en RGB565 (16 bits : 5 rouge, 6 vert, 5 bleu), ligne par ligne, tels que l'appareil les a. */
+  rgb565: Uint16Array;
+  /** Les mêmes pixels en RGBA 8 bits (nouveau tampon à chaque appel). */
+  rgba(): Uint8ClampedArray;
+  /** Temps de simulation écoulé, en millisecondes. */
+  timeMs: number;
+}
+
 export interface PlayerOptions {
+  /** Ce qui rythme la boucle ; par défaut `defaultScheduler()`. Utile pour les tests ou un autre moteur d'images. */
+  scheduler?: Scheduler;
+  /** Appelé à chaque image avec les pixels bruts de l'écran (voir aussi `Player.onFrame`). */
+  onFrame?: (frame: Frame) => void;
   /** État à utiliser (par exemple un objet réactif) ; sinon un objet ordinaire. */
   state?: PlayerState;
   /** Instructions au plus par image du navigateur (défaut : 2 millions). */
@@ -66,10 +128,12 @@ export class Player {
   readonly state: PlayerState;
   private readonly slice: number;
   private readonly maxElapsedMs: number;
-  private canvas: HTMLCanvasElement | null = null;
-  private image: ImageData | null = null;
+  private readonly scheduler: Scheduler;
+  private readonly listeners = new Set<(frame: Frame) => void>();
+  private canvas: CanvasLike | null = null;
+  private image: RgbaTarget | null = null;
   private last = 0;
-  private frame = 0;
+  private frame: unknown = null;
   private nwa: Uint8Array | null = null;
   private data: Uint8Array | null = null;
   private readonly pressed = new Set<KeyName>();
@@ -99,6 +163,8 @@ export class Player {
   private constructor(nwasabi: Nwasabi, options: PlayerOptions) {
     this.nwasabi = nwasabi;
     this.state = options.state ?? Player.initialState();
+    this.scheduler = options.scheduler ?? defaultScheduler();
+    if (options.onFrame) this.listeners.add(options.onFrame);
     this.slice = options.slice ?? DEFAULT_SLICE;
     this.maxElapsedMs = options.maxElapsedMs ?? DEFAULT_MAX_ELAPSED_MS;
   }
@@ -122,19 +188,52 @@ export class Player {
     return reply;
   }
 
-  /** Dessine l'écran dans ce canvas (320×240). */
-  attach(canvas: HTMLCanvasElement): void {
+  /** Dessine l'écran dans ce canvas (320×240) à chaque image. Facultatif : les pixels bruts sont disponibles sans canvas. */
+  attach(canvas: CanvasLike): void {
     this.canvas = canvas;
     this.image = canvas.getContext("2d")?.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT) ?? null;
     this.draw();
   }
 
-  /** Recopie l'écran de l'appareil dans le canvas. */
+  /** Recopie l'écran de l'appareil dans le canvas attaché, s'il y en a un. */
   draw(): void {
     const context = this.canvas?.getContext("2d");
     if (context && this.image && this.nwasabi.drawTo(this.image)) {
-      context.putImageData(this.image, 0, 0);
+      context.putImageData(this.image as never, 0, 0);
     }
+  }
+
+  /** Pixels de l'écran en RGB565 (320×240), valables jusqu'à la prochaine requête au module ; `null` sans appareil. */
+  framebuffer(): Uint16Array | null {
+    return this.nwasabi.framebuffer();
+  }
+
+  /** Copie de l'écran en RGBA 8 bits (320×240×4 octets) ; `null` sans appareil. */
+  rgba(): Uint8ClampedArray | null {
+    return this.nwasabi.rgba();
+  }
+
+  /**
+   * Reçoit chaque image de l'écran, brute, au rythme de la simulation (à la fin de chaque pas de la boucle).
+   * Rend la fonction qui retire l'écouteur.
+   */
+  onFrame(listener: (frame: Frame) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emitFrame(): void {
+    if (this.listeners.size === 0) return;
+    const rgb565 = this.nwasabi.framebuffer();
+    if (!rgb565) return;
+    const frame: Frame = {
+      width: SCREEN_WIDTH,
+      height: SCREEN_HEIGHT,
+      rgb565,
+      rgba: () => this.nwasabi.rgba() ?? new Uint8ClampedArray(0),
+      timeMs: this.state.timeMs,
+    };
+    for (const listener of this.listeners) listener(frame);
   }
 
   /**
@@ -208,13 +307,14 @@ export class Player {
   start(): void {
     if (!this.state.loaded || this.state.running) return;
     this.state.running = true;
-    this.last = performance.now();
-    this.frame = requestAnimationFrame((now) => this.tick(now));
+    this.last = this.scheduler.now();
+    this.frame = this.scheduler.request((now) => this.tick(now));
   }
 
   stop(): void {
     this.state.running = false;
-    cancelAnimationFrame(this.frame);
+    if (this.frame !== null) this.scheduler.cancel(this.frame);
+    this.frame = null;
   }
 
   private advance(ms: number): void {
@@ -232,7 +332,7 @@ export class Player {
     if (!state.running) return;
     // Un écran plus rapide que 60 Hz : on saute des images pour garder la cadence de la calculatrice.
     if (now - this.last < FRAME_MS - 1) {
-      this.frame = requestAnimationFrame((time) => this.tick(time));
+      this.frame = this.scheduler.request((time) => this.tick(time));
       return;
     }
     let budget = Math.max(0, Math.min(now - this.last, this.maxElapsedMs));
@@ -267,12 +367,13 @@ export class Player {
     }
     state.timeMs = this.time();
     this.draw();
+    this.emitFrame();
     if (state.frames % 10 === 0 || !state.running) {
       const out = this.call({ cmd: "stdout" });
       state.stdout = (out.text as string | undefined) ?? state.stdout;
     }
     if (!state.running) this.bump();
-    else this.frame = requestAnimationFrame((time) => this.tick(time));
+    else this.frame = this.scheduler.request((time) => this.tick(time));
   }
 
   private release(name: KeyName): void {
