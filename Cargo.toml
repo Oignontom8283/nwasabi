@@ -55,3 +55,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# `build.rs` réécrit le package.json des workspaces npm (dépendance de compilation : absente du binaire).
+[build-dependencies]
+serde_json = "1"
