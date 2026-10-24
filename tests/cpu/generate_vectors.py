@@ -454,6 +454,107 @@ def cases_fp_memory():
     return out
 
 
+DSPECIAL = [
+    0x0000000000000000, 0x8000000000000000, 0x3ff0000000000000, 0xbff0000000000000,
+    0x3fe0000000000000, 0x4000000000000000, 0x4008000000000000, 0x7ff0000000000000,
+    0xfff0000000000000, 0x7ff8000000000000, 0x7ff0000000000001, 0xfff8000000000123,
+    0x7fefffffffffffff, 0x0010000000000000, 0x000fffffffffffff, 0x0000000000000001,
+    0x3fb999999999999a, 0x400921fb54442d18, 0x41e0000000000000, 0xc1e0000000000000,
+    0x41efffffffe00000, 0x4202a05f20000000, 0x3ff8000000000000, 0x4004000000000000,
+    0xbfe0000000000000, 0x7e37e43c8800759c, 0x47efffffe0000000, 0x3810000000000000,
+    0x380fffffc0000000, 0x40f0000000000000, 0x40e0ffe000000000, 0x3f10000000000000,
+    0x3e70000000000000, 0xc0f0000000000000, 0x40effc0000000000, 0x3f1fffe000000000]
+
+
+def dval():
+    return random.choice(DSPECIAL) if random.random() < 0.75 else random.getrandbits(64)
+
+
+def load_doubles(*names):
+    """Charge des doubles particuliers ou aléatoires dans les registres `dN` donnés."""
+    lines = []
+    for name in dict.fromkeys(names):
+        v = dval()
+        lines.append(f"ldr r0, =0x{v & 0xffffffff:08x}\nldr r1, =0x{v >> 32:08x}\nvmov {name}, r0, r1")
+    return "\n".join(lines) + "\n"
+
+
+def set_rounding():
+    """Fixe parfois un mode d'arrondi de FPSCR (bits 23-22) pour les conversions."""
+    rm = random.randrange(4)
+    return (f"vmrs r0, fpscr\nbic r0, r0, #0xc00000\norr r0, r0, #{rm << 22}\nvmsr fpscr, r0\n"
+            if rm else "")
+
+
+def cases_fp_v8():
+    out = []
+    for _ in range(160):
+        d, n, m = sreg(), sreg(), sreg()
+        out.append(set_rounding() + random.choice([
+            f"vsel{random.choice(['eq', 'vs', 'ge', 'gt'])}.f32 {d}, {n}, {m}",
+            f"vsel{random.choice(['eq', 'vs', 'ge', 'gt'])}.f32 {d}, {n}, {m}",
+            f"{random.choice(['vmaxnm', 'vminnm'])}.f32 {d}, {n}, {m}",
+            f"{random.choice(['vmaxnm', 'vminnm'])}.f32 {d}, {n}, {m}",
+            f"vrint{random.choice('anpmzrx')}.f32 {d}, {m}",
+            f"vrint{random.choice('anpmzrx')}.f32 {d}, {m}",
+            f"vcvt{random.choice('anpm')}.{random.choice(['s32', 'u32'])}.f32 {d}, {m}",
+        ]))
+    return out
+
+
+def cases_fp_double():
+    out = []
+    ops3 = ['vadd', 'vsub', 'vmul', 'vdiv', 'vnmul', 'vmla', 'vmls', 'vnmla', 'vnmls', 'vfma',
+            'vfms', 'vfnma', 'vfnms']
+    for _ in range(250):
+        d, n, m = dreg(), dreg(), dreg()
+        s = sreg(32)
+        sd = sreg(32)
+        lane = random.randrange(2)
+        c = cond()
+        out.append(set_rounding() + random.choice([
+            load_doubles(d, n, m) + f"{random.choice(ops3)}.f64 {d}, {n}, {m}",
+            load_doubles(d, n, m) + f"{random.choice(ops3)}.f64 {d}, {n}, {m}",
+            load_doubles(d, n, m) + f"{random.choice(ops3)}.f64 {d}, {n}, {m}",
+            load_doubles(d, m) + f"{random.choice(['vabs', 'vneg', 'vsqrt', 'vmov'])}.f64 {d}, {m}",
+            f"vmov.f64 {d}, #{random.choice(FP_IMMEDIATES)}",
+            load_doubles(d, m) + f"{random.choice(['vcmp', 'vcmpe'])}.f64 {d}, {m}\nvmrs APSR_nzcv, fpscr",
+            load_doubles(d) + f"{random.choice(['vcmp', 'vcmpe'])}.f64 {d}, #0.0\nvmrs APSR_nzcv, fpscr",
+            load_doubles(d, m) + f"vcmp.f64 {d}, {m}\nvmrs APSR_nzcv, fpscr\nite {c}\nmov{c} r2, #1\nmov{INVERSE[c]} r3, #2",
+            load_doubles(m) + f"{random.choice(['vcvt', 'vcvtr'])}.{random.choice(['s32', 'u32'])}.f64 {sd}, {m}",
+            f"vcvt.f64.{random.choice(['s32', 'u32'])} {d}, {s}",
+            load_doubles(m) + f"vcvt.f32.f64 {sd}, {m}",
+            f"vcvt.f64.f32 {d}, {s}",
+            load_doubles(d, n, m) + f"vsel{random.choice(['eq', 'vs', 'ge', 'gt'])}.f64 {d}, {n}, {m}",
+            load_doubles(d, n, m) + f"{random.choice(['vmaxnm', 'vminnm'])}.f64 {d}, {n}, {m}",
+            load_doubles(d, m) + f"vrint{random.choice('anpmzrx')}.f64 {d}, {m}",
+            load_doubles(m) + f"vcvt{random.choice('anpm')}.{random.choice(['s32', 'u32'])}.f64 {sd}, {m}",
+            f"vmov.32 {d}[{lane}], r{random.randrange(2, 8)}",
+            f"vmov.32 r{random.randrange(2, 8)}, {d}[{lane}]",
+        ]))
+    return out
+
+
+def cases_fp_half_and_fixed():
+    out = []
+    for _ in range(240):
+        d, s, sd = dreg(), sreg(32), sreg(32)
+        fb32, fb16 = random.randrange(1, 33), random.randrange(1, 17)
+        out.append(set_rounding() + random.choice([
+            f"vcvt{random.choice('bt')}.f16.f32 {sd}, {s}",
+            f"vcvt{random.choice('bt')}.f16.f32 {sd}, {s}",
+            f"vcvt{random.choice('bt')}.f32.f16 {sd}, {s}",
+            f"vcvt{random.choice('bt')}.f32.f16 {sd}, {s}",
+            load_doubles(d) + f"vcvt{random.choice('bt')}.f16.f64 {sd}, {d}",
+            f"vcvt{random.choice('bt')}.f64.f16 {d}, {s}",
+            f"vcvt.{random.choice(['s32', 'u32'])}.f32 {sd}, {sd}, #{fb32}",
+            f"vcvt.{random.choice(['s16', 'u16'])}.f32 {sd}, {sd}, #{fb16}",
+            f"vcvt.f32.{random.choice(['s32', 'u32'])} {sd}, {sd}, #{fb32}",
+            f"vcvt.f32.{random.choice(['s16', 'u16'])} {sd}, {sd}, #{fb16}",
+        ]))
+    return out
+
+
 FAMILIES = [
     ('thumb16', cases_thumb16),
     ('it_blocks', cases_it_blocks),
@@ -467,6 +568,9 @@ FAMILIES = [
     ('fp_arith', cases_fp_arith),
     ('fp_core_and_status', cases_fp_core_and_status),
     ('fp_memory', cases_fp_memory),
+    ('fp_v8', cases_fp_v8),
+    ('fp_double', cases_fp_double),
+    ('fp_half_and_fixed', cases_fp_half_and_fixed),
 ]
 
 # ---------------------------------------------------------------------------------------------
@@ -543,7 +647,7 @@ FPU_ENABLE = f"""
 
 def assemble_batch(cases, fp=False, inits=None):
     lines = [
-        '.syntax unified', '.cpu cortex-m7', '.fpu fpv5-sp-d16', '.thumb',
+        '.syntax unified', '.cpu cortex-m7', '.fpu fpv5-d16', '.thumb',
         '.section .vectors,"a"', '  .word 0x20020000', '  .word _start+1', '  .rept 14',
         '  .word fault+1', '  .endr', '.text',
         '.thumb_func', '_start:', '  b.w .Lenter',
@@ -626,7 +730,7 @@ def build_and_run(name, cases, outdir, fp=False):
     with open(os.path.join(work, 'link.ld'), 'w') as f:
         f.write(LINKER)
     r = subprocess.run(tool('arm-none-eabi-as', 'ARM_AS') +
-                       ['-mcpu=cortex-m7', '-mfpu=fpv5-sp-d16', '-o', os.path.join(work, 'prog.o'), asm],
+                       ['-mcpu=cortex-m7', '-mfpu=fpv5-d16', '-o', os.path.join(work, 'prog.o'), asm],
                        capture_output=True, text=True)
     if r.returncode:
         sys.stderr.write(r.stderr)

@@ -165,4 +165,7 @@ batches! {
     fp_arithmetic_matches_qemu => "09_fp_arith",
     fp_transfers_and_status_match_qemu => "10_fp_core_and_status",
     fp_memory_accesses_match_qemu => "11_fp_memory",
+    fp_v8_extensions_match_qemu => "12_fp_v8",
+    fp_double_precision_matches_qemu => "13_fp_double",
+    fp_half_precision_and_fixed_point_match_qemu => "14_fp_half_and_fixed",
 }
