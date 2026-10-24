@@ -38,3 +38,6 @@ docs/public/emulator
 
 # Paquets npm : le module .wasm n'est copié que pour publier.
 packages/wasm/nwasabi.wasm
+
+# Caches de Python (outils de tools/)
+__pycache__/
