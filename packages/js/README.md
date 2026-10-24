@@ -39,4 +39,4 @@ Documentation, code source et suivi des problèmes : <https://github.com/Oignont
 
 ## Licence
 
-MIT ou Apache-2.0, au choix (voir `LICENSE-MIT` et `LICENSE-APACHE`).
+MIT ou Apache-2.0, au choix (voir [LICENSE/MIT](./LICENSE/MIT) et [LICENSE/APACHE](./LICENSE/APACHE)).

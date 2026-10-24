@@ -33,8 +33,18 @@ In short:
 - Modified versions are asked to keep the additional permission, so
   that they remain usable by others under the same conditions.
 
-In case of doubt, the text of `LICENSE` and `LINKING-EXCEPTION`
+In case of doubt, the text of [`LICENSE`](./LICENSE) and [`LINKING-EXCEPTION`](./LINKING-EXCEPTION)
 prevails over this summary.
+
+### Additional components
+
+Some components of this repository are redistributed under a license
+different from the one above:
+
+- **Nwasabi Pixels**, the font used by `draw_string`
+  (`src/kernel/font/` and `tools/font/`): **MIT**.
+- **`@nwasabi/js`** and **`@nwasabi/wasm`**,
+  the JavaScript and WebAssembly bindings for Nwasabi: **MIT** or **Apache-2.0**.
 
 > [!NOTE]
 > This project is a community-driven, independent
