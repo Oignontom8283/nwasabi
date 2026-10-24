@@ -417,3 +417,41 @@ fn an_unknown_clock_is_refused() {
     let mut s = Session::new();
     assert!(error(&mut s, r#"{"cmd":"new","clock":"lune"}"#).contains("horloge inconnue"));
 }
+
+#[test]
+fn the_simulation_time_is_readable_at_any_moment_and_stops_without_the_host() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("compressor-1.0.0"))
+        .unwrap();
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(
+            r#"{{"cmd":"load","clock":"host","nwa_base64":"{}"}}"#,
+            json::base64_encode(nwa)
+        ),
+    );
+    let time = |s: &mut Session| {
+        let r = ok(s, r#"{"cmd":"time"}"#);
+        (
+            r.get("time_us").and_then(Value::as_i64).unwrap(),
+            r.get("time_ms").and_then(Value::as_i64).unwrap(),
+        )
+    };
+    assert_eq!(time(&mut s), (0, 0));
+    // L'application tourne, dort… : sans temps donné par l'hôte, le temps de simulation ne bouge pas.
+    ok(&mut s, r#"{"cmd":"run","instructions":10000000}"#);
+    assert_eq!(time(&mut s), (0, 0));
+    // Le temps défile quand l'hôte le fait passer, même si l'application dort tout ce temps.
+    ok(&mut s, r#"{"cmd":"advance","us":1500}"#);
+    assert_eq!(time(&mut s), (1500, 1));
+    ok(&mut s, r#"{"cmd":"advance","ms":20}"#);
+    assert_eq!(time(&mut s), (21_500, 21));
+    // C'est bien le temps que voit l'application : la réponse de `run` donne la même valeur.
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_eq!(ran.get("time_ms").and_then(Value::as_i64), Some(21));
+}
