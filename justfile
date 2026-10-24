@@ -43,7 +43,8 @@ example-serve: example
 
 wasm_file := "target/" + wasm_target + "/wasm/nwasabi.wasm"
 
-# Installe les paquets npm d'un dossier s'ils manquent ou si le fichier de verrouillage a changé.
+# Installe les paquets npm d'un dossier s'ils manquent ou si le fichier de verrouillage a changé (les
+# workspaces npm sont tous à la racine : `npm-install "."`).
 [private]
 npm-install dir:
     @cd {{dir}} && if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then npm ci --no-audit --no-fund; fi
@@ -72,13 +73,13 @@ docs-emulator: build-emulator
     @if [ ! -f docs/public/emulator/index.html ] || [ web/dist/index.html -nt docs/public/emulator/index.html ]; then rm -rf docs/public/emulator && mkdir -p docs/public && cp -r web/dist docs/public/emulator; else echo "émulateur déjà dans la documentation"; fi
 
 # `SITE_BASE=/nwasabi/ just build-docs` pour un site publié dans un sous-dossier. Construit le site statique complet (VitePress + émulateur à /emulator/) dans docs/.vitepress/dist.
-build-docs: docs-emulator (npm-install "docs")
+build-docs: docs-emulator (npm-install ".")
     @cd docs && if [ ! -f .vitepress/dist/index.html ] || [ -n "$(find index.html index.md .vitepress/config.mjs public package.json -newer .vitepress/dist/index.html 2>/dev/null | head -n 1)" ]; then npm run build; else echo "documentation à jour (docs/.vitepress/dist)"; fi
 
 alias build-doc := build-docs
 
 # Lance le site de documentation (VitePress en développement) ; son émulateur à /emulator/ est la version release.
-docs: docs-emulator (npm-install "docs")
+docs: docs-emulator (npm-install ".")
     cd docs && npm run dev -- --open
 
 alias doc := docs
@@ -88,12 +89,12 @@ alias doc := docs
 # Prépare @nwasabi/js et @nwasabi/wasm (compilation TypeScript, module .wasm copié) ; ne publie rien.
 build-npm: build-wasm (npm-install ".")
     npm run build -w @nwasabi/js
-    cd packages/wasm && npm run build && npm run copy-wasm
+    npm run build -w @nwasabi/wasm
+    npm run copy-wasm -w @nwasabi/wasm
 
 # Montre ce que contiendraient les paquets npm, sans rien écrire ni publier.
 pack-npm: build-npm
-    npm pack --dry-run -w @nwasabi/js
-    cd packages/wasm && npm pack --dry-run
+    npm pack --dry-run -w @nwasabi/js -w @nwasabi/wasm
 
 # --- Lancement --------------------------------------------------------------
 
