@@ -57,12 +57,27 @@ function onKey(event, down) {
   event.preventDefault();
   emulator.key(name, down);
 }
+// Quand l'onglet est caché, le navigateur suspend l'animation : on met la simulation en pause pour que
+// l'application ne voie pas le temps passer, et on la reprend au retour (sauf si elle était déjà
+// en pause). C'est une décision de cette interface, pas de la bibliothèque.
+let pausedByTab = false;
+function onVisibility() {
+  if (document.hidden) {
+    pausedByTab = state.running;
+    if (pausedByTab) emulator.stop();
+  } else if (pausedByTab) {
+    pausedByTab = false;
+    emulator.start();
+  }
+}
+
 const keydown = (e) => onKey(e, true);
 const keyup = (e) => onKey(e, false);
 
 onMounted(async () => {
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
+  document.addEventListener("visibilitychange", onVisibility);
   await emulator.init();
   // Le serveur `nwasabi --nwa app.nwa` précharge une application ; une page hébergée ailleurs n'en a pas.
   try {
@@ -84,6 +99,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", keydown);
   window.removeEventListener("keyup", keyup);
+  document.removeEventListener("visibilitychange", onVisibility);
   emulator.stop();
 });
 </script>
