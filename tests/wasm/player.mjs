@@ -3,7 +3,8 @@
 //
 //   node tests/wasm/player.mjs <dossier de .nwa>
 //
-// Le temps et `requestAnimationFrame` sont simulés : le test est instantané et déterministe. Sans
+// Le temps et le planificateur sont simulés (`PlayerOptions.scheduler`) : le test est instantané et
+// déterministe, et n'a besoin d'aucune API du navigateur. Sans
 // dossier (ou sans NWASABI_CORPUS), le test est ignoré.
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -25,12 +26,14 @@ if (!corpus) {
 // --- temps et animation simulés -----------------------------------------------------------------
 let now = 0;
 let callbacks = [];
-Object.defineProperty(globalThis, "performance", { value: { now: () => now }, configurable: true });
-globalThis.requestAnimationFrame = (callback) => callbacks.push(callback);
-globalThis.cancelAnimationFrame = () => {
-  callbacks = [];
+const scheduler = {
+  now: () => now,
+  request: (callback) => callbacks.push(callback),
+  cancel: () => {
+    callbacks = [];
+  },
 };
-/** Fait passer `ms` millisecondes réelles, une image du navigateur tous les `step` ms. */
+/** Fait passer `ms` millisecondes réelles, une image tous les `step` ms. */
 function wait(ms, step = 1000 / 60) {
   for (let t = 0; t < ms; t += step) {
     now += step;
@@ -44,7 +47,7 @@ const file = readdirSync(corpus).find((f) => f.startsWith("compressor-1.0.0"));
 assert.ok(file, "compressor-1.0.0.nwa dans le corpus");
 const nwa = new Uint8Array(readFileSync(join(corpus, file)));
 
-const player = await Player.create(readFileSync(wasmPath));
+const player = await Player.create(readFileSync(wasmPath), { scheduler });
 /** Temps vu par l'application (ms), sans rien lui faire exécuter de plus qu'une instruction. */
 const appTime = () => player.call({ cmd: "run", instructions: 1 }).time_ms;
 /** Nombre de lectures du clavier faites par l'application. */
