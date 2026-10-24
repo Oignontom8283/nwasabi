@@ -4,7 +4,7 @@
 //! pour 64 bits, `s0` pour un flottant).
 
 use super::display::Rect;
-use super::{FRAME_US, Kernel, KernelStop, keyboard::EVENT_NONE};
+use super::{ClockMode, FRAME_US, Kernel, KernelStop, keyboard::EVENT_NONE};
 use crate::cpu::{Bus, BusFault, Cpu, Hooks, SvcAction};
 use crate::link::runtime::{SVC_DRAW_STRING, SVC_EXIT, SVC_SBRK, SVC_WRITE};
 
@@ -80,6 +80,27 @@ impl Kernel {
         Ok(self.stop_with(KernelStop::WaitEvent { remaining_ms }))
     }
 
+    /// `msleep` et `usleep`. Horloge virtuelle : le temps saute de la durée demandée. Horloge de l'hôte :
+    /// on fixe la fin de l'attente et on refait l'appel (comme `event_get`) tant que l'hôte n'a pas
+    /// fait avancer le temps jusque-là ; en pause, l'attente ne se termine donc jamais.
+    fn sleep(&mut self, cpu: &mut Cpu, duration_us: u64) -> SvcAction {
+        let ms = duration_us.div_ceil(1000) as u32;
+        if self.config.clock == ClockMode::Virtual {
+            self.advance_time(duration_us);
+            return self.stop_with(KernelStop::Sleep { ms });
+        }
+        let now = self.micros(cpu.cycles);
+        let deadline = *self.sleep_until_us.get_or_insert(now + duration_us);
+        if now >= deadline {
+            self.sleep_until_us = None;
+            return SvcAction::Handled;
+        }
+        // L'instruction `svc` fait 2 octets : on la refera à la reprise.
+        cpu.regs.pc = cpu.regs.pc.wrapping_sub(2);
+        let remaining = (deadline - now).div_ceil(1000) as u32;
+        self.stop_with(KernelStop::Sleep { ms: remaining })
+    }
+
     fn handle<B: Bus>(
         &mut self,
         number: u8,
@@ -110,8 +131,12 @@ impl Kernel {
             }
             20 => self.display.fill(Rect::from_registers(r0, r1), r2 as u16),
             21 => {
-                let now = self.micros(cpu.cycles);
-                self.advance_time(FRAME_US - now % FRAME_US);
+                // Horloge virtuelle : on saute à la prochaine image. Horloge de l'hôte : c'est lui qui
+                // règle la cadence (une image par appel à `run`), le temps n'est pas touché.
+                if self.config.clock == ClockMode::Virtual {
+                    let now = self.micros(cpu.cycles);
+                    self.advance_time(FRAME_US - now % FRAME_US);
+                }
                 self.frames += 1;
                 cpu.regs.r[0] = 1;
                 return Ok(self.stop_with(KernelStop::Frame));
@@ -132,16 +157,8 @@ impl Kernel {
                 }
             }
             48 => set_u64(cpu, self.micros(cpu.cycles) / 1000),
-            49 => {
-                self.advance_time(u64::from(r0) * 1000);
-                return Ok(self.stop_with(KernelStop::Sleep { ms: r0 }));
-            }
-            50 => {
-                self.advance_time(u64::from(r0));
-                return Ok(self.stop_with(KernelStop::Sleep {
-                    ms: r0.div_ceil(1000),
-                }));
-            }
+            49 => return Ok(self.sleep(cpu, u64::from(r0) * 1000)),
+            50 => return Ok(self.sleep(cpu, u64::from(r0))),
             52 => cpu.regs.r[0] = u32::from(self.status.usb_plugged),
             56 => cpu.regs.r[0] = u32::from(self.status.compilation_flags),
             57 => cpu.regs.r[0] = self.status.bootloader_crc,

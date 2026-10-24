@@ -42,6 +42,13 @@ export interface PlayerOptions {
   slice?: number;
 }
 
+/** Durée d'une image de la calculatrice (60 Hz), en millisecondes. */
+const FRAME_MS = 1000 / 60;
+/** Plus de temps que cela entre deux images (onglet caché…) compte comme une pause : l'application ne le voit pas. */
+const MAX_ELAPSED_MS = 250;
+/** Garde-fou : nombre maximal d'exécutions successives dans une même image du navigateur. */
+const MAX_RUNS_PER_TICK = 1000;
+
 /** Instructions au plus par image du navigateur (au-delà, on rend la main pour ne pas figer la page). */
 const DEFAULT_SLICE = 2_000_000;
 
@@ -91,6 +98,7 @@ export class Player {
       cmd: "new",
       model: player.state.model,
       firmware: player.state.firmware,
+      clock: "host",
     });
     return player;
   }
@@ -145,6 +153,7 @@ export class Player {
       cmd: "load",
       model: state.model,
       firmware: state.firmware,
+      clock: "host", // le temps de l'application est celui que ce lecteur lui donne, jamais plus
       nwa_base64: toBase64(this.nwa),
     };
     if (this.data) request.data_base64 = toBase64(this.data);
@@ -168,7 +177,7 @@ export class Player {
     if (this.nwa) {
       this.restart();
     } else {
-      this.call({ cmd: "new", model, firmware });
+      this.call({ cmd: "new", model, firmware, clock: "host" });
       this.bump();
     }
   }
@@ -185,34 +194,53 @@ export class Player {
     cancelAnimationFrame(this.frame);
   }
 
+  private advance(ms: number): void {
+    if (ms > 0) this.call({ cmd: "advance", us: Math.round(ms * 1000) });
+  }
+
+  /**
+   * Une image du navigateur. L'application ne voit passer que le temps réellement écoulé depuis la
+   * dernière image, jamais plus : ce temps est un « budget » qu'elle consomme en dormant ou en
+   * attendant une touche, et dont le reste lui est donné à la fin. En pause, ou si l'onglet est
+   * caché, aucun temps ne lui est donné : pour elle, le temps s'arrête.
+   */
   private tick(now: number): void {
     const state = this.state;
     if (!state.running) return;
-    const elapsed = Math.max(0, Math.min(now - this.last, 250));
-    this.last = now;
-    const reply = this.call({ cmd: "run", instructions: this.slice, frames: 1 });
-    if (!reply.ok) return this.stop();
-    for (const name of this.pressed) this.sampled.add(name);
-    for (const name of [...this.deferred]) {
-      this.deferred.delete(name);
-      this.release(name);
+    // Un écran plus rapide que 60 Hz : on saute des images pour garder la cadence de la calculatrice.
+    if (now - this.last < FRAME_MS - 1) {
+      this.frame = requestAnimationFrame((time) => this.tick(time));
+      return;
     }
-    const stop = reply.stop as StopInfo;
-    state.stop = stop;
-    state.instructions += reply.instructions as number;
-    state.frames += reply.frames as number;
-    switch (stop.kind) {
-      case "wait_event":
-        // L'application attend une touche : le temps ne passe que si on le lui donne.
-        this.call({ cmd: "advance", ms: Math.round(elapsed) });
+    let budget = Math.max(0, Math.min(now - this.last, MAX_ELAPSED_MS));
+    this.last = now;
+    for (let runs = 0; runs < MAX_RUNS_PER_TICK && state.running; runs++) {
+      const reply = this.call({ cmd: "run", instructions: this.slice, frames: 1 });
+      if (!reply.ok) return this.stop();
+      for (const name of this.pressed) this.sampled.add(name);
+      for (const name of [...this.deferred]) {
+        this.deferred.delete(name);
+        this.release(name);
+      }
+      const stop = reply.stop as StopInfo;
+      state.stop = stop;
+      state.instructions += reply.instructions as number;
+      state.frames += reply.frames as number;
+      if (stop.kind === "sleep") {
+        // L'application dort : le temps passe pour elle, dans la limite du budget.
+        const wanted = (stop.ms as number) ?? 0;
+        const step = Math.min(wanted, budget);
+        this.advance(step);
+        budget -= step;
+        if (budget > 0) continue;
         break;
-      case "frame":
-      case "sleep":
-      case "budget":
-        break;
-      default: // fin, faute, point d'observation, Home…
-        state.running = false;
-        break;
+      }
+      this.advance(budget);
+      budget = 0;
+      if (!["frame", "wait_event", "budget"].includes(stop.kind)) {
+        state.running = false; // fin, faute, point d'observation, Home…
+      }
+      break;
     }
     this.draw();
     if (state.frames % 10 === 0 || !state.running) {

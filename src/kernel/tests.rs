@@ -264,3 +264,131 @@ fn home_key_ends_the_application_at_the_next_call() {
     call(&mut emu, &mut cpu, 34, &[]);
     assert_eq!(emu.kernel.take_stop(), Some(KernelStop::HomePressed));
 }
+
+// ---- horloge de l'hôte ---------------------------------------------------------------------------
+
+/// Comme `setup`, avec l'horloge de l'hôte : le temps n'avance que par `advance_time`.
+fn setup_host() -> (Emulator, Cpu) {
+    let config = KernelConfig {
+        clock: ClockMode::Host,
+        ..KernelConfig::default()
+    };
+    let emu = Emulator::with_profile(
+        crate::profile::FirmwareProfile::default_for(Model::N0110),
+        config,
+    )
+    .unwrap();
+    let mut cpu = Cpu::new();
+    cpu.regs.sp = emu.device.profile.process_stack_start;
+    (emu, cpu)
+}
+
+#[test]
+fn the_host_clock_ignores_executed_instructions() {
+    let (mut emu, mut cpu) = setup_host();
+    cpu.cycles = 216_000_000; // une seconde à 216 MHz, qui ne doit pas compter
+    call(&mut emu, &mut cpu, 48, &[]);
+    assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (0, 0));
+    emu.kernel.advance_time(1_500_000);
+    call(&mut emu, &mut cpu, 48, &[]);
+    assert_eq!(cpu.regs.r[0], 1500);
+}
+
+#[test]
+fn the_host_clock_is_not_moved_by_a_vblank() {
+    let (mut emu, mut cpu) = setup_host();
+    call(&mut emu, &mut cpu, 21, &[]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Frame));
+    assert_eq!(emu.kernel.micros(cpu.cycles), 0);
+}
+
+#[test]
+fn msleep_lasts_the_requested_host_time_and_never_ends_in_a_pause() {
+    let (mut emu, mut cpu) = setup_host();
+    cpu.regs.pc = 0x9020_0102; // juste après un `svc` de 2 octets
+    // Premier appel : l'application dort 100 ms, l'appel sera refait.
+    assert_eq!(
+        call(&mut emu, &mut cpu, 49, &[100]),
+        SvcAction::HandledAndStop
+    );
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 100 }));
+    assert_eq!(cpu.regs.pc, 0x9020_0100);
+    assert_eq!(
+        cpu.regs.r[0], 100,
+        "l'argument est conservé pour la reprise"
+    );
+
+    // La simulation est mise en pause : l'hôte ne fait pas passer de temps, même pendant très longtemps
+    // (et même si le processeur exécutait des instructions entre-temps).
+    for _ in 0..5 {
+        cpu.cycles += 10_000_000;
+        cpu.regs.pc = 0x9020_0102;
+        assert_eq!(
+            call(&mut emu, &mut cpu, 49, &[100]),
+            SvcAction::HandledAndStop
+        );
+        assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 100 }));
+    }
+
+    emu.kernel.advance_time(40_000);
+    cpu.regs.pc = 0x9020_0102;
+    call(&mut emu, &mut cpu, 49, &[100]);
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 60 }));
+
+    emu.kernel.advance_time(60_000);
+    cpu.regs.pc = 0x9020_0102;
+    assert_eq!(call(&mut emu, &mut cpu, 49, &[100]), SvcAction::Handled);
+    assert_eq!(emu.kernel.take_stop(), None);
+
+    // L'attente suivante repart de zéro.
+    cpu.regs.pc = 0x9020_0102;
+    assert_eq!(
+        call(&mut emu, &mut cpu, 50, &[2000]),
+        SvcAction::HandledAndStop
+    );
+    assert_eq!(emu.kernel.take_stop(), Some(KernelStop::Sleep { ms: 2 }));
+}
+
+#[test]
+fn event_timeouts_follow_the_host_clock_only() {
+    let (mut emu, mut cpu) = setup_host();
+    cpu.regs.pc = 0x9020_0102;
+    emu.device.memory.write_u32(SCRATCH, 50).unwrap();
+    assert_eq!(
+        call(&mut emu, &mut cpu, 23, &[SCRATCH]),
+        SvcAction::HandledAndStop
+    );
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(50)
+        })
+    );
+    // Des millions d'instructions sans temps hôte : toujours 50 ms à attendre.
+    cpu.cycles += 500_000_000;
+    cpu.regs.pc = 0x9020_0102;
+    call(&mut emu, &mut cpu, 23, &[SCRATCH]);
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(50)
+        })
+    );
+    emu.kernel.advance_time(50_000);
+    assert_eq!(call(&mut emu, &mut cpu, 23, &[SCRATCH]), SvcAction::Handled);
+}
+
+#[test]
+fn relaunching_forgets_pending_waits() {
+    let (mut emu, mut cpu) = setup_host();
+    cpu.regs.pc = 0x9020_0102;
+    call(&mut emu, &mut cpu, 49, &[1000]);
+    emu.kernel.reset_waits();
+    assert_eq!(emu.kernel.take_stop(), None);
+    // Une nouvelle attente de 10 ms n'hérite pas de l'ancienne échéance (1000 ms).
+    cpu.regs.pc = 0x9020_0102;
+    call(&mut emu, &mut cpu, 49, &[10]);
+    emu.kernel.advance_time(10_000);
+    cpu.regs.pc = 0x9020_0102;
+    assert_eq!(call(&mut emu, &mut cpu, 49, &[10]), SvcAction::Handled);
+}

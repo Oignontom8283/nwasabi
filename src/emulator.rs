@@ -177,6 +177,7 @@ impl Emulator {
         let profile = &self.device.profile;
         let exit_stub = profile.active().userland_header + EXIT_STUB_OFFSET;
         self.device.memory.clear_access();
+        self.kernel.reset_waits();
         self.cpu = Cpu::new();
         self.cpu.regs.sp = profile.process_stack_start;
         self.cpu.regs.lr = exit_stub | 1;

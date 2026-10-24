@@ -335,3 +335,85 @@ fn an_unknown_firmware_is_refused() {
     let mut s = Session::new();
     assert!(error(&mut s, r#"{"cmd":"new","firmware":"1.0"}"#).contains("firmware inconnu"));
 }
+
+fn time_ms(reply: &Value) -> i64 {
+    reply.get("time_ms").and_then(Value::as_i64).unwrap()
+}
+
+fn stop_kind(reply: &Value) -> &str {
+    reply
+        .get("stop")
+        .and_then(|s| s.get("kind"))
+        .and_then(Value::as_str)
+        .unwrap()
+}
+
+#[test]
+fn with_the_host_clock_time_only_moves_when_the_host_says_so() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    // compressor attend 10 ms (msleep) entre deux lectures du clavier.
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("compressor-1.0.0"))
+        .unwrap();
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(
+            r#"{{"cmd":"load","clock":"host","nwa_base64":"{}"}}"#,
+            json::base64_encode(nwa)
+        ),
+    );
+    let first = ok(&mut s, r#"{"cmd":"run","instructions":10000000}"#);
+    assert_eq!(stop_kind(&first), "sleep", "{first}");
+    assert_eq!(time_ms(&first), 0);
+
+    // « Pause » : l'hôte relance l'exécution sans faire passer de temps, même très longtemps. Rien ne
+    // se passe pour l'application, qui reste à dormir sans que son horloge bouge.
+    for _ in 0..20 {
+        let again = ok(&mut s, r#"{"cmd":"run","instructions":50000000}"#);
+        assert_eq!(stop_kind(&again), "sleep");
+        assert_eq!(time_ms(&again), 0);
+    }
+
+    // Le temps de l'hôte avance : l'application se réveille, puis se rendort.
+    ok(&mut s, r#"{"cmd":"advance","ms":10}"#);
+    let woken = ok(&mut s, r#"{"cmd":"run","instructions":10000000}"#);
+    assert_eq!(stop_kind(&woken), "sleep");
+    assert_eq!(time_ms(&woken), 10);
+    // Les microsecondes sont acceptées.
+    ok(&mut s, r#"{"cmd":"advance","us":2500}"#);
+    assert_eq!(
+        time_ms(&ok(&mut s, r#"{"cmd":"run","instructions":1000}"#)),
+        12
+    );
+}
+
+#[test]
+fn with_the_virtual_clock_sleeping_jumps_the_time() {
+    let Some(apps) = support::corpus() else {
+        return support::skip_without_corpus();
+    };
+    let (_, nwa) = apps
+        .iter()
+        .find(|(n, _)| n.starts_with("compressor-1.0.0"))
+        .unwrap();
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(
+            r#"{{"cmd":"load","nwa_base64":"{}"}}"#,
+            json::base64_encode(nwa)
+        ),
+    );
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":20000000}"#);
+    assert!(time_ms(&ran) >= 100, "le temps virtuel avance seul : {ran}");
+}
+
+#[test]
+fn an_unknown_clock_is_refused() {
+    let mut s = Session::new();
+    assert!(error(&mut s, r#"{"cmd":"new","clock":"lune"}"#).contains("horloge inconnue"));
+}

@@ -8,6 +8,7 @@
 //! La session ne touche ni au disque ni à l'horloge : les fichiers entrent et sortent en base64
 //! (ou en hexadécimal pour la mémoire), le temps est donné par `advance`.
 //!
+//! `new` et `load` acceptent aussi `"clock"` (`"virtual"`, par défaut, ou `"host"`).
 //! `new` et `load` acceptent `"model"` (`n0110`, `n0115`, `n0120`) et `"firmware"` (`"24"`, par
 //! défaut, ou `"26.4.0"`).
 //!
@@ -22,8 +23,8 @@ use crate::checksum;
 use crate::emulator::{Emulator, RunStop};
 use crate::inspect::read_structures;
 use crate::json::{self, Value, ValueExt};
-use crate::kernel::KernelConfig;
 use crate::kernel::Key;
+use crate::kernel::{ClockMode, KernelConfig};
 use crate::memory::WatchKind;
 use crate::profile::{FirmwareProfile, Model, Slot};
 use crate::storage::PythonSource;
@@ -72,6 +73,24 @@ fn profile_of(req: &Value, model: Model) -> Result<FirmwareProfile, String> {
         "26.4.0" => Ok(FirmwareProfile::epsilon_26_4_0(model)),
         other => Err(format!("firmware inconnu : {other} (24 ou 26.4.0)")),
     }
+}
+
+/// Réglages du noyau demandés par `clock` : `"virtual"` (défaut, déterministe) ou `"host"` (le temps
+/// n'avance que par la commande `advance`, que l'hôte appelle avec le temps réellement écoulé).
+fn config_of(req: &Value) -> Result<KernelConfig, String> {
+    let clock = match req
+        .get("clock")
+        .and_then(Value::as_str)
+        .unwrap_or("virtual")
+    {
+        "virtual" => ClockMode::Virtual,
+        "host" => ClockMode::Host,
+        other => return Err(format!("horloge inconnue : {other} (virtual ou host)")),
+    };
+    Ok(KernelConfig {
+        clock,
+        ..KernelConfig::default()
+    })
 }
 
 fn key_of(req: &Value) -> Result<Key, String> {
@@ -173,8 +192,12 @@ impl Session {
             "run" => self.run(req),
             "key" => self.key(req),
             "advance" => {
-                let ms = number(req, "ms")?;
-                self.emu()?.kernel.advance_time(u64::from(ms) * 1000);
+                // `us` (microsecondes) ou `ms` : le temps à faire passer pour l'application.
+                let us = match req.get("us") {
+                    Some(_) => u64::from(number(req, "us")?),
+                    None => u64::from(number(req, "ms")?) * 1000,
+                };
+                self.emu()?.kernel.advance_time(us);
                 Ok(Value::object().with("time_ms", self.time_ms()?))
             }
             "screen" => self.screen(req),
@@ -322,8 +345,7 @@ impl Session {
     fn new_device(&mut self, req: &Value) -> Reply {
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
         let profile = profile_of(req, model)?;
-        let emu =
-            Emulator::with_profile(profile, KernelConfig::default()).map_err(|e| e.to_string())?;
+        let emu = Emulator::with_profile(profile, config_of(req)?).map_err(|e| e.to_string())?;
         self.emu = Some(emu);
         self.frames = 0;
         Ok(Value::object().with("model", model.name()))
@@ -338,7 +360,7 @@ impl Session {
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
         let profile = profile_of(req, model)?;
         let mut emu =
-            Emulator::with_profile(profile, KernelConfig::default()).map_err(|e| e.to_string())?;
+            Emulator::with_profile(profile, config_of(req)?).map_err(|e| e.to_string())?;
         emu.install_nwa(&nwa, data.as_deref())
             .map_err(|e| e.to_string())?;
         let info = views::app(emu.app().expect("application installée"));
@@ -367,6 +389,7 @@ impl Session {
             return Err("aucune application installée".to_owned());
         }
         let start_cycles = emu.cpu.cycles;
+        let host_clock = emu.kernel.config.clock == ClockMode::Host;
         let mut seen = 0u64;
         let stop = loop {
             let used = emu.cpu.cycles - start_cycles;
@@ -381,6 +404,9 @@ impl Session {
                         break stop;
                     }
                 }
+                // Avec l'horloge de l'hôte une attente ne finit que si l'hôte fait passer du temps :
+                // inutile d'insister, on lui rend la main.
+                RunStop::Sleep { .. } if host_clock => break stop,
                 RunStop::Sleep { .. } | RunStop::Budget => {}
                 other => break other,
             }
