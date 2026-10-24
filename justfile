@@ -146,3 +146,10 @@ ci: fmt-check clippy test build-wasm build-js
 # Supprime les fichiers de compilation.
 clean:
     cargo clean
+
+    find . -maxdepth 5 \
+        \( -type d -name "local" -prune \) -o \
+        \( -type d \( -name "node_modules" -o -name "dist" -o -name "__pycache__" \) \
+        -prune -exec rm -rf -- {} + \)
+
+    rm -rf ./example/nwasabi.wasm ./example/js
