@@ -12,6 +12,7 @@ mod decode;
 mod exception;
 mod exec;
 mod fpu;
+mod fpu_double;
 mod hooks;
 mod instr;
 mod regs;

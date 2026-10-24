@@ -10,6 +10,7 @@
 //! processeur). Les cas particuliers propres à ARM sont traités à la main : propagation des NaN,
 //! NaN par défaut, mise à zéro des dénormalisés (`FZ`), indicateurs d'exception cumulés.
 
+use super::fpu_double::{self, DInstr};
 use super::instr::Reg;
 use super::{Bus, Cpu, Stop, UsageFault};
 
@@ -82,6 +83,51 @@ pub enum FpInstr {
         d: u8,
         m: u8,
     },
+    /// Double précision (D0 à D15) et conversions vers la demi-précision.
+    Double(DInstr),
+    /// `vcvta`, `vcvtn`, `vcvtp`, `vcvtm` : flottant → entier avec un arrondi imposé par l'instruction.
+    ToIntRounded {
+        signed: bool,
+        rounding: u32,
+        d: u8,
+        m: u8,
+    },
+    /// `vrinta`, `vrintn`, `vrintp`, `vrintm`, `vrintz`, `vrintr`, `vrintx` : arrondi à un entier, en flottant.
+    Rint {
+        rounding: u32,
+        /// Lève l'exception d'inexactitude quand le résultat diffère (`vrintx`).
+        exact: bool,
+        d: u8,
+        m: u8,
+    },
+    /// `vsel` : copie `Sn` ou `Sm` selon les indicateurs entiers (`cond` : 0 EQ, 1 VS, 2 GE, 3 GT).
+    Vsel {
+        cond: u8,
+        d: u8,
+        n: u8,
+        m: u8,
+    },
+    /// `vmaxnm` (`max`) ou `vminnm` : un NaN silencieux cède la place à l'autre opérande.
+    MaxMinNum {
+        max: bool,
+        d: u8,
+        n: u8,
+        m: u8,
+    },
+    /// `vcvt` flottant → virgule fixe, en place : `Sd` reçoit `trunc(Sd × 2^fbits)` saturé sur 16 ou 32 bits.
+    ToFixed {
+        signed: bool,
+        wide: bool,
+        fbits: u32,
+        d: u8,
+    },
+    /// `vcvt` virgule fixe → flottant, en place.
+    FromFixed {
+        signed: bool,
+        wide: bool,
+        fbits: u32,
+        d: u8,
+    },
     /// Conversion entier → flottant.
     FromInt {
         signed: bool,
@@ -147,6 +193,14 @@ fn bits(v: u32, hi: u32, lo: u32) -> u32 {
 /// ou n'est pas gérée.
 pub fn decode(hw1: u16, hw2: u16) -> Option<FpInstr> {
     let (a, b) = (u32::from(hw1), u32::from(hw2));
+    // Extensions de FPv5 (ARMv8) : `vsel`, `vmaxnm`, `vrint*`, `vcvt{a,n,p,m}`.
+    if a >> 8 == 0xfe {
+        return decode_v8(a, b);
+    }
+    // `vcvtb` / `vcvtt` : demi-précision (en simple ou en double).
+    if a & 0xffbe == 0xeeb2 && bit(b, 6) {
+        return fpu_double::decode_half(a, b).map(FpInstr::Double);
+    }
     // Instructions « conditionnelles » du coprocesseur 10 (simple) ou 11 (double).
     if a >> 10 != 0b111011 {
         return None;
@@ -166,12 +220,12 @@ pub fn decode(hw1: u16, hw2: u16) -> Option<FpInstr> {
         _ => {
             if bits(b, 4, 4) == 0 {
                 if double {
-                    None
+                    fpu_double::decode_data(a, b).map(FpInstr::Double)
                 } else {
                     decode_data(a, b, single)
                 }
             } else if double {
-                None
+                decode_lane(a, b)
             } else {
                 decode_core_transfer(a, b, single)
             }
@@ -264,6 +318,73 @@ fn bit(v: u32, n: u32) -> bool {
     (v >> n) & 1 != 0
 }
 
+/// `vmov.32 Dn[x], Rt` et `vmov.32 Rt, Dn[x]` : un des deux mots d'un registre double.
+fn decode_lane(a: u32, b: u32) -> Option<FpInstr> {
+    // 1110 1110 0 0x L Vn / Rt 1011 N 00 1 0000
+    if bit(a, 7) || bit(a, 6) || bits(b, 6, 5) != 0 || bits(b, 3, 0) != 0 || bit(b, 7) {
+        return None;
+    }
+    Some(FpInstr::MovCore {
+        to_core: bit(a, 4),
+        rt: bits(b, 15, 12) as Reg,
+        s: (2 * bits(a, 3, 0) + bits(a, 5, 5)) as u8,
+    })
+}
+
+/// Instructions de FPv5 à préfixe `0xFE`.
+fn decode_v8(a: u32, b: u32) -> Option<FpInstr> {
+    if bits(b, 11, 8) == 0b1011 {
+        return fpu_double::decode_v8(a, b).map(FpInstr::Double);
+    }
+    if bits(b, 11, 8) != 0b1010 || bit(b, 4) {
+        return None;
+    }
+    let single = |hi: u32, low_bit: u32| (hi << 1 | low_bit) as u8;
+    let d = single(bits(b, 15, 12), bits(a, 6, 6));
+    let n = single(bits(a, 3, 0), bits(b, 7, 7));
+    let m = single(bits(b, 3, 0), bits(b, 5, 5));
+    // Dans les groupes d'arrondi, `rm` : 0 vers le plus proche (égalité à l'écart de zéro), 1 vers
+    // le plus proche pair, 2 vers +infini, 3 vers -infini.
+    let rounding = |rm: u32| match rm {
+        0 => ROUND_AWAY,
+        1 => 0,
+        2 => 1,
+        _ => 2,
+    };
+    if !bit(a, 7) {
+        if bit(b, 6) {
+            return None;
+        }
+        return Some(FpInstr::Vsel {
+            cond: bits(a, 5, 4) as u8,
+            d,
+            n,
+            m,
+        });
+    }
+    match (bits(a, 5, 4), bits(a, 3, 2)) {
+        (0b00, _) => Some(FpInstr::MaxMinNum {
+            max: !bit(b, 6),
+            d,
+            n,
+            m,
+        }),
+        (0b11, 0b10) if bits(b, 7, 6) == 0b01 => Some(FpInstr::Rint {
+            rounding: rounding(bits(a, 1, 0)),
+            exact: false,
+            d,
+            m,
+        }),
+        (0b11, 0b11) if bit(b, 6) => Some(FpInstr::ToIntRounded {
+            signed: bit(b, 7),
+            rounding: rounding(bits(a, 1, 0)),
+            d,
+            m,
+        }),
+        _ => None,
+    }
+}
+
 fn decode_data(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Option<FpInstr> {
     let opc1 = bits(a, 7, 4);
     let d = single(bits(b, 15, 12), bits(a, 6, 6));
@@ -326,6 +447,49 @@ fn decode_extension(a: u32, b: u32, d: u8, m: u8) -> Option<FpInstr> {
             d,
             m,
         },
+        // vcvt.f64.f32 Dd, Sm (la version inverse est décodée avec la double précision).
+        0b0111 if op == 0b11 => FpInstr::Double(DInstr::FromSingle {
+            d: if d & 1 == 0 { d } else { return None },
+            m,
+        }),
+        // vrintr (selon FPSCR), vrintz (vers zéro), vrintx (selon FPSCR, avec exception d'inexactitude).
+        0b0110 => FpInstr::Rint {
+            rounding: if op == 0b11 { 3 } else { ROUND_FPSCR },
+            exact: false,
+            d,
+            m,
+        },
+        0b0111 if op == 0b01 => FpInstr::Rint {
+            rounding: ROUND_FPSCR,
+            exact: true,
+            d,
+            m,
+        },
+        // vcvt virgule fixe : opc2 = 1x1U (x : 1 vers la virgule fixe), taille en bit 7, `imm4:i` en 3-0 et 5.
+        0b1010 | 0b1011 | 0b1110 | 0b1111 => {
+            let wide = bit(b, 7);
+            let size = if wide { 32 } else { 16 };
+            let imm5 = (bits(b, 3, 0) << 1) | bits(b, 5, 5);
+            if imm5 > size {
+                return None;
+            }
+            let (signed, fbits) = (opc2 & 1 == 0, size - imm5);
+            if bit(a, 2) {
+                FpInstr::ToFixed {
+                    signed,
+                    wide,
+                    fbits,
+                    d,
+                }
+            } else {
+                FpInstr::FromFixed {
+                    signed,
+                    wide,
+                    fbits,
+                    d,
+                }
+            }
+        }
         0b0100 => FpInstr::Cmp {
             d,
             m: Some(m),
@@ -376,19 +540,39 @@ fn decode_core_transfer(a: u32, b: u32, single: impl Fn(u32, u32) -> u8) -> Opti
 // Arithmétique flottante à la manière d'ARM
 // ---------------------------------------------------------------------------------------------
 
-const FPSCR_IOC: u32 = 1 << 0;
-const FPSCR_DZC: u32 = 1 << 1;
-const FPSCR_OFC: u32 = 1 << 2;
-const FPSCR_UFC: u32 = 1 << 3;
-const FPSCR_IXC: u32 = 1 << 4;
-const FPSCR_IDC: u32 = 1 << 7;
+pub(super) const FPSCR_IOC: u32 = 1 << 0;
+pub(super) const FPSCR_DZC: u32 = 1 << 1;
+pub(super) const FPSCR_OFC: u32 = 1 << 2;
+pub(super) const FPSCR_UFC: u32 = 1 << 3;
+pub(super) const FPSCR_IXC: u32 = 1 << 4;
+pub(super) const FPSCR_IDC: u32 = 1 << 7;
 /// Mise à zéro des dénormalisés.
-const FPSCR_FZ: u32 = 1 << 24;
+pub(super) const FPSCR_FZ: u32 = 1 << 24;
 /// Mode « NaN par défaut ».
-const FPSCR_DN: u32 = 1 << 25;
+pub(super) const FPSCR_DN: u32 = 1 << 25;
 /// Mode d'arrondi (bits 23-22).
-const FPSCR_RMODE_SHIFT: u32 = 22;
+pub(super) const FPSCR_RMODE_SHIFT: u32 = 22;
 const DEFAULT_NAN: u32 = 0x7fc0_0000;
+/// Code d'arrondi « au plus proche, égalité à l'écart de zéro » (en plus de 0 à 3, comme FPSCR).
+pub(super) const ROUND_AWAY: u32 = 4;
+/// Code d'arrondi « celui de FPSCR » pour `Rint`.
+pub(super) const ROUND_FPSCR: u32 = 5;
+
+/// Flottant suivant dans le sens des valeurs croissantes.
+pub(super) fn next_up(x: f32) -> f32 {
+    if x.is_nan() || x == f32::INFINITY {
+        return x;
+    }
+    if x == 0.0 {
+        return f32::from_bits(1);
+    }
+    let b = x.to_bits();
+    f32::from_bits(if x > 0.0 { b + 1 } else { b - 1 })
+}
+
+pub(super) fn next_down(x: f32) -> f32 {
+    -next_up(-x)
+}
 
 fn is_snan(x: f32) -> bool {
     x.is_nan() && x.to_bits() & 0x0040_0000 == 0
@@ -444,6 +628,49 @@ impl Env<'_> {
         f32::from_bits(DEFAULT_NAN)
     }
 
+    /// Mode d'arrondi de FPSCR (0 au plus proche, 1 vers +inf, 2 vers -inf, 3 vers zéro).
+    fn rounding_mode(&self) -> u32 {
+        (*self.fpscr >> FPSCR_RMODE_SHIFT) & 3
+    }
+
+    /// Corrige un résultat arrondi au plus proche pour les modes d'arrondi dirigés.
+    /// `residual` est la valeur exacte moins `r` (seul son signe compte).
+    fn directed(&mut self, r: f32, residual: f64, inputs_finite: bool) -> f32 {
+        let mode = self.rounding_mode();
+        if mode == 0 || !inputs_finite {
+            return r;
+        }
+        if r.is_infinite() {
+            let to_max = match mode {
+                1 => r < 0.0,
+                2 => r > 0.0,
+                _ => true,
+            };
+            if !to_max {
+                return r;
+            }
+            self.raise(FPSCR_OFC | FPSCR_IXC);
+            return if r > 0.0 { f32::MAX } else { -f32::MAX };
+        }
+        let up = match mode {
+            1 => residual > 0.0,
+            3 => r < 0.0 && residual > 0.0,
+            _ => false,
+        };
+        let down = match mode {
+            2 => residual < 0.0,
+            3 => r > 0.0 && residual < 0.0,
+            _ => false,
+        };
+        if up {
+            next_up(r)
+        } else if down {
+            next_down(r)
+        } else {
+            r
+        }
+    }
+
     /// Finalise un résultat fini : débordement, soupassement, inexactitude, mise à zéro en sortie.
     fn finish(&mut self, result: f32, inexact: bool, inputs_finite: bool) -> f32 {
         if inputs_finite && result.is_infinite() {
@@ -470,6 +697,10 @@ impl Env<'_> {
             return n;
         }
         let b = if subtract { -b } else { b };
+        if a == 0.0 && b == 0.0 && a.is_sign_negative() != b.is_sign_negative() {
+            // Zéros de signes opposés : +0, sauf en arrondi vers -infini.
+            return if self.rounding_mode() == 2 { -0.0 } else { 0.0 };
+        }
         if a.is_infinite() && b.is_infinite() && a.is_sign_negative() != b.is_sign_negative() {
             return self.default_nan();
         }
@@ -482,9 +713,20 @@ impl Env<'_> {
         let inexact = f64::from(result) != sum || error != 0.0;
         let finite = a.is_finite() && b.is_finite();
         if result == 0.0 && finite && a != 0.0 && !inexact {
-            // Somme exactement nulle : signe selon le mode d'arrondi (+0 en arrondi au plus proche).
-            return if a == -b { 0.0 } else { result };
+            // Somme exactement nulle : +0, sauf en arrondi vers -infini.
+            return if a == -b && self.rounding_mode() != 2 {
+                0.0
+            } else if a == -b {
+                -0.0
+            } else {
+                result
+            };
         }
+        let result = if result.is_finite() {
+            self.directed(result, (sum - f64::from(result)) + error, finite)
+        } else {
+            self.directed(result, 0.0, finite)
+        };
         self.finish(result, inexact && finite, finite)
     }
 
@@ -499,7 +741,14 @@ impl Env<'_> {
         let result = a * b;
         let exact = f64::from(a) * f64::from(b);
         let finite = a.is_finite() && b.is_finite();
-        self.finish(result, finite && f64::from(result) != exact, finite)
+        let residual = if result.is_finite() {
+            exact - f64::from(result)
+        } else {
+            0.0
+        };
+        let inexact = finite && f64::from(result) != exact;
+        let result = self.directed(result, residual, finite);
+        self.finish(result, inexact, finite)
     }
 
     fn div(&mut self, a: f32, b: f32) -> f32 {
@@ -521,6 +770,12 @@ impl Env<'_> {
         let result = a / b;
         let finite = a.is_finite() && b.is_finite();
         let inexact = finite && b != 0.0 && f64::from(result) * f64::from(b) != f64::from(a);
+        let residual = if finite && result.is_finite() {
+            (f64::from(a) - f64::from(result) * f64::from(b)) * f64::from(b).signum()
+        } else {
+            0.0
+        };
+        let result = self.directed(result, residual, finite);
         self.finish(result, inexact, finite)
     }
 
@@ -534,7 +789,9 @@ impl Env<'_> {
         }
         let result = a.sqrt();
         let inexact = a.is_finite() && f64::from(result) * f64::from(result) != f64::from(a);
-        self.finish(result, inexact, true)
+        let residual = f64::from(a) - f64::from(result) * f64::from(result);
+        let result = self.directed(result, residual, a.is_finite());
+        self.finish(result, inexact, a.is_finite())
     }
 
     /// `addend + a × b` avec un seul arrondi.
@@ -561,6 +818,21 @@ impl Env<'_> {
         let error = (x - (sum - bb)) + (y - bb);
         let finite = a.is_finite() && b.is_finite() && addend.is_finite();
         let inexact = f64::from(result) != sum || error != 0.0;
+        let residual = if result.is_finite() {
+            (sum - f64::from(result)) + error
+        } else {
+            0.0
+        };
+        if finite && result == 0.0 && !inexact {
+            // Somme exactement nulle : +0, sauf en arrondi vers -infini ; trois zéros de même signe
+            // gardent leur signe.
+            let product_negative = a.is_sign_negative() != b.is_sign_negative();
+            let all_zero = (a == 0.0 || b == 0.0) && addend == 0.0;
+            if !(all_zero && product_negative == addend.is_sign_negative()) {
+                return if self.rounding_mode() == 2 { -0.0 } else { 0.0 };
+            }
+        }
+        let result = self.directed(result, residual, finite);
         self.finish(result, finite && inexact, finite)
     }
 
@@ -582,6 +854,86 @@ impl Env<'_> {
         }
     }
 
+    /// `vrint*` : arrondi à un entier. `rounding` : 0 à 3 comme `RMode`, `ROUND_AWAY` ou `ROUND_FPSCR`.
+    fn round_to_integral(&mut self, x: f32, rounding: u32, exact: bool) -> f32 {
+        let x = self.input(x);
+        if let Some(n) = self.process_nans(&[x]) {
+            return n;
+        }
+        let rounding = if rounding == ROUND_FPSCR {
+            (*self.fpscr >> FPSCR_RMODE_SHIFT) & 3
+        } else {
+            rounding
+        };
+        let rounded = match rounding {
+            0 => x.round_ties_even(),
+            1 => x.ceil(),
+            2 => x.floor(),
+            ROUND_AWAY => x.round(),
+            _ => x.trunc(),
+        };
+        if exact && rounded != x {
+            self.raise(FPSCR_IXC);
+        }
+        rounded
+    }
+
+    /// `vmaxnm` / `vminnm` : un NaN silencieux est ignoré s'il n'y en a qu'un ; -0 < +0.
+    fn max_min_num(&mut self, a: f32, b: f32, max: bool) -> f32 {
+        let (a, b) = (self.input(a), self.input(b));
+        let quiet = |x: f32| x.is_nan() && !is_snan(x);
+        let (a, b) = match (quiet(a), quiet(b)) {
+            (true, false) if !b.is_nan() => (b, b),
+            (false, true) if !a.is_nan() => (a, a),
+            _ => (a, b),
+        };
+        if let Some(n) = self.process_nans(&[a, b]) {
+            return n;
+        }
+        if a == b {
+            // Deux zéros de signes différents : le maximum est +0, le minimum -0.
+            let negative = if max {
+                a.is_sign_negative() && b.is_sign_negative()
+            } else {
+                a.is_sign_negative() || b.is_sign_negative()
+            };
+            return if a == 0.0 {
+                if negative { -0.0 } else { 0.0 }
+            } else {
+                a
+            };
+        }
+        if (a > b) == max { a } else { b }
+    }
+
+    /// Conversion flottant → virgule fixe (vers zéro, avec saturation) ; le résultat est étendu à 32 bits.
+    fn convert_to_fixed(&mut self, x: f32, signed: bool, wide: bool, fbits: u32) -> u32 {
+        let x = self.input(x);
+        if x.is_nan() {
+            self.raise(FPSCR_IOC);
+            return 0;
+        }
+        let size = if wide { 32 } else { 16 };
+        let (min, max) = if signed {
+            (-(2f64.powi(size - 1)), 2f64.powi(size - 1) - 1.0)
+        } else {
+            (0.0, 2f64.powi(size) - 1.0)
+        };
+        let scaled = f64::from(x) * 2f64.powi(fbits as i32);
+        let truncated = scaled.trunc();
+        let saturated = truncated.clamp(min, max);
+        if truncated != saturated {
+            self.raise(FPSCR_IOC);
+        } else if truncated != scaled {
+            self.raise(FPSCR_IXC);
+        }
+        if signed {
+            (saturated as i64) as u32
+        } else {
+            saturated as u32
+        }
+    }
+
     /// Conversion flottant → entier de 32 bits avec saturation.
     fn convert_to_int(&mut self, x: f32, signed: bool, rounding: u32) -> u32 {
         let x = self.input(x);
@@ -593,6 +945,7 @@ impl Env<'_> {
             0 => x.round_ties_even(), // au plus proche
             1 => x.ceil(),            // vers +infini
             2 => x.floor(),           // vers -infini
+            ROUND_AWAY => x.round(),  // au plus proche, égalité à l'écart de zéro
             _ => x.trunc(),           // vers zéro
         };
         let (min, max) = if signed {
@@ -709,6 +1062,84 @@ impl Cpu {
                 }
                 .convert_to_int(x, signed, rounding);
                 self.regs.s[d as usize] = value;
+            }
+            FpInstr::Double(instr) => self.exec_double(instr),
+            FpInstr::ToIntRounded {
+                signed,
+                rounding,
+                d,
+                m,
+            } => {
+                let x = f(self, m);
+                let value = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .convert_to_int(x, signed, rounding);
+                self.regs.s[d as usize] = value;
+            }
+            FpInstr::Rint {
+                rounding,
+                exact,
+                d,
+                m,
+            } => {
+                let x = f(self, m);
+                let result = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .round_to_integral(x, rounding, exact);
+                self.regs.s[d as usize] = result.to_bits();
+            }
+            FpInstr::Vsel { cond, d, n, m } => {
+                let regs = &self.regs;
+                let taken = match cond {
+                    0 => regs.z(),
+                    1 => regs.v(),
+                    2 => regs.n() == regs.v(),
+                    _ => !regs.z() && regs.n() == regs.v(),
+                };
+                let source = if taken { n } else { m };
+                self.regs.s[d as usize] = self.regs.s[source as usize];
+            }
+            FpInstr::MaxMinNum { max, d, n, m } => {
+                let (nv, mv) = (f(self, n), f(self, m));
+                let result = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .max_min_num(nv, mv, max);
+                self.regs.s[d as usize] = result.to_bits();
+            }
+            FpInstr::ToFixed {
+                signed,
+                wide,
+                fbits,
+                d,
+            } => {
+                let x = f(self, d);
+                let value = Env {
+                    fpscr: &mut self.regs.fpscr,
+                }
+                .convert_to_fixed(x, signed, wide, fbits);
+                self.regs.s[d as usize] = value;
+            }
+            FpInstr::FromFixed {
+                signed,
+                wide,
+                fbits,
+                d,
+            } => {
+                let raw = self.regs.s[d as usize];
+                let value: i64 = match (signed, wide) {
+                    (true, true) => i64::from(raw as i32),
+                    (true, false) => i64::from(raw as u16 as i16),
+                    (false, true) => i64::from(raw),
+                    (false, false) => i64::from(raw as u16),
+                };
+                let result = value as f32;
+                if f64::from(result) != value as f64 {
+                    self.regs.fpscr |= FPSCR_IXC;
+                }
+                self.regs.s[d as usize] = (result * 2f32.powi(-(fbits as i32))).to_bits();
             }
             FpInstr::FromInt { signed, d, m } => {
                 let raw = self.regs.s[m as usize];
@@ -1006,5 +1437,89 @@ mod tests {
                 bits: 0xc020_0000
             }
         );
+    }
+
+    #[test]
+    fn decodes_vsel_from_real_applications() {
+        // vselge.f32 s12, s15, s12 ; vseleq.f32 s14, s13, s14 ; vselgt.f32 s2, s2, s15.
+        assert_eq!(
+            decode(0xfe27, 0x6a86),
+            Some(FpInstr::Vsel {
+                cond: 2,
+                d: 12,
+                n: 15,
+                m: 12
+            })
+        );
+        assert_eq!(
+            decode(0xfe06, 0x7a87),
+            Some(FpInstr::Vsel {
+                cond: 0,
+                d: 14,
+                n: 13,
+                m: 14
+            })
+        );
+        assert_eq!(
+            decode(0xfe31, 0x1a27),
+            Some(FpInstr::Vsel {
+                cond: 3,
+                d: 2,
+                n: 2,
+                m: 15
+            })
+        );
+    }
+
+    #[test]
+    fn rounding_to_integral_and_max_min_num() {
+        let mut fpscr = 0;
+        assert_eq!(
+            env(&mut fpscr).round_to_integral(2.5, ROUND_AWAY, false),
+            3.0
+        );
+        assert_eq!(env(&mut fpscr).round_to_integral(2.5, 0, false), 2.0);
+        assert_eq!(env(&mut fpscr).round_to_integral(-2.5, 2, false), -3.0);
+        assert_eq!(env(&mut fpscr).round_to_integral(2.7, 3, false), 2.0);
+        let nan = f32::NAN;
+        assert_eq!(env(&mut fpscr).max_min_num(nan, 1.0, true), 1.0);
+        assert_eq!(env(&mut fpscr).max_min_num(1.0, nan, false), 1.0);
+        assert!(env(&mut fpscr).max_min_num(nan, nan, true).is_nan());
+        assert_eq!(env(&mut fpscr).max_min_num(-0.0, 0.0, true).to_bits(), 0);
+        assert_eq!(
+            env(&mut fpscr).max_min_num(-0.0, 0.0, false).to_bits(),
+            0x8000_0000
+        );
+        assert_eq!(env(&mut fpscr).max_min_num(2.0, 3.0, false), 2.0);
+    }
+
+    #[test]
+    fn fixed_point_conversions() {
+        // vcvt.s32.f32 s14, s14, #8 (0xeebe 0x7acc) lu dans une application réelle.
+        assert_eq!(
+            decode(0xeebe, 0x7acc),
+            Some(FpInstr::ToFixed {
+                signed: true,
+                wide: true,
+                fbits: 8,
+                d: 14
+            })
+        );
+        let mut fpscr = 0;
+        assert_eq!(env(&mut fpscr).convert_to_fixed(1.5, true, true, 8), 384);
+        assert_eq!(
+            env(&mut fpscr).convert_to_fixed(-1.5, true, true, 8) as i32,
+            -384
+        );
+        assert_eq!(
+            env(&mut fpscr).convert_to_fixed(1000.0, false, false, 0),
+            1000
+        );
+        assert_eq!(fpscr, 0);
+        assert_eq!(
+            env(&mut fpscr).convert_to_fixed(1e9, true, false, 0),
+            0x7fff
+        );
+        assert_ne!(fpscr & FPSCR_IOC, 0);
     }
 }
