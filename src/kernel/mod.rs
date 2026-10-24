@@ -46,9 +46,26 @@ pub enum KernelStop {
     UnknownSvc(u8),
 }
 
+/// D'où vient le temps que voit l'application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClockMode {
+    /// Temps virtuel et déterministe : il avance avec les instructions exécutées (`cycles_per_us`) et
+    /// par les attentes de l'application (`msleep`, image). C'est le mode des tests et de la ligne de
+    /// commande : même exécution, même résultat, sans jamais attendre.
+    #[default]
+    Virtual,
+    /// Temps de l'hôte : le temps n'avance que par [`Kernel::advance_time`], que l'hôte appelle avec le
+    /// temps réellement écoulé. Les attentes de l'application (`msleep`, événements) durent donc le
+    /// temps demandé, et si l'hôte met la simulation en pause sans avancer l'horloge, l'application
+    /// ne voit pas le temps passer.
+    Host,
+}
+
 /// Réglages du noyau simulé.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KernelConfig {
+    /// Origine du temps (voir [`ClockMode`]).
+    pub clock: ClockMode,
     /// Cycles du processeur par microseconde : relie les instructions exécutées au temps virtuel
     /// (216 pour le processeur à 216 MHz du N0110).
     pub cycles_per_us: u32,
@@ -63,6 +80,7 @@ pub struct KernelConfig {
 impl Default for KernelConfig {
     fn default() -> Self {
         Self {
+            clock: ClockMode::Virtual,
             cycles_per_us: 216,
             strict_svc: true,
             stdout_to_screen: true,
@@ -133,6 +151,8 @@ pub struct Kernel {
     /// Nombre d'appels de chaque appel système, par numéro (statistiques).
     pub svc_counts: Vec<u32>,
     extra_us: u64,
+    /// Fin de l'attente en cours (`msleep`, `usleep`) avec l'horloge de l'hôte.
+    sleep_until_us: Option<u64>,
     random: u32,
     heap: (u32, u32),
     brk: u32,
@@ -153,6 +173,7 @@ impl Kernel {
             unknown_svcs: 0,
             svc_counts: vec![0; 256],
             extra_us: 0,
+            sleep_until_us: None,
             random: config.random_seed.max(1),
             heap: (0, 0),
             brk: 0,
@@ -174,16 +195,29 @@ impl Kernel {
         self.brk
     }
 
-    /// Temps virtuel écoulé depuis le démarrage, en microsecondes, pour `cycles` cycles de
-    /// processeur déjà exécutés.
+    /// Temps écoulé depuis le démarrage, en microsecondes, pour `cycles` cycles de processeur déjà
+    /// exécutés. Avec l'horloge de l'hôte, les instructions n'y comptent pour rien.
     pub fn micros(&self, cycles: u64) -> u64 {
-        cycles / u64::from(self.config.cycles_per_us.max(1)) + self.extra_us
+        match self.config.clock {
+            ClockMode::Virtual => {
+                cycles / u64::from(self.config.cycles_per_us.max(1)) + self.extra_us
+            }
+            ClockMode::Host => self.extra_us,
+        }
     }
 
-    /// Fait passer du temps sans exécuter d'instructions (attente d'un événement, hôte en
-    /// temps réel…).
+    /// Fait passer du temps sans exécuter d'instructions. Avec l'horloge de l'hôte, c'est la seule
+    /// façon de faire avancer le temps : l'hôte y met le temps réellement écoulé, et rien pendant une
+    /// pause.
     pub fn advance_time(&mut self, us: u64) {
         self.extra_us = self.extra_us.saturating_add(us);
+    }
+
+    /// Oublie les attentes en cours (événement, `msleep`) : à appeler quand l'application repart de zéro.
+    pub fn reset_waits(&mut self) {
+        self.wait = None;
+        self.sleep_until_us = None;
+        self.stop = None;
     }
 
     /// Prend la raison pour laquelle le noyau a rendu la main, s'il y en a une.
