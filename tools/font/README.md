@@ -1,26 +1,26 @@
 # Nwasabi Pixels
 
-La police du texte à l'écran des applications (`draw_string`). Elle est dessinée pour nwasabi :
-elle rappelle celle d'Epsilon sans en être une copie.
+The font used for the on-screen text of applications (`draw_string`). It is drawn for nwasabi:
+it is reminiscent of Epsilon's font without being a copy of it.
 
-## Licence
+## License
 
-MIT, voir [NwasabiPixels-MIT.txt](./NwasabiPixels-MIT.txt). Elle couvre le script de ce dossier et
-les fichiers qu'il produit (`src/kernel/font/data.rs`) : ensemble, ils forment la police.
+MIT, see [NwasabiPixels-MIT.txt](./NwasabiPixels-MIT.txt). It covers the script in this folder and
+the files it produces (`src/kernel/font/data.rs`): together they make up the font.
 
-## Utilisation
+## Usage
 
 ```sh
 python3 tools/font/generate.py
 ```
 
-Python 3 suffit, rien n'est à installer. Le script réécrit `src/kernel/font/data.rs`, le fichier
-qui contient les glyphes ; le reste du projet n'en dépend pas autrement.
+Python 3 is enough, nothing needs to be installed. The script rewrites `src/kernel/font/data.rs`,
+the file that holds the glyphs; nothing else in the project depends on the script.
 
-## Modifier un glyphe
+## Changing a glyph
 
-Chaque caractère est une petite fonction du script, repérée par `@glyph("a")`. Elle renvoie des
-traits (`line`, `dot`, `stem`, `bar`…) posés sur des repères de la taille de police (`m.L`, `m.R`,
-`m.X`, `m.K`…, décrits dans `Metrics`), ou un dessin pixel par pixel avec `art(...)`. Il y a deux
-tailles : 7×14 pixels et 10×18 pixels. Après un changement, relancer le script, puis lancer les
-tests ; les captures de référence du corpus se régénèrent avec `just update-golden <dossier>`.
+Every character is a small function of the script, marked with `@glyph("a")`. It returns strokes
+(`line`, `dot`, `stem`, `bar`...) placed on the landmarks of the font size (`m.L`, `m.R`, `m.X`,
+`m.K`..., described in `Metrics`), or a pixel-by-pixel drawing with `art(...)`. There are two sizes:
+7x14 pixels and 10x18 pixels. After a change, run the script again, then run the tests; the
+reference screenshots of the corpus are regenerated with `just update-golden <folder>`.

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# Nwasabi Pixels : génère `src/kernel/font/data.rs`.
+# Nwasabi Pixels: generates `src/kernel/font/data.rs`.
 #
-# Copyright (c) 2026 Oignontom8283 — licence MIT (voir `NwasabiPixels-MIT.txt`).
-"""Génère les glyphes de `draw_string` : la police « Nwasabi Pixels ».
+# Copyright (c) 2026 Oignontom8283 — MIT license (see `NwasabiPixels-MIT.txt`).
+"""Generates the glyphs of `draw_string`: the "Nwasabi Pixels" font.
 
-Usage, depuis n'importe quel dossier (Python 3, rien à installer) :
+Usage, from any folder (Python 3, nothing to install):
 
     python3 tools/font/generate.py
 
-Le script dessine chaque caractère comme quelques traits, les rend en pixels dans les cellules
-de l'appareil (7×14 et 10×18) et réécrit `src/kernel/font/data.rs`. Voir `README.md`.
+The script draws every character as a few strokes, renders them as pixels in the cells of the
+device (7x14 and 10x18) and rewrites `src/kernel/font/data.rs`. See `README.md`.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,37 +17,37 @@ from pathlib import Path
 OUTPUT = Path(__file__).resolve().parents[2] / "src" / "kernel" / "font" / "data.rs"
 
 
-# --- Tailles de la police ------------------------------------------------------------------------
+# --- Font sizes ------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Metrics:
-    """Dimensions d'une taille de police. Toutes les hauteurs sont des centres de traits."""
+    """Dimensions of one font size. All heights are centers of strokes."""
 
     name: str
-    width: int  # largeur de la cellule
-    height: int  # hauteur de la cellule
-    base: int  # rangée de la ligne de base : y = 0 est le bord haut de la rangée `base`
-    t: float  # épaisseur des traits
-    L: float  # centre du trait vertical gauche
-    R: float  # centre du trait vertical droit
-    C: float  # centre horizontal
-    X: float  # haut des minuscules sans hampe
-    K: float  # haut des majuscules et des chiffres
-    A: float  # haut des hampes (b, d, f, h, k, l)
-    D: float  # bas des jambages (g, j, p, q, y)
-    Mx: float  # barre des minuscules (e, a)
-    Mk: float  # jonction des panses des majuscules et barre de E, F (B, P, R…)
-    Mc: float  # barre de H
-    Ma: float  # barre de A
-    c: int  # coin coupé des formes rondes (en pixels)
-    dot_len: float  # allongement vertical d'un point (0 : un pixel)
+    width: int  # width of the cell
+    height: int  # height of the cell
+    base: int  # row of the baseline: y = 0 is the top edge of row `base`
+    t: float  # stroke thickness
+    L: float  # center of the left vertical stroke
+    R: float  # center of the right vertical stroke
+    C: float  # horizontal center
+    X: float  # top of lowercase letters without ascender
+    K: float  # top of capitals and digits
+    A: float  # top of ascenders (b, d, f, h, k, l)
+    D: float  # bottom of descenders (g, j, p, q, y)
+    Mx: float  # bar of lowercase letters (e, a)
+    Mk: float  # junction of the bowls of capitals and bar of E, F (B, P, R...)
+    Mc: float  # bar of H
+    Ma: float  # bar of A
+    c: int  # cut corner of round shapes (in pixels)
+    dot_len: float  # vertical extension of a dot (0: one pixel)
 
-    B = 0.5  # bas des traits sur la ligne de base
+    B = 0.5  # bottom of strokes on the baseline
 
     @property
     def hw(self):
-        """Demi-largeur du corps des lettres."""
+        """Half the width of the body of the letters."""
         return (self.R - self.L) / 2
 
 
@@ -56,35 +56,34 @@ LARGE = Metrics("large", 10, 18, 14, 1.0, 1.5, 7.5, 4.5, 7.5, 11.5, 12.5, -3.5, 
 SIZES = [SMALL, LARGE]
 
 
-# --- Traits --------------------------------------------------------------------------------------
+# --- Strokes --------------------------------------------------------------------------------------
 
-# Un glyphe est une liste de *traits* ; un trait est une suite de points reliés par des segments.
-# Les coordonnées sont en pixels : `x` vers la droite depuis le bord gauche de la cellule, `y` vers
-# le haut depuis la ligne de base. Le centre d'un trait d'un pixel d'épaisseur tombe donc sur un
-# demi-entier (`1.5` pour la deuxième colonne).
+# A glyph is a list of *strokes*; a stroke is a series of points joined by segments. Coordinates
+# are in pixels: `x` to the right from the left edge of the cell, `y` upwards from the baseline.
+# The center of a one-pixel stroke therefore falls on a half-integer (`1.5` for the second column).
 
 def line(*points):
-    """Trait polygonal passant par les points donnés."""
+    """A polygonal stroke through the given points."""
     return list(points)
 
 
 def dot(x, y, length=0.0):
-    """Un point : un pixel, ou un petit trait vertical de `length` de plus."""
+    """A dot: one pixel, or a short vertical stroke `length` longer."""
     return [(x, y), (x, y + length)] if length else [(x, y)]
 
 
 def mirror(strokes, axis_x):
-    """Symétrie gauche-droite autour de `x = axis_x`."""
+    """Left-right mirror image around `x = axis_x`."""
     return [[(2 * axis_x - x, y) for x, y in s] for s in strokes]
 
 
-# --- Rastérisation -------------------------------------------------------------------------------
+# --- Rasterization -------------------------------------------------------------------------------
 
-# Chaque trait est dessiné avec un « stylo » rond d'un pixel, par suréchantillonnage ; un pixel
-# couvert à moitié ou plus est allumé.
+# Every stroke is drawn with a round one-pixel "pen", by supersampling; a pixel covered by half or
+# more is lit.
 
-SAMPLES = 6  # points d'échantillonnage par pixel et par axe
-LEVEL_MAX = 15  # niveau d'un pixel allumé (les pixels sont éteints ou pleins)
+SAMPLES = 6  # sample points per pixel and per axis
+LEVEL_MAX = 15  # level of a lit pixel (pixels are either off or full)
 
 
 def _segments(strokes):
@@ -107,14 +106,14 @@ def _dist2(px, py, seg):
 
 
 def render(strokes, m):
-    """Rend les traits dans la cellule de `m` : liste de `height` rangées de `width` niveaux (0-15)."""
+    """Renders the strokes in the cell of `m`: a list of `height` rows of `width` levels (0-15)."""
     segs = _segments(strokes)
     radius = m.t / 2
     r2 = radius * radius
     rows = []
     for j in range(m.height):
         row = []
-        y_top = m.base - j  # bord haut du pixel, en y vers le haut
+        y_top = m.base - j  # top edge of the pixel, in upward y
         for i in range(m.width):
             near = [
                 s
@@ -140,14 +139,14 @@ def render(strokes, m):
     return rows
 
 
-# --- Glyphes de base : chiffres, lettres, ponctuation --------------------------------------------
+# --- Basic glyphs: digits, letters, punctuation --------------------------------------------
 
 
 GLYPHS = {}
 
 
 def glyph(*chars):
-    """Enregistre la fonction pour chacun des caractères (ou points de code) donnés."""
+    """Registers the function for each of the given characters (or code points)."""
 
     def register(fn):
         for c in chars:
@@ -157,12 +156,12 @@ def glyph(*chars):
     return register
 
 
-# --- Constructeurs ----------------------------------------------------------------------------
+# --- Builders ----------------------------------------------------------------------------
 
 
 def octagon(l, b, r, t, c):
-    """Les huit sommets d'un rectangle aux coins coupés de `c`, dans le sens horaire depuis le haut
-    à gauche : 0 et 1 en haut, 2 et 3 à droite, 4 et 5 en bas, 6 et 7 à gauche."""
+    """The eight vertices of a rectangle with corners cut by `c`, clockwise from the top left:
+    0 and 1 at the top, 2 and 3 on the right, 4 and 5 at the bottom, 6 and 7 on the left."""
     return [
         (l + c, t),
         (r - c, t),
@@ -180,7 +179,7 @@ def closed(v):
 
 
 def walk(v, i, j, step):
-    """Sommets de `i` à `j` inclus, dans le sens horaire (`step = 1`) ou inverse (`-1`)."""
+    """Vertices from `i` to `j` included, clockwise (`step = 1`) or counterclockwise (`-1`)."""
     out = [v[i]]
     while i != j:
         i = (i + step) % len(v)
@@ -197,14 +196,14 @@ def bar(y, x0, x1):
 
 
 def rot180(strokes, m):
-    """Demi-tour autour du centre de la boîte des majuscules."""
+    """Half-turn around the center of the box of the capitals."""
     cx, cy = (m.L + m.R) / 2, (m.K + m.B) / 2
     return [[(2 * cx - x, 2 * cy - y) for x, y in s] for s in strokes]
 
 
 def art(top, x0, rows):
-    """Glyphe dessiné pixel par pixel : `top` est le bord haut de la première rangée, `x0` la
-    colonne de gauche ; `#` allume un pixel."""
+    """A glyph drawn pixel by pixel: `top` is the top edge of the first row, `x0` the left column;
+    `#` lights a pixel."""
     out = []
     for r, text in enumerate(rows):
         for c, ch in enumerate(text):
@@ -213,7 +212,7 @@ def art(top, x0, rows):
     return out
 
 
-# --- Chiffres ---------------------------------------------------------------------------------
+# --- Digits ---------------------------------------------------------------------------------
 
 
 @glyph("0")
@@ -334,7 +333,7 @@ def _(m):
     return rot180(GLYPHS[ord("6")](m), m)
 
 
-# --- Majuscules -------------------------------------------------------------------------------
+# --- Capitals -------------------------------------------------------------------------------
 
 
 @glyph("A")
@@ -347,7 +346,7 @@ def _(m):
 
 
 def bowl(m, x0, xr, top, bottom, c):
-    """Panse ouverte à gauche : de `(x0, top)` à `(x0, bottom)` par la droite."""
+    """A bowl open on the left: from `(x0, top)` to `(x0, bottom)` through the right."""
     return line((x0, top), (xr - c, top), (xr, top - c), (xr, bottom + c), (xr - c, bottom), (x0, bottom))
 
 
@@ -535,7 +534,7 @@ def _(m):
     return [line((m.L, m.K), (m.R, m.K), (m.R, yd), (m.L, yd - (m.R - m.L)), (m.L, m.B), (m.R, m.B))]
 
 
-# --- Minuscules -------------------------------------------------------------------------------
+# --- Lowercase letters -------------------------------------------------------------------------------
 
 
 @glyph("a")
@@ -747,7 +746,7 @@ def _(m):
     return [line((m.L, m.X), (m.R, m.X), (m.L, m.B), (m.R, m.B))]
 
 
-# --- Ponctuation et symboles ASCII ------------------------------------------------------------
+# --- ASCII punctuation and symbols ------------------------------------------------------------
 
 
 @glyph(" ")
@@ -1008,11 +1007,11 @@ def _(m):
     return art(m.Mc + 1.5, 1, [".##..#.", "#..##.#"])
 
 
-# --- Accents, lettres particulières, symboles, grec et mathématiques -----------------------------
+# --- Accents, special letters, symbols, Greek and mathematics -----------------------------
 
 
 def mark(kind, m, caps, cx=None):
-    """Traits d'un accent. `caps` : posé sur une majuscule (deux rangées disponibles seulement)."""
+    """Strokes of an accent. `caps`: put on a capital (only two rows are available)."""
     cx = m.C if cx is None else cx
     y0 = m.K + 1 if caps else m.X + 2
     three = m.name == "large" and not caps
@@ -1063,7 +1062,7 @@ LATIN = {
 }
 for char, (base, kind) in LATIN.items():
     GLYPHS[ord(char)] = compose(base, kind, caps=True)
-# Le cédille se pose sous la lettre : la lettre reste une majuscule mais la marque ne monte pas.
+# The cedilla goes under the letter: the letter stays a capital but the mark does not go up.
 GLYPHS[ord("Ç")] = lambda m: GLYPHS[ord("C")](m) + mark("cedilla", m, True)
 
 LOWER = {
@@ -1079,7 +1078,7 @@ for char, (base, kind) in LOWER.items():
     GLYPHS[ord(char)] = compose(base, kind, caps=False)
 GLYPHS[ord("ç")] = lambda m: GLYPHS[ord("c")](m) + mark("cedilla", m, False)
 
-# --- Lettres particulières --------------------------------------------------------------------
+# --- Special letters --------------------------------------------------------------------
 
 
 @glyph(" ")
@@ -1196,7 +1195,7 @@ def _(m):
     return GLYPHS[ord("o")](m) + [line((m.L, m.B), (m.R, m.X))]
 
 
-# --- Typographie ------------------------------------------------------------------------------
+# --- Typography ------------------------------------------------------------------------------
 
 
 @glyph("–")
@@ -1246,7 +1245,7 @@ def _(m):
     return GLYPHS[ord("C")](m) + [bar(m.Mc + 1, m.L - 1, m.C + 1), bar(m.Mc - 1, m.L - 1, m.C + 1)]
 
 
-# --- Symboles Latin-1 -------------------------------------------------------------------------
+# --- Latin-1 symbols -------------------------------------------------------------------------
 
 
 @glyph("¡")
@@ -1424,7 +1423,7 @@ def _(m):
     return mark("cedilla", m, False)
 
 
-# Chiffres en exposant et fractions : petits chiffres dessinés à part.
+# Superscript digits and fractions: small digits drawn separately.
 SMALL_DIGITS = {
     "small": {
         "1": [".#.", "##.", ".#.", "###"],
@@ -1490,7 +1489,7 @@ def _(m):
     return [bar(m.Mc, m.C - r, m.C + r), dot(m.C, m.Mc + 2), dot(m.C, m.Mc - 2)]
 
 
-# --- Grec -------------------------------------------------------------------------------------
+# --- Greek -------------------------------------------------------------------------------------
 
 for greek, latin in "ΑA ΒB ΕE ΖZ ΗH ΙI ΚK ΜM ΝN ΟO ΡP ΤT ΥY ΧX".split():
     GLYPHS[ord(greek)] = GLYPHS[ord(latin)]
@@ -1722,7 +1721,7 @@ def _(m):
     ]
 
 
-# --- Mathématiques et flèches -----------------------------------------------------------------
+# --- Mathematics and arrows -----------------------------------------------------------------
 
 
 @glyph("≤")
@@ -1784,13 +1783,13 @@ def _(m):
     return [stem(m.C, m.B, m.K), line((m.C - r, m.B + r), (m.C, m.B), (m.C + r, m.B + r))]
 
 
-# --- Écriture de data.rs -------------------------------------------------------------------------
+# --- Writing data.rs -------------------------------------------------------------------------
 
 
 HEX = ".123456789abcdef"
 
-# Points de code que la police doit couvrir : ASCII, Latin-1, quelques caractères du Latin étendu et
-# de la typographie, le grec et des symboles mathématiques courants.
+# Code points the font must cover: ASCII, Latin-1, a few characters of extended Latin and of
+# typography, Greek and common mathematical symbols.
 WANTED = sorted(
     set(range(0x20, 0x7F))
     | set(range(0xA0, 0x100))
@@ -1802,7 +1801,7 @@ WANTED = sorted(
 
 
 def render_all():
-    """Pour chaque point de code défini, les rangées rendues de chaque taille."""
+    """For every defined code point, the rendered rows of each size."""
     return {
         cp: {m.name: render(fn(m), m) for m in SIZES}
         for cp, fn in sorted(GLYPHS.items())
@@ -1810,41 +1809,41 @@ def render_all():
 
 
 def image(rows):
-    """Une image : les rangées en texte (`.` éteint, `1`-`f` niveaux), séparées par `/`."""
+    """An image: the rows as text (`.` off, `1`-`f` levels), separated by `/`."""
     return "/".join("".join(HEX[v] for v in row) for row in rows)
 
 
 def write_data(rendered, path):
     missing = [cp for cp in WANTED if cp not in rendered]
     if missing:
-        raise SystemExit("glyphes manquants : " + " ".join(f"U+{cp:04X}" for cp in missing))
+        raise SystemExit("missing glyphs: " + " ".join(f"U+{cp:04X}" for cp in missing))
     codes = [cp for cp in sorted(rendered) if cp in WANTED]
     lines = [
-        "// Police « Nwasabi Pixels » (© 2026 Oignontom8283), licence MIT : voir tools/font/NwasabiPixels-MIT.txt.",
-        "// Ce fichier est produit par tools/font/generate.py ; il fait partie de la police au même titre que",
-        "// le script. Pour changer un glyphe, modifier le script et le relancer.",
+        "// \"Nwasabi Pixels\" font (c) 2026 Oignontom8283, MIT license: see tools/font/NwasabiPixels-MIT.txt.",
+        "// This file is produced by tools/font/generate.py; it is part of the font, just like the script.",
+        "// To change a glyph, edit the script and run it again.",
         "//",
-        "// Chaque glyphe est une image par taille : les rangées sont séparées par `/` ; `.` est un pixel",
-        "// éteint, `1` à `9` et `a` à `f` les niveaux de gris de 1 à 15.",
+        "// Each glyph is one image per size: rows are separated by `/`; `.` is an unlit pixel, `1` to `9`",
+        "// and `a` to `f` are the gray levels 1 to 15.",
         "",
         "pub const SMALL_WIDTH: u32 = %d;" % SMALL.width,
         "pub const SMALL_HEIGHT: u32 = %d;" % SMALL.height,
         "pub const LARGE_WIDTH: u32 = %d;" % LARGE.width,
         "pub const LARGE_HEIGHT: u32 = %d;" % LARGE.height,
         "",
-        "/// Un caractère et ses deux images.",
+        "/// A character and its two images.",
         "pub struct Glyph {",
         "    pub code_point: u32,",
         "    pub small: &'static str,",
         "    pub large: &'static str,",
         "}",
         "",
-        "/// Les glyphes, triés par point de code.",
+        "/// The glyphs, sorted by code point.",
         "pub static GLYPHS: [Glyph; %d] = [" % len(codes),
     ]
     for cp in codes:
         char = chr(cp)
-        label = char if char.isprintable() and not char.isspace() else "(espace)"
+        label = char if char.isprintable() and not char.isspace() else "(space)"
         lines.append("    // %s" % label)
         lines.append(
             '    Glyph { code_point: 0x%04x, small: "%s", large: "%s" },'
@@ -1858,7 +1857,7 @@ def write_data(rendered, path):
 def main():
     rendered = render_all()
     write_data(rendered, OUTPUT)
-    print(f"{len(rendered)} glyphes écrits dans {OUTPUT}")
+    print(f"{len(rendered)} glyphs written to {OUTPUT}")
 
 
 if __name__ == "__main__":
