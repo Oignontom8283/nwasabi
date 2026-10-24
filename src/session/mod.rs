@@ -12,7 +12,7 @@
 //! `new` et `load` acceptent `"model"` (`n0110`, `n0115`, `n0120`) et `"firmware"` (`"24"`, par
 //! défaut, ou `"26.4.0"`).
 //!
-//! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `screen`, `stdout`, `cpu`,
+//! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
 //! `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
@@ -159,6 +159,7 @@ impl Session {
                     "run",
                     "key",
                     "advance",
+                    "time",
                     "screen",
                     "stdout",
                     "cpu",
@@ -199,6 +200,13 @@ impl Session {
                 };
                 self.emu()?.kernel.advance_time(us);
                 Ok(Value::object().with("time_ms", self.time_ms()?))
+            }
+            "time" => {
+                // Temps de simulation depuis le début : celui de l'application, lisible à tout moment.
+                let us = self.emu()?.time_us();
+                Ok(Value::object()
+                    .with("time_us", us)
+                    .with("time_ms", us / 1000))
             }
             "screen" => self.screen(req),
             "stdout" => {
@@ -339,7 +347,7 @@ impl Session {
 
     fn time_ms(&mut self) -> Result<u64, String> {
         let emu = self.emu()?;
-        Ok(emu.kernel.micros(emu.cpu.cycles) / 1000)
+        Ok(emu.time_us() / 1000)
     }
 
     fn new_device(&mut self, req: &Value) -> Reply {
@@ -417,7 +425,7 @@ impl Session {
             .with("stop", views::stop(&stop))
             .with("frames", seen)
             .with("instructions", emu.cpu.cycles - start_cycles)
-            .with("time_ms", emu.kernel.micros(emu.cpu.cycles) / 1000))
+            .with("time_ms", emu.time_us() / 1000))
     }
 
     fn key(&mut self, req: &Value) -> Reply {

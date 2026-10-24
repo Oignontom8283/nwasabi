@@ -79,9 +79,22 @@ check("une pause n'est pas vue par l'application", () => {
   assert.ok(Math.abs(t2 - t1 - 1000) <= 100, `après la pause : +${t2 - t1} ms au lieu de ~1000`);
 });
 
-check("un onglet caché (aucune image pendant 5 s) vaut au plus 250 ms", () => {
+check("le compteur de simulation donne le temps vu par l'application, à tout moment", () => {
+  const a = player.time();
+  assert.ok(Math.abs(a - appTime()) < 1, "même temps que celui du programme");
+  wait(500);
+  const b = player.time();
+  assert.ok(Math.abs(b - a - 500) <= 60, `+${b - a} ms en 500 ms réelles`);
+  assert.equal(player.state.timeMs >= a, true, "state.timeMs suit à chaque image");
+  player.stop();
+  wait(3000);
+  assert.equal(player.time(), b, "figé pendant la pause");
+  player.start();
+});
+
+check("une image très en retard est plafonnée à 250 ms (garde-fou)", () => {
   const before = appTime();
-  now += 5000; // aucune image du navigateur pendant ce temps
+  now += 5000; // aucune image du navigateur pendant ce temps (machine figée)
   wait(1000 / 60); // la première image qui revient
   const after = appTime();
   assert.ok(after - before <= 250 + 20, `+${after - before} ms`);
