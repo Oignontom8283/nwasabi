@@ -1,5 +1,18 @@
-# nwasabi
-Nwasabi !!
+<div align="center">
+
+<img src="assets/logo/logo-bordered.svg" alt="nwasabi logo" width="128" height="128">
+
+# Nwasabi !!
+
+**Run NumWorks `.nwa` apps anywhere: in your browser, in Node.js or from the command line.**
+
+[![crates.io](https://img.shields.io/crates/v/nwasabi?logo=rust&color=74AD3A)](https://crates.io/crates/nwasabi)
+![docs](https://img.shields.io/badge/docs-coming%20soon-74AD3A)
+[![crate size](https://img.shields.io/crates/size/nwasabi?logo=rust&color=74AD3A)](https://crates.io/crates/nwasabi)
+[![npm](https://img.shields.io/npm/v/%40nwasabi%2Fjs?logo=npm&label=%40nwasabi%2Fjs&color=74AD3A)](https://www.npmjs.com/package/@nwasabi/js)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-74AD3A)](./LICENSE)
+
+</div>
 
 ## License & Disclaimer
 
