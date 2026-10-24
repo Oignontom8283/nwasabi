@@ -5,7 +5,7 @@
 //! 2. compiler le module WebAssembly de nwasabi avec un `cargo` imbriqué (dossier de cibles à part,
 //!    sinon le verrou de cargo bloquerait) ;
 //! 3. construire avec Node (`npm ci`, puis `@nwasabi/js` en TypeScript, puis l'interface Vue de `web/`)
-//!    sur une copie des workspaces npm (`package.json`, `packages/`, `web/`) placée dans `OUT_DIR`.
+//!    sur une copie des workspaces npm du site (`package.json` allégé, `packages/js`, `web`) placée dans `OUT_DIR`.
 //!
 //! Les chemins sont décidés ici puis donnés aux outils : à Vite par `NWASABI_WASM` et
 //! `NWASABI_WEB_OUT`, au reste de la compilation par `NWASABI_WEB_DIST` (lu par `rust-embed`).
@@ -104,17 +104,36 @@ fn build_wasm(manifest: &Path, out: &Path) -> Result<PathBuf, String> {
         .join("nwasabi.wasm"))
 }
 
+/// Les workspaces npm dont le site a besoin : @nwasabi/js, puis l'interface qui l'utilise.
+const SITE_WORKSPACES: [&str; 2] = ["packages/js", "web"];
+
+/// Écrit dans `to` le `package.json` de la racine en ne gardant que les workspaces du site. Le
+/// `package-lock.json` complet reste valable : npm accepte un fichier de verrouillage qui décrit
+/// plus de workspaces que ceux déclarés.
+fn write_site_workspace(from: &Path, to: &Path) -> Result<(), String> {
+    let text = fs::read_to_string(from).map_err(|e| format!("{} : {e}", from.display()))?;
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{} : {e}", from.display()))?;
+    manifest["workspaces"] = serde_json::json!(SITE_WORKSPACES);
+    let text = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    fs::write(to, text + "\n").map_err(|e| format!("{} : {e}", to.display()))
+}
+
 fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(), String> {
     let hint = "Installer Node.js (https://nodejs.org) ou définir NWASABI_NO_WEB=1 pour compiler sans l'interface web.";
     // Copie de travail des workspaces npm (racine, paquets et site) : les paquets npm s'installent ici,
     // pas dans l'arbre source.
     let work = out.join("web-src");
     fs::create_dir_all(&work).map_err(|e| format!("{} : {e}", work.display()))?;
-    for file in ["package.json", "package-lock.json"] {
-        fs::copy(manifest.join(file), work.join(file)).map_err(|e| format!("{file} : {e}"))?;
-    }
-    // Le site n'utilise que @nwasabi/js : le paquet @nwasabi/wasm (publication) n'est pas nécessaire.
-    for dir in ["packages/js", "web"] {
+    fs::copy(
+        manifest.join("package-lock.json"),
+        work.join("package-lock.json"),
+    )
+    .map_err(|e| format!("package-lock.json : {e}"))?;
+    write_site_workspace(&manifest.join("package.json"), &work.join("package.json"))?;
+    // Le site n'utilise que @nwasabi/js : les autres workspaces (documentation, paquet @nwasabi/wasm)
+    // ne sont pas dans le paquet publié sur crates.io et ne sont pas nécessaires.
+    for dir in SITE_WORKSPACES {
         copy_site_sources(&manifest.join(dir), &work.join(dir))?;
     }
     if !work.join("node_modules").exists() {
