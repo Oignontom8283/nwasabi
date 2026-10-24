@@ -3,14 +3,14 @@
 //!
 //! Les dimensions des cellules (7×14 pixels en petit, 10×18 en grand) sont celles de l'appareil, pour
 //! que la mise en page des applications reste la même. Les glyphes sont dessinés pour nwasabi : ils
-//! ressemblent à ceux d'Epsilon sans en être des copies. Ils sont décrits comme des traits dans
-//! `tools/font/` et rendus par `tools/font/generate.py`, qui écrit `data.rs`, un fichier source en
-//! texte. La police est sous licence MIT (voir `LICENSE` dans ce dossier).
+//! ressemblent à ceux d'Epsilon sans en être des copies. `data.rs`, un fichier source en texte, est
+//! produit par `tools/font/generate.py` ; la police est sous licence MIT (voir
+//! `tools/font/NwasabiPixels-MIT.txt`).
 //!
 //! Le texte est de l'UTF-8 (comme dans Epsilon) ; un caractère absent de la police est dessiné
 //! comme un `?`.
 
-// Fichier généré par tools/font/generate.py : rustfmt n'y touche pas.
+// Fichier produit par tools/font/generate.py : rustfmt n'y touche pas.
 #[rustfmt::skip]
 mod data;
 

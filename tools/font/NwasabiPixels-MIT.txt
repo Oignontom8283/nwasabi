@@ -2,8 +2,10 @@ MIT License
 
 Copyright (c) 2026 Oignontom8283
 
-This license covers the font "Nwasabi Pixels": the glyph data in this folder (`data.rs`) and the
-files that describe and generate it (`tools/font/`).
+This license covers the font "Nwasabi Pixels" as a whole: the generator script
+(`generate.py`), the documentation in this folder (`README.md`), and the files the script
+produces (`src/kernel/font/data.rs`). The generated files are part of the font project, just
+like the script, and are licensed under the same terms.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this font and associated documentation files (the "Font"), to deal

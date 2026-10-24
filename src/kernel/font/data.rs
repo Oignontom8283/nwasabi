@@ -1,5 +1,6 @@
-// Police « Nwasabi Pixels » (© 2026 Oignontom8283, licence MIT, voir `LICENSE` dans ce dossier).
-// Fichier généré par tools/font/generate.py : ne pas modifier à la main.
+// Police « Nwasabi Pixels » (© 2026 Oignontom8283), licence MIT : voir tools/font/NwasabiPixels-MIT.txt.
+// Ce fichier est produit par tools/font/generate.py ; il fait partie de la police au même titre que
+// le script. Pour changer un glyphe, modifier le script et le relancer.
 //
 // Chaque glyphe est une image par taille : les rangées sont séparées par `/` ; `.` est un pixel
 // éteint, `1` à `9` et `a` à `f` les niveaux de gris de 1 à 15.
