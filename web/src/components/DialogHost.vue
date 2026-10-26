@@ -40,7 +40,7 @@ function cancel() {
 </script>
 
 <template>
-  <FloatingWindow v-if="dialogState.current" :key="dialogState.current.id" modal :width="400" :resizable="false" :title="dialogState.current.title ?? 'nwasabi'" @close="cancel">
+  <FloatingWindow v-if="dialogState.current" :key="dialogState.current.id" modal :width="400" :resizable="false" :title="dialogState.current.title ?? 'Nwasabi'" @close="cancel">
     <form ref="form" @submit.prevent="accept">
       <p class="message">{{ dialogState.current.message }}</p>
       <input v-if="dialogState.current.kind === 'prompt'" v-model="text" class="mono" :aria-label="dialogState.current.message" />

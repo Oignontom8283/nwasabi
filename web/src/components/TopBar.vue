@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
       </ul>
     </div>
 
-    <a class="brand" href="." :title="t('top.about')"><Logo :size="34" /> nwasabi</a>
+    <a class="brand" href="." :title="t('top.about')"><Logo :size="34" /> Nwasabi</a>
 
     <select :value="state.model" :title="t('top.modelHint')" :aria-label="t('top.model')" @change="(e: Event) => emulator.changeModel(valueOf(e) as Model)">
       <option value="n0110">N0110</option>
@@ -101,7 +101,7 @@ onBeforeUnmount(() => {
 .topbar { height: var(--topbar-h); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 20; }
 .menu-wrap { position: relative; }
 .burger { border: none; background: transparent; padding: 4px; border-radius: 6px; color: var(--text); }
-.menu { position: absolute; top: calc(100% + 6px); left: 0; list-style: none; margin: 0; padding: 8px; min-width: 270px; display: grid; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; list-style: none; margin: 0; padding: 6px; min-width: 260px; display: grid; gap: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .menu button { width: 100%; justify-content: flex-start; padding: 6px 10px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; letter-spacing: 0.01em; color: var(--text); text-decoration: none; margin-right: 18px; }
 /* Le nom reste exactement au centre de la barre ; le bouton de chargement se pose à sa droite sans le décaler. */

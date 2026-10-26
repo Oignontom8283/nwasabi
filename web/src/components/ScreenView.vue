@@ -70,6 +70,7 @@ function capture() {
       :class="{ data: state.needsData, over }"
       role="button"
       tabindex="0"
+      @pointerdown.stop
       @click="pick(state.needsData ? 'data' : 'app')"
       @keydown.enter.prevent="pick(state.needsData ? 'data' : 'app')"
       @dragenter.prevent="over = true"
