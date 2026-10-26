@@ -5,9 +5,11 @@
 
 import type { KeyName } from "@nwasabi/js";
 
-export const VIEW = { width: 1160, height: 2220 };
-export const BODY = { x: 0, y: 0, width: 1160, height: 2220, radius: 96 };
-export const BEZEL = { x: 121, y: 120, width: 918, height: 724, radius: 56 };
+// Le repère des touches et de l'écran va de 0 à 1160 × 2220 ; la vue est rognée autour du boîtier pour qu'il y ait peu de
+// marge entre le bord et les touches : à taille de page égale, l'écran et les touches sont plus grands.
+export const VIEW = { x: 36, y: 14, width: 1088, height: 2180 };
+export const BODY = { ...VIEW, radius: 84 };
+export const BEZEL = { x: 152, y: 151, width: 856, height: 662, radius: 40 };
 /** L'écran : 776 × 582, soit 4:3 comme les 320 × 240 pixels. */
 export const SCREEN = { x: 192, y: 191, width: 776, height: 582 };
 

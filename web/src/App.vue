@@ -280,7 +280,7 @@ provide("pick", pick);
 .app { height: 100%; display: flex; flex-direction: column; }
 .workspace { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 /* La calculatrice est centrée dans la zone qui reste : toute la largeur quand le grand panneau est fermé. */
-.stage { position: absolute; left: 0; top: 0; bottom: 0; padding: 12px; }
+.stage { position: absolute; left: 0; top: 0; bottom: 0; padding: 10px; }
 .fit { width: 100%; height: 100%; container-type: size; display: grid; place-items: center; }
 .peek { position: absolute; right: 0; top: 14px; border-radius: 8px 0 0 8px; z-index: 10; }
 .toast {

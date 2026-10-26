@@ -35,8 +35,8 @@ const sources = computed(() => {
 
 const pct = (value: number, total: number) => `${(value / total) * 100}%`;
 const screenStyle = {
-  left: pct(SCREEN.x, VIEW.width),
-  top: pct(SCREEN.y, VIEW.height),
+  left: pct(SCREEN.x - VIEW.x, VIEW.width),
+  top: pct(SCREEN.y - VIEW.y, VIEW.height),
   width: pct(SCREEN.width, VIEW.width),
   height: pct(SCREEN.height, VIEW.height),
 };
@@ -106,7 +106,7 @@ function keyup(key: CalcKey, event: KeyboardEvent) {
 
 <template>
   <div class="calc" :class="[mode, { large: mode === 'play' && ui.large }]" :style="{ '--ratio': VIEW.width / VIEW.height }">
-    <svg v-show="!(mode === 'play' && ui.large)" :viewBox="`0 0 ${VIEW.width} ${VIEW.height}`" xmlns="http://www.w3.org/2000/svg" role="group" :aria-label="t('calc.label')">
+    <svg v-show="!(mode === 'play' && ui.large)" :viewBox="`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`" xmlns="http://www.w3.org/2000/svg" role="group" :aria-label="t('calc.label')">
       <defs>
         <linearGradient id="key-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#ffffff" />
@@ -114,9 +114,9 @@ function keyup(key: CalcKey, event: KeyboardEvent) {
         </linearGradient>
       </defs>
       <rect :x="BODY.x" :y="BODY.y" :width="BODY.width" :height="BODY.height" :rx="BODY.radius" class="body" />
-      <text :x="BODY.x + BODY.width / 2" y="84" text-anchor="middle" class="brand">nwasabi</text>
+      <text :x="BODY.x + BODY.width / 2" y="96" text-anchor="middle" class="brand">nwasabi</text>
       <rect :x="BEZEL.x" :y="BEZEL.y" :width="BEZEL.width" :height="BEZEL.height" :rx="BEZEL.radius" class="bezel" />
-      <rect :x="SCREEN.x - 10" :y="SCREEN.y - 10" :width="SCREEN.width + 20" :height="SCREEN.height + 20" rx="10" fill="#111" />
+      <rect :x="SCREEN.x - 6" :y="SCREEN.y - 6" :width="SCREEN.width + 12" :height="SCREEN.height + 12" rx="8" fill="#111" />
       <rect v-if="mode === 'map'" :x="SCREEN.x" :y="SCREEN.y" :width="SCREEN.width" :height="SCREEN.height" rx="4" fill="#1d1d1f" />
       <text v-if="mode === 'map'" :x="SCREEN.x + SCREEN.width / 2" :y="SCREEN.y + SCREEN.height / 2" text-anchor="middle" fill="#9a9aa0" font-size="44" font-family="system-ui, sans-serif">{{ t("calc.mapHint") }}</text>
       <g class="cross">
