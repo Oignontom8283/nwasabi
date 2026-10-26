@@ -1,28 +1,27 @@
-<script setup>
+<script setup lang="ts">
+// Les confirmations, saisies et choix de l'interface : des fenêtres flottantes (déplaçables, redimensionnables) qui
+// bloquent le reste de la page jusqu'à la réponse.
 import { nextTick, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { closeDialog, dialogState } from "../dialogs.js";
+import FloatingWindow from "./FloatingWindow.vue";
 
 const { t } = useI18n();
-const dialog = ref(null);
 const text = ref("");
-const checked = reactive({});
-const input = ref(null);
+const checked = reactive<Record<string, boolean>>({});
+const form = ref<HTMLFormElement | null>(null);
 
 watch(
   () => dialogState.current,
   async (current) => {
-    if (!current) {
-      dialog.value?.close();
-      return;
-    }
+    if (!current) return;
     text.value = current.value ?? "";
     for (const key of Object.keys(checked)) delete checked[key];
     for (const choice of current.choices ?? []) checked[choice.id] = choice.checked !== false;
     await nextTick();
-    if (!dialog.value?.open) dialog.value?.showModal();
-    await nextTick();
-    input.value?.select?.();
+    const input = form.value?.querySelector<HTMLInputElement>("input[type=text], input:not([type])");
+    input?.focus();
+    input?.select();
   },
 );
 
@@ -41,11 +40,10 @@ function cancel() {
 </script>
 
 <template>
-  <dialog ref="dialog" class="dialog" @cancel.prevent="cancel" @keydown.stop>
-    <form v-if="dialogState.current" method="dialog" @submit.prevent="accept">
-      <h2>{{ dialogState.current.title ?? "" }}</h2>
+  <FloatingWindow v-if="dialogState.current" :key="dialogState.current.id" modal :width="400" :resizable="false" :title="dialogState.current.title ?? 'nwasabi'" @close="cancel">
+    <form ref="form" @submit.prevent="accept">
       <p class="message">{{ dialogState.current.message }}</p>
-      <input v-if="dialogState.current.kind === 'prompt'" ref="input" v-model="text" class="mono" :aria-label="dialogState.current.message" />
+      <input v-if="dialogState.current.kind === 'prompt'" v-model="text" class="mono" :aria-label="dialogState.current.message" />
       <div v-if="dialogState.current.kind === 'choices'" class="choices">
         <label v-for="choice in dialogState.current.choices" :key="choice.id" class="choice">
           <input v-model="checked[choice.id]" type="checkbox" />
@@ -53,25 +51,19 @@ function cancel() {
         </label>
       </div>
       <div class="actions">
-        <button v-if="dialogState.current.kind !== 'alert'" type="button" @click="cancel">{{ t("common.cancel") }}</button>
-        <button type="submit" :class="['primary', { danger: dialogState.current.danger }]">
+        <button v-if="dialogState.current.kind !== 'alert'" type="button" @click="cancel">{{ dialogState.current.cancel ?? t("common.cancel") }}</button>
+        <button type="submit" data-autofocus :class="['primary', { danger: dialogState.current.danger }]">
           {{ dialogState.current.accept ?? t("common.ok") }}
         </button>
       </div>
     </form>
-  </dialog>
+  </FloatingWindow>
 </template>
 
 <style scoped>
-.dialog {
-  border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 320px; max-width: min(520px, 92vw);
-  background: var(--surface); color: var(--text); box-shadow: var(--shadow);
-}
-.dialog::backdrop { background: rgb(0 0 0 / 40%); }
 .message { margin: 0 0 10px; white-space: pre-line; }
 input[type="text"], input:not([type]) { width: 100%; }
 .choices { display: grid; gap: 6px; margin-bottom: 4px; }
 .choice { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-h2:empty { display: none; }
 </style>
