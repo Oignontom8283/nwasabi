@@ -1,6 +1,6 @@
 {
   "nmk": 1,
-  "name": "Défaut",
+  "name": "Default",
   "extends": "none",
   "keyboard": {
     "key:ArrowUp": "up",

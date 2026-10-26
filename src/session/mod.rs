@@ -454,6 +454,7 @@ impl Session {
             Value::object()
                 .with("model", restored.emulator.device.profile.model.name())
                 .with("firmware", restored.firmware.as_str())
+                .with("frames", restored.emulator.kernel.frames)
                 .with(
                     "parts",
                     restored
