@@ -295,6 +295,61 @@ fn empty_table_entries_are_ignored_and_keep_the_registers() {
 }
 
 #[test]
+fn event_text_is_copied_like_strlcpy() {
+    let (mut emu, mut cpu) = setup();
+    // L'événement 24 (sinus) : « sin( », le marqueur de curseur, « ) » — 6 octets.
+    call(&mut emu, &mut cpu, 22, &[24, SCRATCH, 32]);
+    assert_eq!(cpu.regs.r[0], 6);
+    let copied = emu.device.memory.read_bytes(SCRATCH, 7).unwrap();
+    assert_eq!(copied, b"sin(\x11)\0");
+    // Tampon trop court : texte tronqué, zéro final, longueur du texte entier.
+    call(&mut emu, &mut cpu, 22, &[24, SCRATCH + 64, 4]);
+    assert_eq!(cpu.regs.r[0], 6);
+    assert_eq!(
+        emu.device.memory.read_bytes(SCRATCH + 64, 4).unwrap(),
+        b"sin\0"
+    );
+    // Le texte d'une touche, en UTF-8 sur deux octets pour π.
+    call(&mut emu, &mut cpu, 22, &[27, SCRATCH + 128, 8]);
+    assert_eq!(cpu.regs.r[0], 2);
+    // Sans texte (Home) ou événement inconnu : 0 et tampon intact.
+    emu.device.memory.write_bytes(SCRATCH + 192, b"zz").unwrap();
+    for id in [6, 9, 300] {
+        call(&mut emu, &mut cpu, 22, &[id, SCRATCH + 192, 8]);
+        assert_eq!(cpu.regs.r[0], 0, "événement {id}");
+    }
+    assert_eq!(
+        emu.device.memory.read_bytes(SCRATCH + 192, 2).unwrap(),
+        b"zz"
+    );
+    // Tampon hors de la mémoire : 0, sans arrêter l'application.
+    assert_eq!(
+        call(&mut emu, &mut cpu, 22, &[24, 0x7000_0000, 8]),
+        SvcAction::Handled
+    );
+    assert_eq!(cpu.regs.r[0], 0);
+}
+
+#[test]
+fn event_numbers_are_defined_like_the_kernel_says() {
+    let (mut emu, mut cpu) = setup();
+    for (id, defined) in [
+        (0, true),
+        (7, false),
+        (9, false),
+        (207, true),
+        (215, false),
+        (216, true),
+        (218, false),
+        (225, true),
+        (226, false),
+    ] {
+        call(&mut emu, &mut cpu, 24, &[id]);
+        assert_eq!(cpu.regs.r[0], u32::from(defined), "événement {id}");
+    }
+}
+
+#[test]
 fn the_backlight_moves_in_steps_of_16() {
     let (mut emu, mut cpu) = setup();
     call(&mut emu, &mut cpu, 2, &[100]);

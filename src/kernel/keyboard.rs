@@ -1,9 +1,9 @@
 //! Le clavier : état des touches (`keyboard_scan`) et événements (`event_get`).
 //!
 //! Les numéros de touches sont ceux de l'API EADK publique (`eadk_key_*`). Un événement est un
-//! numéro : celui de la touche, augmenté de 56 quand `shift` est actif, de 112 avec `alpha`, de
-//! 168 avec les deux. Ces règles sont une approximation du comportement d'Epsilon : pas de
-//! répétition sur appui long, pas d'événements « texte ».
+//! numéro : celui de la touche, augmenté de 54 quand `shift` est actif, de 108 avec `alpha`, de
+//! 162 avec les deux (le clavier a 9 rangées de 6 touches). La répétition sur appui long suit celle
+//! du noyau d'Epsilon (voir `Keyboard::repeat_delay_ms`).
 
 use std::collections::VecDeque;
 
@@ -182,8 +182,8 @@ const KEY_NAMES: [(&str, Key); 46] = [
     ("exe", Key::Exe),
 ];
 
-/// Nombre d'événements par « plan » (normal, shift, alpha, shift+alpha).
-pub const EVENTS_PER_PLANE: u16 = 56;
+/// Nombre d'événements par « plan » (normal, shift, alpha, shift+alpha) : 9 rangées × 6 colonnes.
+pub const EVENTS_PER_PLANE: u16 = 54;
 /// Numéro de l'événement « rien » (délai écoulé) : le premier événement spécial.
 pub const EVENT_NONE: u16 = 4 * EVENTS_PER_PLANE;
 
@@ -368,7 +368,7 @@ mod tests {
         k.press(Key::One);
         k.press(Key::Two);
         assert_eq!(k.pop_event(), Some(12));
-        assert_eq!(k.pop_event(), Some(42 + 56));
+        assert_eq!(k.pop_event(), Some(42 + 54));
         assert_eq!(k.pop_event(), Some(43));
     }
 
@@ -381,7 +381,7 @@ mod tests {
         k.press(Key::Sine);
         k.press(Key::Cosine);
         let events: Vec<_> = std::iter::from_fn(|| k.pop_event()).collect();
-        assert_eq!(events, [12, 13, 24 + 112, 25 + 112]);
+        assert_eq!(events, [12, 13, 24 + 108, 25 + 108]);
         k.release(Key::Alpha);
         k.press(Key::Alpha);
         assert!(!k.modifiers().1);

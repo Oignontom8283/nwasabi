@@ -4,7 +4,7 @@
 //! pour 64 bits, `s0` pour un flottant).
 
 use super::display::Rect;
-use super::{ClockMode, FRAME_US, Kernel, KernelStop, keyboard::EVENT_NONE};
+use super::{ClockMode, FRAME_US, Kernel, KernelStop, event_text, keyboard::EVENT_NONE};
 use crate::cpu::{Bus, BusFault, Cpu, Hooks, SvcAction};
 use crate::link::runtime::{SVC_DRAW_STRING, SVC_EXIT, SVC_SBRK, SVC_WRITE};
 
@@ -30,6 +30,25 @@ fn read_c_string<B: Bus>(bus: &mut B, address: u32) -> Result<Vec<u8>, BusFault>
         }
     }
     Ok(out)
+}
+
+/// `eadk_event_copy_text(id, tampon, taille)` : copie le texte de l'événement comme `strlcpy`
+/// (tronqué, zéro final) et rend la longueur du texte entier ; 0 sans texte ou si le tampon n'est pas
+/// utilisable.
+fn copy_event_text<B: Bus>(bus: &mut B, id: u32, buffer: u32, size: u32) -> u32 {
+    let Some(text) = event_text::event_text(id) else {
+        return 0;
+    };
+    let bytes = text.as_bytes();
+    if size > 0 {
+        let count = bytes.len().min(size as usize - 1);
+        let mut out = bytes[..count].to_vec();
+        out.push(0);
+        if bus.write_block(buffer, &out).is_err() {
+            return 0;
+        }
+    }
+    bytes.len() as u32
 }
 
 fn set_u64(cpu: &mut Cpu, value: u64) {
@@ -143,7 +162,8 @@ impl Kernel {
                 return Ok(self.stop_with(KernelStop::Frame));
             }
             23 => return self.event_get(cpu, bus),
-            24 => cpu.regs.r[0] = u32::from(r0 < u32::from(EVENT_NONE)),
+            22 => cpu.regs.r[0] = copy_event_text(bus, r0, r1, r2),
+            24 => cpu.regs.r[0] = u32::from(event_text::is_defined(r0)),
             29 => cpu.regs.r[0] = self.status.fcc_id_address,
             33 | 34 => set_u64(cpu, self.keyboard.state()),
             39 => cpu.regs.r[0] = self.status.pcb_version,
@@ -169,7 +189,7 @@ impl Kernel {
             // USB, appui long. Ils rendent 0.
             // Entrées vides de la table du noyau : l'appel est ignoré, les registres restent intacts.
             25 | 40 | 41 => {}
-            6..=17 | 22 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=55 | 58 => {
+            6..=17 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=55 | 58 => {
                 cpu.regs.r[0] = 0;
             }
             SVC_DRAW_STRING => {

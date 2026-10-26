@@ -8,6 +8,7 @@
 //! demande l'arrêt et l'hôte lit la raison avec [`Kernel::take_stop`].
 
 pub mod display;
+pub mod event_text;
 pub mod font;
 pub mod keyboard;
 mod svc;
