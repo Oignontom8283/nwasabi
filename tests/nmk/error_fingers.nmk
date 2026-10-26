@@ -1,0 +1,1 @@
+{ "nmk": 1, "touch": { "rules": [ { "gesture": "tap", "fingers": 4, "key": "ok" } ] } }

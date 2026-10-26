@@ -19,6 +19,7 @@ pub mod emulator;
 pub mod inspect;
 pub mod json;
 pub mod kernel;
+pub mod keymap;
 pub mod link;
 pub mod memory;
 pub mod profile;

@@ -11,6 +11,8 @@
 import { Nwasabi, toBase64, SCREEN_HEIGHT, SCREEN_WIDTH } from "./nwasabi.js";
 import type { Reply, Request, RgbaTarget, WasmSource } from "./nwasabi.js";
 import type { KeyName } from "./keys.js";
+import { InputMapper } from "./input.js";
+import { KeyMap } from "./keymap.js";
 
 export type Model = "n0110" | "n0115" | "n0120";
 /** Disposition du firmware : `"24"` (appareils relevés, Epsilon 23–24) ou `"26.4.0"`. */
@@ -54,6 +56,8 @@ export interface PlayerState {
   stdout: string;
   /** Temps de simulation écoulé depuis le début de l'application, en millisecondes (mis à jour à chaque image). */
   timeMs: number;
+  /** Nom du mapping des touches en vigueur (`null` : sans nom, ou celui par défaut). */
+  keymapName: string | null;
   /** Augmente quand les vues dérivées (fichiers, mémoire…) doivent se rafraîchir. */
   revision: number;
 }
@@ -124,6 +128,8 @@ export interface PlayerOptions {
   speed?: SpeedMode;
   /** Fréquence du mode `"custom"` au départ, en MHz (défaut : `DEFAULT_CUSTOM_MHZ`). */
   customMhz?: number;
+  /** Mapping des touches au départ (défaut : `KeyMap.default()`). */
+  keymap?: KeyMap;
   /** Instructions au plus par image du navigateur (défaut : 2 millions). */
   slice?: number;
   /**
@@ -165,6 +171,8 @@ export class Player {
   // reste enfoncée jusqu'à l'image suivante.
   private readonly sampled = new Set<KeyName>();
   private readonly deferred = new Set<KeyName>();
+  /** Clavier de l'ordinateur et gestes tactiles → touches de la calculatrice (voir `KeyMap`). */
+  readonly input: InputMapper;
 
   /** L'état de départ d'un lecteur (à rendre réactif avant de le donner à `create`, si besoin). */
   static initialState(): PlayerState {
@@ -183,6 +191,7 @@ export class Player {
       error: "",
       stdout: "",
       timeMs: 0,
+      keymapName: null,
       revision: 0,
     };
   }
@@ -194,6 +203,8 @@ export class Player {
     if (options.onFrame) this.listeners.add(options.onFrame);
     if (options.speed) this.state.speed = options.speed;
     if (options.customMhz !== undefined) this.state.customMhz = options.customMhz;
+    this.input = new InputMapper(this, options.keymap ?? KeyMap.default());
+    this.state.keymapName = this.input.keymap.name;
     this.slice = options.slice ?? DEFAULT_SLICE;
     this.maxElapsedMs = options.maxElapsedMs ?? DEFAULT_MAX_ELAPSED_MS;
   }
@@ -471,6 +482,12 @@ export class Player {
     this.pressed.delete(name);
     this.sampled.delete(name);
     this.call({ cmd: "key", key: name, action: "release" });
+  }
+
+  /** Remplace le mapping des touches (clavier de l'ordinateur et gestes) ; ce qui était tenu est relâché. */
+  setKeyMap(map: KeyMap): void {
+    this.input.setKeyMap(map);
+    this.state.keymapName = map.name;
   }
 
   /** Appuie sur une touche (`down`) ou la relâche. */

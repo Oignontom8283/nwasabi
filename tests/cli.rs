@@ -247,3 +247,104 @@ fn survey_reports_every_application() {
         Some("sierpinski.nwa")
     );
 }
+
+fn nmk_fixture(name: &str) -> String {
+    format!("{}/tests/nmk/{name}.nmk", env!("CARGO_MANIFEST_DIR"))
+}
+
+fn app_fixture() -> String {
+    format!("{}/tests/apps/bin/integer.nwa", env!("CARGO_MANIFEST_DIR"))
+}
+
+#[test]
+fn keys_prints_a_mapping_completed_by_the_default() {
+    let text = cli(&["keys", "--nmk", &nmk_fixture("wasd")]);
+    assert!(text.status.success());
+    let text = stdout(&text);
+    assert!(text.contains("mapping : Jeu"), "{text}");
+    assert!(
+        text.contains("KeyQ") && text.contains("shift + alpha"),
+        "{text}"
+    );
+    assert!(
+        text.contains("swipe_right") && text.contains("tant que le doigt reste posé"),
+        "{text}"
+    );
+
+    let json = cli(&["keys", "--nmk", &nmk_fixture("wasd"), "--json"]);
+    let v = json::parse(stdout(&json).trim()).unwrap();
+    assert_eq!(v["keyboard"]["KeyW"][0], "up");
+    assert_eq!(v["touch"]["long_press_ms"], 400);
+}
+
+#[test]
+fn an_invalid_mapping_is_reported_with_its_location() {
+    let out = cli(&["keys", "--nmk", &nmk_fixture("error_unknown_calc_key")]);
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("keyboard.KeyW") && err.contains("haut"),
+        "{err}"
+    );
+}
+
+#[test]
+fn press_accepts_a_host_key_through_the_mapping() {
+    let app = app_fixture();
+    let ok = cli(&[
+        "run",
+        &app,
+        "--nmk",
+        &nmk_fixture("wasd"),
+        "--press",
+        "KeyQ",
+        "--press",
+        "ok",
+    ]);
+    assert!(
+        ok.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    let unknown = cli(&[
+        "run",
+        &app,
+        "--nmk",
+        &nmk_fixture("wasd"),
+        "--press",
+        "KeyZ",
+    ]);
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("KeyZ"));
+    // Sans mapping, un nom de touche de l'ordinateur reste une touche inconnue.
+    let without = cli(&["run", &app, "--press", "KeyQ"]);
+    assert_eq!(without.status.code(), Some(1));
+}
+
+/// Empreinte de l'écran de `keys.nwa` après quelques images, avec les arguments donnés en plus.
+fn keys_screen(extra: &[&str]) -> String {
+    let app = format!("{}/tests/apps/bin/keys.nwa", env!("CARGO_MANIFEST_DIR"));
+    let mut args = vec!["run", &app, "--frames", "4", "--json"];
+    args.extend_from_slice(extra);
+    let out = cli(&args);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = json::parse(stdout(&out).trim()).unwrap();
+    v["screen_crc32"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn a_mapped_host_key_reaches_the_application() {
+    let nmk = nmk_fixture("wasd");
+    let idle = keys_screen(&[]);
+    let up = keys_screen(&["--press", "up"]);
+    assert_ne!(idle, up, "la touche haut change l'écran");
+    // Position W du clavier → haut, avec le mapping de jeu.
+    assert_eq!(keys_screen(&["--nmk", &nmk, "--press", "KeyW"]), up);
+    assert_ne!(keys_screen(&["--nmk", &nmk, "--press", "KeyA"]), up);
+    // Une combinaison (shift + alpha) n'est aucune des touches de l'application : écran noir comme au repos.
+    assert_eq!(keys_screen(&["--nmk", &nmk, "--press", "KeyQ"]), idle);
+}

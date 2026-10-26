@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use nwasabi::device::DeviceImage;
 use nwasabi::json::{self, Value, ValueExt};
 use nwasabi::kernel::Key;
+use nwasabi::keymap::KeyMap;
 use nwasabi::link::{LinkOptions, link};
 use nwasabi::profile::{FirmwareProfile, Model};
 use nwasabi::session::Session;
@@ -95,6 +96,32 @@ fn png_from_reply(screen: &Value) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+// ---- mapping des touches (.nmk) -----------------------------------------------------------------
+
+fn read_keymap(path: &Path) -> Result<KeyMap, String> {
+    let text = fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
+    KeyMap::parse(&text).map_err(|e| format!("{} : {e}", path.display()))
+}
+
+/// Les touches de la calculatrice visées par une valeur de `--press` : un nom de touche, sinon (avec un
+/// mapping) une touche de l'ordinateur comme `KeyW` ou `key:e`.
+fn pressed_keys(keymap: Option<&KeyMap>, name: &str) -> Result<Vec<String>, String> {
+    if Key::from_name(name).is_some() {
+        return Ok(vec![name.to_owned()]);
+    }
+    match keymap {
+        None => Ok(vec![name.to_owned()]),
+        Some(map) => map
+            .resolve_named(name)
+            .map(|keys| keys.iter().map(|k| k.name().to_owned()).collect())
+            .ok_or_else(|| {
+                format!(
+                    "« {name} » n'est ni une touche de la calculatrice ni une touche du mapping"
+                )
+            }),
+    }
+}
+
 // ---- run -----------------------------------------------------------------------------------------
 
 pub fn run(args: RunArgs) -> Outcome {
@@ -104,14 +131,17 @@ pub fn run(args: RunArgs) -> Outcome {
         load_request(&args.device, &read_file(&args.app)?)?,
     )?;
 
+    let keymap = args.nmk.as_deref().map(read_keymap).transpose()?;
     for key in &args.press {
-        call(
-            &mut session,
-            Value::object()
-                .with("cmd", "key")
-                .with("key", key.as_str())
-                .with("action", "press"),
-        )?;
+        for name in pressed_keys(keymap.as_ref(), key)? {
+            call(
+                &mut session,
+                Value::object()
+                    .with("cmd", "key")
+                    .with("key", name.as_str())
+                    .with("action", "press"),
+            )?;
+        }
     }
     let mut request = Value::object().with("cmd", "run");
     if let Some(n) = args.instructions {
@@ -585,6 +615,11 @@ pub fn session(_args: SessionArgs) -> Outcome {
 // ---- keys ----------------------------------------------------------------------------------------
 
 pub fn keys(args: KeysArgs) -> Outcome {
+    if let Some(path) = &args.nmk {
+        let map = read_keymap(path)?;
+        print(args.json, &map.to_json(), || describe_keymap(&map));
+        return Ok(0);
+    }
     let list: Vec<Value> = Key::ALL
         .iter()
         .map(|k| Value::object().with("name", k.name()).with("bit", k.bit()))
@@ -597,4 +632,34 @@ pub fn keys(args: KeysArgs) -> Outcome {
             .join("\n")
     });
     Ok(0)
+}
+
+/// Le mapping en texte : une ligne par touche de l'ordinateur, puis une par règle tactile.
+fn describe_keymap(map: &KeyMap) -> String {
+    let joined = |keys: &[Key]| {
+        keys.iter()
+            .map(|k| k.name())
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    let mut lines = vec![format!("mapping : {}", map.name().unwrap_or("(sans nom)"))];
+    lines.push("clavier :".into());
+    for (host, keys) in map.keyboard() {
+        lines.push(format!("  {:<18} -> {}", host.to_string(), joined(keys)));
+    }
+    lines.push("tactile :".into());
+    for rule in map.rules() {
+        let held = if rule.while_held {
+            " (tant que le doigt reste posé)"
+        } else {
+            ""
+        };
+        lines.push(format!(
+            "  {:<12} {} doigt(s) -> {}{held}",
+            rule.gesture.name(),
+            rule.fingers,
+            joined(&rule.keys)
+        ));
+    }
+    lines.join("\n")
 }

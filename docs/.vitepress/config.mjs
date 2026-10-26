@@ -37,7 +37,10 @@ export default defineConfig({
   cleanUrls: true,
   vite: { plugins: [emulatorIndex] },
   themeConfig: {
-    nav: [{ text: "Émulateur", link: "/emulator/", target: "_self" }],
+    nav: [
+      { text: "Émulateur", link: "/emulator/", target: "_self" },
+      { text: "Mapping des touches", link: "/nmk" },
+    ],
     socialLinks: [{ icon: "github", link: "https://github.com/Oignontom8283/nwasabi" }],
   },
 });

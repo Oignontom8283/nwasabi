@@ -144,3 +144,30 @@ fn bad_arguments_are_reported() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("/inexistant.nwa"));
 }
+
+#[test]
+fn nmk_serves_the_checked_mapping_file() {
+    let path = format!("{}/tests/nmk/wasd.nmk", env!("CARGO_MANIFEST_DIR"));
+    let server = start(&["--nmk", &path]);
+    let (code, body) = get(&server, "/__nwasabi/nmk");
+    assert_eq!(code, 200);
+    assert_eq!(body, std::fs::read(&path).unwrap());
+
+    let without = start(&[]);
+    assert_eq!(get(&without, "/__nwasabi/nmk").0, 404);
+}
+
+#[test]
+fn an_invalid_nmk_stops_the_server_at_startup() {
+    let path = format!(
+        "{}/tests/nmk/error_while_held.nmk",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--port", "0", "--nmk", &path])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("touch.rules[0].while_held"), "{err}");
+}

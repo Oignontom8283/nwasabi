@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import { Player, PHYSICAL_KEYS } from "../../packages/js/dist/index.js";
+import { Player, KeyMap } from "../../packages/js/dist/index.js";
 import { corpusDir } from "./corpus.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,7 +70,7 @@ check("après stop(), plus aucune image (la minuterie est annulée)", () => {
   assert.equal(frames, framesAtStop);
 });
 check("la table des touches ne dépend pas du navigateur", () => {
-  assert.equal(PHYSICAL_KEYS.Enter, "ok");
+  assert.deepEqual(KeyMap.default().resolve("", "Enter"), ["ok"]);
 });
 
 process.exitCode = failures ? 1 : 0;

@@ -6,20 +6,30 @@ import { Player } from "@nwasabi/js";
 import wasmUrl from "nwasabi.wasm?url";
 
 export function useEmulator() {
-  const state = reactive({ ...Player.initialState(), ready: false });
+  // `keymapVersion` change à chaque nouveau mapping des touches : les vues qui l'affichent le suivent.
+  const state = reactive({ ...Player.initialState(), ready: false, keymapVersion: 0 });
   let player = null;
   // Le canvas est donné avant la fin du chargement du module : on le garde pour l'attacher ensuite.
   let canvas = null;
+  let detachPointer = null;
+
+  /** Les gestes tactiles se font sur l'écran : on y branche le lecteur dès qu'on a les deux. */
+  function wirePointer() {
+    if (!player || !canvas || detachPointer) return;
+    detachPointer = player.input.attachPointer(canvas);
+  }
 
   async function init() {
     player = await Player.create(await fetch(wasmUrl), { state });
     if (canvas) player.attach(canvas);
+    wirePointer();
     state.ready = true;
   }
 
   function attach(element) {
     canvas = element;
     player?.attach(element);
+    wirePointer();
   }
 
   /** Envoie une requête au module ; les erreurs sont gardées dans `state.error`. */
@@ -28,6 +38,17 @@ export function useEmulator() {
     return player.call(request);
   }
 
+  /** Le mapping des touches en vigueur. */
+  const keymap = () => player?.input.keymap;
+
+  function setKeyMap(map) {
+    player?.setKeyMap(map);
+    state.keymapVersion++;
+  }
+
+  /** Branche le clavier de l'ordinateur (voir `InputMapper.attachKeyboard`) ; rend la fonction qui débranche. */
+  const attachKeyboard = (target, ignore) => player?.input.attachKeyboard(target, ignore) ?? (() => {});
+
   const through = (method) => (...args) => player?.[method](...args);
 
   return {
@@ -35,6 +56,9 @@ export function useEmulator() {
     init,
     call,
     attach,
+    keymap,
+    setKeyMap,
+    attachKeyboard,
     draw: through("draw"),
     load: through("load"),
     restart: through("restart"),
