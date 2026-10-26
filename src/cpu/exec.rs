@@ -5,10 +5,10 @@ use super::alu::{
 };
 use super::decode::{decode16, decode32, is_32bit};
 use super::instr::{
-    Addr, DpOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg, RevKind, Rhs,
-    ShiftAmount, SysReg,
+    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg,
+    RevKind, Rhs, ShiftAmount, SysReg,
 };
-use super::{Bus, Cpu, Hooks, Stop, SvcAction, UsageFault};
+use super::{Bus, Cpu, Hooks, Stop, SvcAction, UsageFault, Width};
 
 /// Contexte de l'instruction en cours.
 #[derive(Clone, Copy)]
@@ -152,6 +152,56 @@ impl Cpu {
             }
         }
         Stop::Budget
+    }
+
+    /// `ldrex*` et `strex*` : l'accès est d'abord soumis au bus, qui peut le refuser (voir
+    /// [`Bus::check_exclusive`]) ; sinon le moniteur d'exclusivité local suit l'adresse.
+    fn exec_exclusive<B: Bus>(
+        &mut self,
+        ctx: Ctx,
+        bus: &mut B,
+        op: ExclusiveOp,
+        (rt, rd, rn): (Reg, Reg, Reg),
+        offset: u32,
+    ) -> Result<(), Stop> {
+        let address = self.read(ctx, rn).wrapping_add(offset);
+        let bytes = op.bytes();
+        if address & (bytes - 1) != 0 {
+            return Err(Stop::UsageFault {
+                pc: ctx.addr,
+                kind: UsageFault::Unaligned,
+            });
+        }
+        let width = match bytes {
+            4 => Width::U32,
+            2 => Width::U16,
+            _ => Width::U8,
+        };
+        bus.check_exclusive(address, op.is_store(), width)
+            .map_err(Stop::BusFault)?;
+        if op.is_store() {
+            let value = self.read(ctx, rt);
+            let held = self.exclusive.take() == Some(address);
+            if held {
+                match width {
+                    Width::U32 => bus.write32(address, value),
+                    Width::U16 => bus.write16(address, value as u16),
+                    Width::U8 => bus.write8(address, value as u8),
+                }
+                .map_err(Stop::BusFault)?;
+            }
+            self.write(rd, u32::from(!held));
+        } else {
+            let value = match width {
+                Width::U32 => bus.read32(address),
+                Width::U16 => bus.read16(address).map(u32::from),
+                Width::U8 => bus.read8(address).map(u32::from),
+            }
+            .map_err(Stop::BusFault)?;
+            self.write(rt, value);
+            self.exclusive = Some(address);
+        }
+        Ok(())
     }
 
     fn execute<B: Bus, H: Hooks>(
@@ -558,6 +608,14 @@ impl Cpu {
 
             Instr::It { firstcond, mask } => self.regs.set_it_state((firstcond << 4) | mask),
             Instr::Nop | Instr::Barrier => {}
+            Instr::Clrex => self.exclusive = None,
+            Instr::Exclusive {
+                op,
+                rt,
+                rd,
+                rn,
+                offset,
+            } => self.exec_exclusive(ctx, bus, op, (rt, rd, rn), offset)?,
             Instr::Wfi | Instr::Wfe => return Err(Stop::WaitForInterrupt),
             Instr::Svc { imm } => match hooks.on_svc(imm, self, bus) {
                 SvcAction::Handled => {}

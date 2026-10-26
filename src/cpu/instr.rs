@@ -144,6 +144,33 @@ pub struct SysReg(pub u8);
 /// Instructions de transfert de registres flottants (voir le module `fpu`).
 pub use super::fpu::FpInstr;
 
+/// Les instructions d'accès exclusif.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExclusiveOp {
+    Ldrex,
+    Ldrexb,
+    Ldrexh,
+    Strex,
+    Strexb,
+    Strexh,
+}
+
+impl ExclusiveOp {
+    /// Vrai pour les écritures conditionnelles.
+    pub fn is_store(self) -> bool {
+        matches!(self, Self::Strex | Self::Strexb | Self::Strexh)
+    }
+
+    /// Nombre d'octets accédés.
+    pub fn bytes(self) -> u32 {
+        match self {
+            Self::Ldrex | Self::Strex => 4,
+            Self::Ldrexh | Self::Strexh => 2,
+            Self::Ldrexb | Self::Strexb => 1,
+        }
+    }
+}
+
 /// Une instruction décodée.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instr {
@@ -409,6 +436,19 @@ pub enum Instr {
     },
     /// `dmb`, `dsb`, `isb` : sans effet sur un processeur à un seul cœur émulé.
     Barrier,
+    /// `clrex` : efface le moniteur d'exclusivité local.
+    Clrex,
+    /// `ldrex`, `ldrexb`, `ldrexh`, `strex`, `strexb`, `strexh`.
+    Exclusive {
+        op: ExclusiveOp,
+        /// Registre transféré.
+        rt: Reg,
+        /// Registre qui reçoit l'état d'une écriture (0 : faite, 1 : refusée) ; inutilisé pour un chargement.
+        rd: Reg,
+        rn: Reg,
+        /// Décalage, en octets, ajouté à `rn`.
+        offset: u32,
+    },
     /// Instruction à virgule flottante.
     Fp(FpInstr),
 }

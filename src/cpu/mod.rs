@@ -71,6 +71,8 @@ pub struct Cpu {
     pub primask: bool,
     pub faultmask: bool,
     pub basepri: u8,
+    /// Adresse suivie par le moniteur d'exclusivité local (posée par `ldrex`, lue par `strex`).
+    pub exclusive: Option<u32>,
     /// Instructions déjà décodées (voir `cache`).
     cache: cache::DecodeCache,
 }
