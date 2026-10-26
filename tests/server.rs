@@ -69,7 +69,7 @@ fn serves_the_site_and_health() {
     let (code, body) = get(&server, "/");
     assert_eq!(code, 200);
     let page = String::from_utf8_lossy(&body);
-    assert!(page.contains("<title>nwasabi</title>"), "{page}");
+    assert!(page.contains("<title>Nwasabi</title>"), "{page}");
     let script = page
         .split("src=\"")
         .nth(1)
