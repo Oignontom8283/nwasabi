@@ -133,6 +133,7 @@ test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/player.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/node.mjs
+    NWASABI_CORPUS={{corpus}} node tests/wasm/speed.mjs
 
 # Régénère les résultats de référence de l'édition de liens après un changement voulu.
 update-golden corpus:
