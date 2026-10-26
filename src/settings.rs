@@ -37,6 +37,14 @@ impl Settings<'_> {
         Ok(())
     }
 
+    /// Change plusieurs réglages du profil d'un coup (restauration d'un état enregistré).
+    pub fn change_all(
+        &mut self,
+        change: impl FnOnce(&mut FirmwareProfile),
+    ) -> Result<(), DeviceError> {
+        self.change(change)
+    }
+
     /// Nom de l'appareil (vide : aucun), écrit dans les octets persistants en flash.
     pub fn set_device_name(&mut self, name: &str) -> Result<(), DeviceError> {
         self.change(|p| p.device_name = name.to_owned())

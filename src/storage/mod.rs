@@ -155,6 +155,11 @@ impl Storage {
         }
     }
 
+    /// Plage `[début, fin)` du tampon, magic de tête compris.
+    pub fn range(&self) -> (u32, u32) {
+        (self.buffer_address - 4, self.buffer_address + self.size)
+    }
+
     /// Donne accès aux opérations, sur la mémoire de l'appareil.
     pub fn with<'a>(&'a mut self, memory: &'a mut Memory) -> Fs<'a> {
         Fs {
@@ -197,6 +202,15 @@ impl Fs<'_> {
         let start = self.storage.buffer_address + first as u32;
         self.memory.write_bytes(start, &new[first..=last])?;
         Ok(())
+    }
+
+    /// Remet le tampon dans un état relevé avec [`Fs::raw`] (pour défaire une opération qui a échoué à moitié).
+    pub fn restore_raw(&mut self, raw: &[u8]) -> Result<(), FsError> {
+        let current = self.raw()?;
+        if raw.len() != current.len() {
+            return Err(FsError::Corrupt { offset: 0 });
+        }
+        self.store(&current, raw)
     }
 
     pub fn list(&mut self) -> Result<Listing, FsError> {

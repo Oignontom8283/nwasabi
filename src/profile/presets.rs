@@ -162,6 +162,16 @@ impl FirmwareProfile {
     /// [`FirmwareProfile::epsilon_26_4_0`] : sur N0110 et N0115 son `UserlandHeader` est à
     /// `0x90020000`, ce qui trompe la détection du modèle d'eadkp (les applications qui s'en
     /// servent plantent alors en lisant la RAM du N0120).
+    /// Le profil d'une disposition de firmware par son nom : `"24"` (appareils relevés, Epsilon 23–24) ou
+    /// `"26.4.0"` (firmware officiel récent).
+    pub fn for_layout(layout: &str, model: Model) -> Option<Self> {
+        match layout {
+            "24" => Some(Self::epsilon_24(model)),
+            "26.4.0" => Some(Self::epsilon_26_4_0(model)),
+            _ => None,
+        }
+    }
+
     pub fn default_for(model: Model) -> Self {
         Self::epsilon_24(model)
     }

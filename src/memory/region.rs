@@ -219,6 +219,14 @@ impl Region {
         }
     }
 
+    /// Adresses de début des pages réellement allouées.
+    pub fn allocated_page_addresses(&self) -> Vec<u32> {
+        (0..self.pages.len())
+            .filter(|&i| self.pages[i].is_some())
+            .map(|i| self.spec.base + i as u32 * PAGE_SIZE)
+            .collect()
+    }
+
     /// Nombre de pages réellement allouées.
     pub fn allocated_pages(&self) -> usize {
         self.pages.iter().filter(|p| p.is_some()).count()
