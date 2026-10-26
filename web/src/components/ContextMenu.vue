@@ -1,33 +1,37 @@
-<script setup>
+<script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-const props = defineProps({
-  /** Éléments : { label, action, danger?, disabled?, separator? } */
-  items: { type: Array, required: true },
-  x: { type: Number, required: true },
-  y: { type: Number, required: true },
-});
-const emit = defineEmits(["close"]);
-const menu = ref(null);
+export interface MenuItem {
+  label?: string;
+  action?: (event?: MouseEvent) => void;
+  danger?: boolean;
+  disabled?: boolean;
+  separator?: boolean;
+}
+
+const props = defineProps<{ items: MenuItem[]; x: number; y: number }>();
+const emit = defineEmits<{ close: [] }>();
+const menu = ref<HTMLElement | null>(null);
 const pos = ref({ left: props.x, top: props.y });
 
 onMounted(async () => {
   await nextTick();
+  if (!menu.value) return;
   const box = menu.value.getBoundingClientRect();
   pos.value = { left: Math.min(props.x, innerWidth - box.width - 6), top: Math.min(props.y, innerHeight - box.height - 6) };
-  menu.value.querySelector("button:not(:disabled)")?.focus();
+  menu.value.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
   addEventListener("pointerdown", outside, true);
   addEventListener("blur", () => emit("close"));
 });
 onBeforeUnmount(() => removeEventListener("pointerdown", outside, true));
 watch(() => [props.x, props.y], () => (pos.value = { left: props.x, top: props.y }));
 
-function outside(event) {
-  if (!menu.value?.contains(event.target)) emit("close");
+function outside(event: Event) {
+  if (!menu.value?.contains(event.target as Node)) emit("close");
 }
-function key(event) {
-  const buttons = [...menu.value.querySelectorAll("button:not(:disabled)")];
-  const i = buttons.indexOf(document.activeElement);
+function key(event: KeyboardEvent) {
+  const buttons = [...(menu.value?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [])];
+  const i = buttons.indexOf(document.activeElement as HTMLElement);
   if (event.key === "Escape") emit("close");
   else if (event.key === "ArrowDown") buttons[(i + 1) % buttons.length]?.focus();
   else if (event.key === "ArrowUp") buttons[(i - 1 + buttons.length) % buttons.length]?.focus();
@@ -35,9 +39,9 @@ function key(event) {
   event.preventDefault();
   event.stopPropagation();
 }
-function run(item) {
+function run(item: MenuItem, event: MouseEvent) {
   emit("close");
-  item.action?.();
+  item.action?.(event);
 }
 </script>
 
@@ -47,7 +51,7 @@ function run(item) {
       <template v-for="(item, i) in items" :key="i">
         <li v-if="item.separator" role="separator" class="separator" />
         <li v-else role="none">
-          <button role="menuitem" :class="{ danger: item.danger }" :disabled="item.disabled" @click="run(item)">{{ item.label }}</button>
+          <button role="menuitem" :class="{ danger: item.danger }" :disabled="item.disabled" @click="run(item, $event)">{{ item.label }}</button>
         </li>
       </template>
     </ul>
