@@ -76,9 +76,30 @@ fn vblank_aligns_time_on_the_next_frame_and_counts_it() {
 }
 
 #[test]
+fn the_clock_frequency_depends_on_the_model_unless_set() {
+    use crate::profile::{FirmwareProfile, Model};
+    for (model, mhz) in [
+        (Model::N0110, 192),
+        (Model::N0115, 192),
+        (Model::N0120, 540),
+    ] {
+        let emu =
+            Emulator::with_profile(FirmwareProfile::default_for(model), KernelConfig::default())
+                .unwrap();
+        assert_eq!(emu.kernel.config.cycles_per_us, mhz, "{model:?}");
+    }
+    let config = KernelConfig {
+        cycles_per_us: 100,
+        ..KernelConfig::default()
+    };
+    let emu = Emulator::with_profile(FirmwareProfile::default_for(Model::N0120), config).unwrap();
+    assert_eq!(emu.kernel.config.cycles_per_us, 100);
+}
+
+#[test]
 fn time_follows_cycles_and_sleeps() {
     let (mut emu, mut cpu) = setup();
-    cpu.cycles = 216_000 * 5; // 5 ms à 216 cycles par microseconde
+    cpu.cycles = 192_000 * 5; // 5 ms à 192 cycles par microseconde (N0110)
     call(&mut emu, &mut cpu, 48, &[]);
     assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (5, 0));
     call(&mut emu, &mut cpu, 49, &[100]);
@@ -142,6 +163,109 @@ fn event_get_waits_then_times_out() {
     assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 0);
 }
 
+/// Un `event_get` avec `timeout_ms` : l'événement rendu, ou `None` si l'application attend.
+fn poll(emu: &mut Emulator, cpu: &mut Cpu, timeout_ms: u32) -> Option<u32> {
+    cpu.regs.pc = 0x9020_0102;
+    emu.device.memory.write_u32(SCRATCH, timeout_ms).unwrap();
+    match call(emu, cpu, 23, &[SCRATCH]) {
+        SvcAction::Handled => Some(cpu.regs.r[0]),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_held_arrow_key_repeats_after_299_ms_then_every_50_ms() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Left);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "l'événement de l'appui"
+    );
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    // L'application est réveillée au plus tard quand la touche doit se répéter.
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(299)
+        })
+    );
+    emu.kernel.advance_time(298_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    emu.kernel.advance_time(1_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "première répétition"
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 1);
+    emu.kernel.advance_time(49_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    emu.kernel.advance_time(1_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "puis toutes les 50 ms"
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 2);
+    // Relâchée, la touche ne se répète plus et le compteur retombe.
+    emu.kernel.keyboard.release(Key::Left);
+    emu.kernel.reset_waits();
+    assert_eq!(poll(&mut emu, &mut cpu, 100), None);
+    emu.kernel.advance_time(1_000_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 100),
+        Some(u32::from(keyboard::EVENT_NONE))
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 0);
+}
+
+#[test]
+fn only_some_keys_repeat() {
+    for (key, repeats) in [
+        (Key::Left, true),
+        (Key::Up, true),
+        (Key::Back, true),
+        (Key::Backspace, true),
+        (Key::Ok, false),
+        (Key::One, false),
+        (Key::Sine, false),
+    ] {
+        let (mut emu, mut cpu) = setup();
+        emu.kernel.keyboard.press(key);
+        poll(&mut emu, &mut cpu, 10_000);
+        emu.kernel.advance_time(400_000);
+        assert_eq!(
+            poll(&mut emu, &mut cpu, 10).is_some_and(|e| e != u32::from(keyboard::EVENT_NONE)),
+            repeats,
+            "{key:?}"
+        );
+    }
+}
+
+#[test]
+fn shift_arrows_repeat_and_a_new_key_stops_the_repetition() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Shift);
+    emu.kernel.keyboard.press(Key::Right);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), Some(12));
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), Some(54 + 3));
+    emu.kernel.advance_time(300_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10), Some(54 + 3));
+    emu.kernel.keyboard.press(Key::Ok);
+    assert_eq!(poll(&mut emu, &mut cpu, 10), Some(4));
+    emu.kernel.reset_waits();
+    assert_eq!(poll(&mut emu, &mut cpu, 10), None);
+    emu.kernel.advance_time(1_000_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10),
+        Some(u32::from(keyboard::EVENT_NONE))
+    );
+}
+
 #[test]
 fn event_get_wakes_up_when_a_key_arrives() {
     let (mut emu, mut cpu) = setup();
@@ -185,9 +309,9 @@ fn device_information_comes_from_the_profile_and_the_status() {
     assert_eq!(&serial[..16], emu.device.profile.serial_number.as_bytes());
     assert_eq!(serial[16], 0);
 
-    call(&mut emu, &mut cpu, 2, &[100]);
+    call(&mut emu, &mut cpu, 2, &[112]);
     call(&mut emu, &mut cpu, 1, &[]);
-    assert_eq!(cpu.regs.r[0], 100);
+    assert_eq!(cpu.regs.r[0], 112);
 
     emu.kernel.status.battery_voltage = 3.5;
     call(&mut emu, &mut cpu, 5, &[]);
@@ -251,10 +375,96 @@ fn unknown_svc_stops_in_strict_mode_and_is_counted_otherwise() {
     );
     assert_eq!(emu.kernel.take_stop(), Some(KernelStop::UnknownSvc(0x70)));
 
+    // Sur l'appareil, un appel hors de la table est ignoré : les registres ne changent pas.
     emu.kernel.config.strict_svc = false;
+    cpu.regs.r[0] = 0x1234;
     assert_eq!(call(&mut emu, &mut cpu, 0x70, &[]), SvcAction::Handled);
+    assert_eq!(cpu.regs.r[0], 0x1234);
     assert_eq!(emu.kernel.unknown_svcs, 1);
     assert_eq!(emu.kernel.svc_counts[0x70], 2);
+}
+
+#[test]
+fn empty_table_entries_are_ignored_and_keep_the_registers() {
+    let (mut emu, mut cpu) = setup();
+    for number in [25, 40, 41] {
+        cpu.regs.r[0] = 0xabcd;
+        assert_eq!(
+            call(&mut emu, &mut cpu, number, &[0xabcd]),
+            SvcAction::Handled
+        );
+        assert_eq!(cpu.regs.r[0], 0xabcd, "svc {number}");
+    }
+}
+
+#[test]
+fn event_text_is_copied_like_strlcpy() {
+    let (mut emu, mut cpu) = setup();
+    // L'événement 24 (sinus) : « sin( », le marqueur de curseur, « ) » — 6 octets.
+    call(&mut emu, &mut cpu, 22, &[24, SCRATCH, 32]);
+    assert_eq!(cpu.regs.r[0], 6);
+    let copied = emu.device.memory.read_bytes(SCRATCH, 7).unwrap();
+    assert_eq!(copied, b"sin(\x11)\0");
+    // Tampon trop court : texte tronqué, zéro final, longueur du texte entier.
+    call(&mut emu, &mut cpu, 22, &[24, SCRATCH + 64, 4]);
+    assert_eq!(cpu.regs.r[0], 6);
+    assert_eq!(
+        emu.device.memory.read_bytes(SCRATCH + 64, 4).unwrap(),
+        b"sin\0"
+    );
+    // Le texte d'une touche, en UTF-8 sur deux octets pour π.
+    call(&mut emu, &mut cpu, 22, &[27, SCRATCH + 128, 8]);
+    assert_eq!(cpu.regs.r[0], 2);
+    // Sans texte (Home) ou événement inconnu : 0 et tampon intact.
+    emu.device.memory.write_bytes(SCRATCH + 192, b"zz").unwrap();
+    for id in [6, 9, 300] {
+        call(&mut emu, &mut cpu, 22, &[id, SCRATCH + 192, 8]);
+        assert_eq!(cpu.regs.r[0], 0, "événement {id}");
+    }
+    assert_eq!(
+        emu.device.memory.read_bytes(SCRATCH + 192, 2).unwrap(),
+        b"zz"
+    );
+    // Tampon hors de la mémoire : 0, sans arrêter l'application.
+    assert_eq!(
+        call(&mut emu, &mut cpu, 22, &[24, 0x7000_0000, 8]),
+        SvcAction::Handled
+    );
+    assert_eq!(cpu.regs.r[0], 0);
+}
+
+#[test]
+fn event_numbers_are_defined_like_the_kernel_says() {
+    let (mut emu, mut cpu) = setup();
+    for (id, defined) in [
+        (0, true),
+        (7, false),
+        (9, false),
+        (207, true),
+        (215, false),
+        (216, true),
+        (218, false),
+        (225, true),
+        (226, false),
+    ] {
+        call(&mut emu, &mut cpu, 24, &[id]);
+        assert_eq!(cpu.regs.r[0], u32::from(defined), "événement {id}");
+    }
+}
+
+#[test]
+fn the_backlight_moves_in_steps_of_16() {
+    let (mut emu, mut cpu) = setup();
+    call(&mut emu, &mut cpu, 2, &[100]);
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 96);
+    call(&mut emu, &mut cpu, 2, &[255]);
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 240);
+    // Une valeur choisie par l'hôte est lue de la même façon.
+    emu.kernel.status.brightness = 77;
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 64);
 }
 
 #[test]
@@ -286,7 +496,7 @@ fn setup_host() -> (Emulator, Cpu) {
 #[test]
 fn the_host_clock_ignores_executed_instructions() {
     let (mut emu, mut cpu) = setup_host();
-    cpu.cycles = 216_000_000; // une seconde à 216 MHz, qui ne doit pas compter
+    cpu.cycles = 192_000_000; // une seconde à 192 MHz, qui ne doit pas compter
     call(&mut emu, &mut cpu, 48, &[]);
     assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (0, 0));
     emu.kernel.advance_time(1_500_000);

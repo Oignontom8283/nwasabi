@@ -4,7 +4,7 @@
 //! pour 64 bits, `s0` pour un flottant).
 
 use super::display::Rect;
-use super::{ClockMode, FRAME_US, Kernel, KernelStop, keyboard::EVENT_NONE};
+use super::{ClockMode, FRAME_US, Kernel, KernelStop, event_text, keyboard::EVENT_NONE};
 use crate::cpu::{Bus, BusFault, Cpu, Hooks, SvcAction};
 use crate::link::runtime::{SVC_DRAW_STRING, SVC_EXIT, SVC_SBRK, SVC_WRITE};
 
@@ -30,6 +30,25 @@ fn read_c_string<B: Bus>(bus: &mut B, address: u32) -> Result<Vec<u8>, BusFault>
         }
     }
     Ok(out)
+}
+
+/// `eadk_event_copy_text(id, tampon, taille)` : copie le texte de l'événement comme `strlcpy`
+/// (tronqué, zéro final) et rend la longueur du texte entier ; 0 sans texte ou si le tampon n'est pas
+/// utilisable.
+fn copy_event_text<B: Bus>(bus: &mut B, id: u32, buffer: u32, size: u32) -> u32 {
+    let Some(text) = event_text::event_text(id) else {
+        return 0;
+    };
+    let bytes = text.as_bytes();
+    if size > 0 {
+        let count = bytes.len().min(size as usize - 1);
+        let mut out = bytes[..count].to_vec();
+        out.push(0);
+        if bus.write_block(buffer, &out).is_err() {
+            return 0;
+        }
+    }
+    bytes.len() as u32
 }
 
 fn set_u64(cpu: &mut Cpu, value: u64) {
@@ -62,7 +81,7 @@ impl Kernel {
         };
         let elapsed_ms = ((now - wait.started_us) / 1000) as i64;
         let remaining = i64::from(wait.timeout_ms) - elapsed_ms;
-        let event = self.keyboard.pop_event();
+        let event = self.next_event(now);
         if event.is_some() || (wait.timeout_ms >= 0 && remaining <= 0) {
             self.wait = None;
             let left = if wait.timeout_ms < 0 {
@@ -76,7 +95,12 @@ impl Kernel {
         }
         // Rien à rendre : on refera l'appel (l'instruction `svc` fait 2 octets).
         cpu.regs.pc = cpu.regs.pc.wrapping_sub(2);
-        let remaining_ms = (wait.timeout_ms >= 0).then_some(remaining as u32);
+        let timeout_ms = (wait.timeout_ms >= 0).then_some(remaining as u32);
+        // On reprend au plus tard quand la touche enfoncée doit se répéter.
+        let remaining_ms = match (timeout_ms, self.repeat_remaining_ms(now)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         Ok(self.stop_with(KernelStop::WaitEvent { remaining_ms }))
     }
 
@@ -115,8 +139,9 @@ impl Kernel {
         }
         match number {
             0 => cpu.regs.r[0] = self.status.clearance_level,
-            1 => cpu.regs.r[0] = u32::from(self.status.brightness),
-            2 => self.status.brightness = r0 as u8,
+            // La luminosité tient sur 4 bits : lue et écrite par pas de 16 (écrire 100 puis relire donne 96).
+            1 => cpu.regs.r[0] = u32::from(self.status.brightness >> 4 << 4),
+            2 => self.status.brightness = (r0 as u8) >> 4 << 4,
             3 => cpu.regs.r[0] = u32::from(self.status.battery_charging),
             4 => cpu.regs.r[0] = u32::from(self.status.battery_level),
             5 => cpu.regs.s[0] = self.status.battery_voltage.to_bits(),
@@ -142,7 +167,8 @@ impl Kernel {
                 return Ok(self.stop_with(KernelStop::Frame));
             }
             23 => return self.event_get(cpu, bus),
-            24 => cpu.regs.r[0] = u32::from(r0 < u32::from(EVENT_NONE)),
+            22 => cpu.regs.r[0] = copy_event_text(bus, r0, r1, r2),
+            24 => cpu.regs.r[0] = u32::from(event_text::is_defined(r0)),
             29 => cpu.regs.r[0] = self.status.fcc_id_address,
             33 | 34 => set_u64(cpu, self.keyboard.state()),
             39 => cpu.regs.r[0] = self.status.pcb_version,
@@ -166,7 +192,10 @@ impl Kernel {
             // Sans effet visible dans l'émulateur : mise à jour des niveaux d'autorisation,
             // circuit breaker, CRC, texte d'événement, état de shift/alpha, LED, mise en veille,
             // USB, appui long. Ils rendent 0.
-            6..=17 | 22 | 25..=28 | 30..=32 | 35..=38 | 40..=44 | 51 | 53..=55 | 58 => {
+            // Entrées vides de la table du noyau : l'appel est ignoré, les registres restent intacts.
+            25 | 40 | 41 => {}
+            55 => cpu.regs.r[0] = self.repeat_count,
+            6..=17 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=54 | 58 => {
                 cpu.regs.r[0] = 0;
             }
             SVC_DRAW_STRING => {
@@ -195,10 +224,8 @@ impl Kernel {
             _ if self.config.strict_svc => {
                 return Ok(self.stop_with(KernelStop::UnknownSvc(number)));
             }
-            _ => {
-                self.unknown_svcs += 1;
-                cpu.regs.r[0] = 0;
-            }
+            // Sur l'appareil, un numéro hors de la table est ignoré : rien ne change.
+            _ => self.unknown_svcs += 1,
         }
         Ok(SvcAction::Handled)
     }

@@ -1,9 +1,9 @@
 //! Le clavier : état des touches (`keyboard_scan`) et événements (`event_get`).
 //!
 //! Les numéros de touches sont ceux de l'API EADK publique (`eadk_key_*`). Un événement est un
-//! numéro : celui de la touche, augmenté de 56 quand `shift` est actif, de 112 avec `alpha`, de
-//! 168 avec les deux. Ces règles sont une approximation du comportement d'Epsilon : pas de
-//! répétition sur appui long, pas d'événements « texte ».
+//! numéro : celui de la touche, augmenté de 54 quand `shift` est actif, de 108 avec `alpha`, de
+//! 162 avec les deux (le clavier a 9 rangées de 6 touches). La répétition sur appui long suit celle
+//! du noyau d'Epsilon (voir `Keyboard::repeat_delay_ms`).
 
 use std::collections::VecDeque;
 
@@ -182,10 +182,24 @@ const KEY_NAMES: [(&str, Key); 46] = [
     ("exe", Key::Exe),
 ];
 
-/// Nombre d'événements par « plan » (normal, shift, alpha, shift+alpha).
-pub const EVENTS_PER_PLANE: u16 = 56;
+/// Nombre d'événements par « plan » (normal, shift, alpha, shift+alpha) : 9 rangées × 6 colonnes.
+pub const EVENTS_PER_PLANE: u16 = 54;
 /// Numéro de l'événement « rien » (délai écoulé) : le premier événement spécial.
 pub const EVENT_NONE: u16 = 4 * EVENTS_PER_PLANE;
+
+/// Les événements qui se répètent tant que la touche reste enfoncée : flèches, retour et effacer,
+/// et les flèches avec shift (relevé dans le noyau d'Epsilon 26.4.0).
+pub fn is_repeatable(event: u16) -> bool {
+    const SHIFT_ARROWS: std::ops::Range<u16> = EVENTS_PER_PLANE..EVENTS_PER_PLANE + 4;
+    matches!(event, 0..=3 | 5 | 17) || SHIFT_ARROWS.contains(&event)
+}
+
+/// La touche enfoncée dont l'événement se répète.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Repeat {
+    key: Key,
+    event: u16,
+}
 
 /// Ce que fait la touche `Home`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,6 +220,7 @@ pub struct Keyboard {
     alpha_lock: bool,
     pub home: HomeBehavior,
     exit_requested: bool,
+    repeat: Option<Repeat>,
 }
 
 impl Default for Keyboard {
@@ -218,6 +233,7 @@ impl Default for Keyboard {
             alpha_lock: false,
             home: HomeBehavior::ExitApp,
             exit_requested: false,
+            repeat: None,
         }
     }
 }
@@ -291,11 +307,21 @@ impl Keyboard {
             }
         }
         self.push_event(event);
+        // Une nouvelle touche arrête la répétition de la précédente.
+        self.repeat = is_repeatable(event).then_some(Repeat { key, event });
     }
 
     /// Relâche une touche.
     pub fn release(&mut self, key: Key) {
         self.state &= !(1 << key.bit());
+        if self.repeat.is_some_and(|r| r.key == key) {
+            self.repeat = None;
+        }
+    }
+
+    /// L'événement qui se répète, tant que sa touche reste enfoncée.
+    pub fn repeating(&self) -> Option<u16> {
+        self.repeat.map(|r| r.event)
     }
 
     /// Ajoute un événement à la file (pour l'hôte qui veut en fabriquer directement).
@@ -368,7 +394,7 @@ mod tests {
         k.press(Key::One);
         k.press(Key::Two);
         assert_eq!(k.pop_event(), Some(12));
-        assert_eq!(k.pop_event(), Some(42 + 56));
+        assert_eq!(k.pop_event(), Some(42 + 54));
         assert_eq!(k.pop_event(), Some(43));
     }
 
@@ -381,7 +407,7 @@ mod tests {
         k.press(Key::Sine);
         k.press(Key::Cosine);
         let events: Vec<_> = std::iter::from_fn(|| k.pop_event()).collect();
-        assert_eq!(events, [12, 13, 24 + 112, 25 + 112]);
+        assert_eq!(events, [12, 13, 24 + 108, 25 + 108]);
         k.release(Key::Alpha);
         k.press(Key::Alpha);
         assert!(!k.modifiers().1);

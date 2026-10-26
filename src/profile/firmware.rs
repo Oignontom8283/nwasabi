@@ -60,6 +60,9 @@ pub struct FirmwareProfile {
     pub process_stack_start: u32,
     /// Valeur initiale du pointeur de pile du noyau.
     pub kernel_stack_start: u32,
+    /// Fréquence du processeur en fonctionnement normal, en MHz (relevée dans le noyau : SysTick est
+    /// réglé pour elle).
+    pub cpu_mhz: u32,
 
     /// Identifiant FCC affiché dans « À propos ».
     pub fcc_id: String,

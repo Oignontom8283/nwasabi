@@ -121,7 +121,8 @@ fn battery_usb_and_flags_are_answered_live() {
     assert_eq!(svc(&mut emu, 0, 0), 2);
     assert_eq!(svc(&mut emu, 56, 0), 0x8008);
     assert_eq!(svc(&mut emu, 59, 0), 1);
-    assert_eq!(svc(&mut emu, 1, 0), 99);
+    // La luminosité de l'appareil va par pas de 16 : 99 est lu 96.
+    assert_eq!(svc(&mut emu, 1, 0), 96);
     assert_eq!(emu.settings().status().battery_voltage, 3.6);
 }
 
