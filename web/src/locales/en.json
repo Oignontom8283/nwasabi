@@ -16,7 +16,7 @@
     "unknownFile": "{name}: unrecognised file type (expected .nwa, .nmk, .nfs or .nds)."
   },
   "top": {
-    "about": "nwasabi — NumWorks app emulator",
+    "about": "Nwasabi — NumWorks app emulator",
     "menu": "Load…",
     "noApp": "No app",
     "openFiles": "Load calculator files (.nfs)…",
@@ -51,7 +51,7 @@
     "load": "Load a .nwa",
     "large": "Enlarge or shrink the screen within the page",
     "aboutWindow": "License and terms of use",
-    "repo": "nwasabi on GitHub",
+    "repo": "Nwasabi on GitHub",
     "info": "Information about this installation",
     "reload": "Reload",
     "reloadHint": "A file given to the server changed on disk: reload it."
@@ -169,9 +169,9 @@
     "save": "Save",
     "copySize": "Copy size in bytes",
     "copyName": "Copy name",
-    "formatText": "Recognized format: text (Python script), edited as text.",
-    "formatSystem": "System file: binary, shown and editable in hexadecimal.",
-    "formatBinary": "Unrecognized format: binary, shown and editable in hexadecimal.",
+    "formatText": "(text, Python script)",
+    "formatSystem": "(binary, system)",
+    "formatBinary": "(binary, unknown)",
     "confirmDeleteMany": "Delete these {n} files? This cannot be undone.",
     "deleteMany": "Delete {n} files",
     "clearAll": "Clear everything",
@@ -240,7 +240,8 @@
       "stack": "The stack: local variables and return addresses of functions.",
       "reserved": "Entirely simulated area: the calculator's system does not exist here.",
       "region": "An area of the processor's memory map."
-    }
+    },
+    "listHint": "Click to open the structure."
   },
   "hex": {
     "label": "Hex editor",
@@ -418,7 +419,7 @@
       "last_reset_type": "0 hardware, 1 software."
     },
     "autoReload": "Reload the server's files automatically",
-    "autoReloadHint": "With the nwasabi server: when the application, data, mapping, files or state change on disk, the page reloads them by itself. Otherwise a “Reload” button (or Ctrl + R) appears.",
+    "autoReloadHint": "With the Nwasabi server: when the application, data, mapping, files or state change on disk, the page reloads them by itself. Otherwise a “Reload” button (or Ctrl + R) appears.",
     "page": "This page",
     "keep": {
       "label": "Keep the files in the browser",
@@ -493,7 +494,7 @@
       "52": "Tells whether the USB cable is plugged in.",
       "55": "Repeat count of a held key.",
       "56": "Firmware compilation options.",
-      "128": "Draws text (a nwasabi addition).",
+      "128": "Draws text (a Nwasabi addition).",
       "129": "Grows the heap, the application's dynamic memory.",
       "130": "Writes text to the standard output.",
       "137": "Ends the application."
@@ -503,7 +504,7 @@
     "title": "License and terms of use",
     "license": {
       "title": "License",
-      "text": "nwasabi is free software, distributed under the GNU Affero General Public License, version 3 (AGPL-3.0), with a linking exception that allows its library to be used in an application without that application inheriting the license. The full license text, the source code and the documentation are in the repository."
+      "text": "Nwasabi is free software, distributed under the GNU Affero General Public License, version 3 (AGPL-3.0), with a linking exception that allows its library to be used in an application without that application inheriting the license. The full license text, the source code and the documentation are in the repository."
     },
     "terms": {
       "title": "Terms of use",
@@ -511,11 +512,11 @@
     },
     "third": {
       "title": "Loaded applications and data",
-      "text": "nwasabi is independent of whatever runs inside it: it emulates a calculator and neither knows nor controls the applications loaded into it. Those applications, and their associated files and data, remain the exclusive property of their original authors, who hold their rights. nwasabi claims ownership of none of it and is responsible neither for its content, its behavior, nor compliance with its license: everyone must only use what they have the right to use."
+      "text": "Nwasabi is independent of whatever runs inside it: it emulates a calculator and neither knows nor controls the applications loaded into it. Those applications, and their associated files and data, remain the exclusive property of their original authors, who hold their rights. Nwasabi claims ownership of none of it and is responsible neither for its content, its behavior, nor compliance with its license: everyone must only use what they have the right to use."
     },
     "trademarks": {
       "title": "Trademarks",
-      "text": "NumWorks and the other product or company names mentioned belong to their respective owners. nwasabi is neither affiliated with NumWorks nor approved or endorsed by that company."
+      "text": "NumWorks and the other product or company names mentioned belong to their respective owners. Nwasabi is neither affiliated with NumWorks nor approved or endorsed by that company."
     },
     "repo": "GitHub repository: source code, license and documentation"
   },
@@ -524,7 +525,7 @@
   },
   "keepPrompt": {
     "title": "Keep your files?",
-    "message": "Should nwasabi keep the calculator's files (your scripts, for example) in this browser, so you find them again on every visit? The browser may ask your permission to keep them durably. They stay on this computer, are shared by everything that runs on this site, and you can erase them or change your mind at any time in the Settings tab.",
+    "message": "Should Nwasabi keep the calculator's files (your scripts, for example) in this browser, so you find them again on every visit? The browser may ask your permission to keep them durably. They stay on this computer, are shared by everything that runs on this site, and you can erase them or change your mind at any time in the Settings tab.",
     "accept": "Yes, keep them",
     "decline": "No thanks"
   }

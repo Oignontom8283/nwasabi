@@ -16,7 +16,7 @@
     "unknownFile": "{name} : type de fichier non reconnu (attendu : .nwa, .nmk, .nfs ou .nds)."
   },
   "top": {
-    "about": "nwasabi — émulateur d'applications NumWorks",
+    "about": "Nwasabi — émulateur d'applications NumWorks",
     "menu": "Charger…",
     "noApp": "Aucune application",
     "openFiles": "Charger des fichiers de la calculatrice (.nfs)…",
@@ -51,7 +51,7 @@
     "load": "Charger un .nwa",
     "large": "Agrandir ou réduire l'écran dans la page",
     "aboutWindow": "Licence et conditions d'utilisation",
-    "repo": "Dépôt GitHub de nwasabi",
+    "repo": "Dépôt GitHub de Nwasabi",
     "info": "Informations de cette installation",
     "reload": "Recharger",
     "reloadHint": "Un fichier donné au serveur a changé sur le disque : le recharger."
@@ -169,9 +169,9 @@
     "save": "Enregistrer",
     "copySize": "Copier la taille en octets",
     "copyName": "Copier le nom",
-    "formatText": "Format reconnu : texte (script Python), modifiable comme du texte.",
-    "formatSystem": "Fichier du système : binaire, affiché et modifiable en hexadécimal.",
-    "formatBinary": "Format non reconnu : binaire, affiché et modifiable en hexadécimal.",
+    "formatText": "(texte, script Python)",
+    "formatSystem": "(binaire, système)",
+    "formatBinary": "(binaire, inconnu)",
     "confirmDeleteMany": "Supprimer ces {n} fichiers ? Cette action est définitive.",
     "deleteMany": "Supprimer {n} fichiers",
     "clearAll": "Tout effacer",
@@ -240,7 +240,8 @@
       "stack": "La pile : variables locales et adresses de retour des fonctions.",
       "reserved": "Zone entièrement simulée : le système de la calculatrice n'existe pas ici.",
       "region": "Zone de la carte mémoire du processeur."
-    }
+    },
+    "listHint": "Cliquer pour ouvrir la structure."
   },
   "hex": {
     "label": "Éditeur hexadécimal",
@@ -418,7 +419,7 @@
       "last_reset_type": "0 matériel, 1 logiciel."
     },
     "autoReload": "Recharger automatiquement les fichiers du serveur",
-    "autoReloadHint": "Avec le serveur nwasabi : quand l'application, les données, le mapping, les fichiers ou l'état changent sur le disque, la page les recharge toute seule. Sans cela, un bouton « Recharger » (ou Ctrl + R) apparaît.",
+    "autoReloadHint": "Avec le serveur Nwasabi : quand l'application, les données, le mapping, les fichiers ou l'état changent sur le disque, la page les recharge toute seule. Sans cela, un bouton « Recharger » (ou Ctrl + R) apparaît.",
     "page": "Cette page",
     "keep": {
       "label": "Conserver les fichiers dans le navigateur",
@@ -493,7 +494,7 @@
       "52": "Dit si le câble USB est branché.",
       "55": "Nombre de répétitions d'une touche maintenue.",
       "56": "Options de compilation du firmware.",
-      "128": "Affiche du texte (ajout de nwasabi).",
+      "128": "Affiche du texte (ajout de Nwasabi).",
       "129": "Agrandit le tas, la mémoire dynamique de l'application.",
       "130": "Écrit du texte sur la sortie standard.",
       "137": "Termine l'application."
@@ -503,7 +504,7 @@
     "title": "Licence et conditions d'utilisation",
     "license": {
       "title": "Licence",
-      "text": "nwasabi est un logiciel libre, distribué sous la licence publique générale Affero GNU, version 3 (AGPL-3.0), assortie d'une exception de liaison qui permet d'utiliser sa bibliothèque dans une application sans que celle-ci en hérite. Le texte complet de la licence, le code source et la documentation sont dans le dépôt."
+      "text": "Nwasabi est un logiciel libre, distribué sous la licence publique générale Affero GNU, version 3 (AGPL-3.0), assortie d'une exception de liaison qui permet d'utiliser sa bibliothèque dans une application sans que celle-ci en hérite. Le texte complet de la licence, le code source et la documentation sont dans le dépôt."
     },
     "terms": {
       "title": "Conditions d'utilisation",
@@ -511,11 +512,11 @@
     },
     "third": {
       "title": "Applications et données chargées",
-      "text": "nwasabi est indépendant de ce qu'on y exécute : il émule une calculatrice et ne connaît ni ne contrôle les applications chargées. Ces applications, ainsi que les fichiers et données associés, restent la propriété exclusive de leurs auteurs d'origine, qui en détiennent les droits. nwasabi ne s'en approprie rien et n'est responsable ni de leur contenu, ni de leur fonctionnement, ni du respect de leur licence : il appartient à chacun de n'utiliser que ce qu'il a le droit d'utiliser."
+      "text": "Nwasabi est indépendant de ce qu'on y exécute : il émule une calculatrice et ne connaît ni ne contrôle les applications chargées. Ces applications, ainsi que les fichiers et données associés, restent la propriété exclusive de leurs auteurs d'origine, qui en détiennent les droits. Nwasabi ne s'en approprie rien et n'est responsable ni de leur contenu, ni de leur fonctionnement, ni du respect de leur licence : il appartient à chacun de n'utiliser que ce qu'il a le droit d'utiliser."
     },
     "trademarks": {
       "title": "Marques",
-      "text": "NumWorks et les autres noms de produits ou d'entreprises cités appartiennent à leurs propriétaires respectifs. nwasabi n'est ni affilié à NumWorks ni approuvé ou soutenu par cette société."
+      "text": "NumWorks et les autres noms de produits ou d'entreprises cités appartiennent à leurs propriétaires respectifs. Nwasabi n'est ni affilié à NumWorks ni approuvé ou soutenu par cette société."
     },
     "repo": "Dépôt GitHub : code source, licence et documentation"
   },
@@ -524,7 +525,7 @@
   },
   "keepPrompt": {
     "title": "Conserver vos fichiers ?",
-    "message": "Voulez-vous que nwasabi conserve les fichiers de la calculatrice (vos scripts, par exemple) dans ce navigateur, pour les retrouver à chaque visite ? Le navigateur peut vous demander l'autorisation de les garder durablement. Ils restent sur cet ordinateur, sont partagés par tout ce qui tourne sur ce site, et vous pouvez les effacer ou changer d'avis à tout moment dans l'onglet Réglages.",
+    "message": "Voulez-vous que Nwasabi conserve les fichiers de la calculatrice (vos scripts, par exemple) dans ce navigateur, pour les retrouver à chaque visite ? Le navigateur peut vous demander l'autorisation de les garder durablement. Ils restent sur cet ordinateur, sont partagés par tout ce qui tourne sur ce site, et vous pouvez les effacer ou changer d'avis à tout moment dans l'onglet Réglages.",
     "accept": "Oui, les conserver",
     "decline": "Non merci"
   }
