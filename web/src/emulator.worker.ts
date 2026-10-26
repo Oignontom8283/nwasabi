@@ -32,9 +32,9 @@ function flush(): void {
   scope.postMessage({ kind: "state", patch: patch as Partial<PlayerState> });
 }
 
-/** Après la création d'un appareil neuf, on y remet les fichiers conservés par la page, avant la première image. */
+/** Dans tout appareil neuf (avec ou sans application), on remet les fichiers conservés par la page, avant la première image. */
 function restoreKept(): void {
-  if (kept && player?.state.loaded) player.nwasabi.request({ cmd: "fs_import", nfs: kept, replace: true });
+  if (kept && player) player.nwasabi.request({ cmd: "fs_import", nfs: kept, replace: true });
 }
 
 const NEW_DEVICE: ReadonlySet<PlayerMethod> = new Set(["load", "restart", "runWithoutData", "changeModel"]);
@@ -48,6 +48,7 @@ async function handle(message: ToWorker): Promise<void> {
         canvas = message.canvas;
         player = await Player.create(wasm, { slice: message.slice });
         if (canvas) player.attach(canvas as never);
+        restoreKept();
         player.onFrame(() => flush());
         setInterval(flush, 250); // le temps de l'application continue de défiler même sans nouvelle image
         flush();
@@ -59,6 +60,8 @@ async function handle(message: ToWorker): Promise<void> {
     }
     case "kept":
       kept = message.document;
+      restoreKept();
+      flush();
       return;
     case "request": {
       if (!player) return void scope.postMessage({ kind: "failure", id: message.id, message: "émulateur pas encore prêt" });

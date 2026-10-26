@@ -41,7 +41,7 @@ function offerKept(): void {
 }
 
 async function save() {
-  if (!keep.enabled || !emulator?.state.loaded) return;
+  if (!keep.enabled || !emulator?.state.ready) return;
   const list = await emulator.quiet({ cmd: "fs_list" });
   if (!list.ok || list.generation === lastGeneration) return;
   const reply = await emulator.quiet({ cmd: "fs_export" });
