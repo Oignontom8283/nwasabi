@@ -455,3 +455,51 @@ fn the_simulation_time_is_readable_at_any_moment_and_stops_without_the_host() {
     let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
     assert_eq!(ran.get("time_ms").and_then(Value::as_i64), Some(21));
 }
+
+#[test]
+fn the_cpu_speed_is_chosen_per_device_and_can_change_later() {
+    let mut s = Session::new();
+    // Par défaut : la fréquence du modèle ; la fréquence personnalisée vaut celle du N0110.
+    let r = ok(&mut s, r#"{"cmd":"new","model":"n0120"}"#);
+    assert_eq!(r.get("speed").and_then(Value::as_str), Some("model"));
+    assert_eq!(r.get("mhz").and_then(Value::as_u64), Some(192));
+    assert_eq!(r.get("cpu_mhz").and_then(Value::as_u64), Some(540));
+    assert_eq!(r.get("limit_mhz").and_then(Value::as_u64), Some(540));
+
+    // Une fréquence donnée sans changer de mode est mémorisée mais ignorée.
+    let r = ok(&mut s, r#"{"cmd":"speed","mhz":50}"#);
+    assert_eq!(r.get("speed").and_then(Value::as_str), Some("model"));
+    assert_eq!(r.get("mhz").and_then(Value::as_u64), Some(50));
+    assert_eq!(r.get("cpu_mhz").and_then(Value::as_u64), Some(540));
+
+    let r = ok(&mut s, r#"{"cmd":"speed","speed":"custom"}"#);
+    assert_eq!(r.get("cpu_mhz").and_then(Value::as_u64), Some(50));
+    assert_eq!(r.get("limit_mhz").and_then(Value::as_u64), Some(50));
+
+    // Sans limite : rien à appliquer, le temps virtuel garde la fréquence du modèle.
+    let r = ok(&mut s, r#"{"cmd":"speed","speed":"max"}"#);
+    assert_eq!(r.get("limit_mhz"), Some(&Value::Null));
+    assert_eq!(r.get("cpu_mhz").and_then(Value::as_u64), Some(540));
+
+    // Sans champ, la commande rend l'état ; une nouvelle requête de création peut tout régler.
+    let r = ok(&mut s, r#"{"cmd":"speed"}"#);
+    assert_eq!(r.get("speed").and_then(Value::as_str), Some("max"));
+    let r = ok(
+        &mut s,
+        r#"{"cmd":"new","model":"n0110","speed":"custom","mhz":100}"#,
+    );
+    assert_eq!(r.get("cpu_mhz").and_then(Value::as_u64), Some(100));
+}
+
+#[test]
+fn bad_speeds_are_errors() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    assert!(error(&mut s, r#"{"cmd":"speed","speed":"turbo"}"#).contains("vitesse inconnue"));
+    assert!(error(&mut s, r#"{"cmd":"speed","mhz":0}"#).contains("mhz"));
+    assert!(error(&mut s, r#"{"cmd":"speed","mhz":"vite"}"#).contains("mhz"));
+    assert!(error(&mut s, r#"{"cmd":"speed","mhz":1000000}"#).contains("entre 1 et"));
+    // La commande a besoin d'un appareil.
+    let mut vide = Session::new();
+    assert!(!error(&mut vide, r#"{"cmd":"speed"}"#).is_empty());
+}
