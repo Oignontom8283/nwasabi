@@ -55,6 +55,12 @@ struct Options {
     /// Mapping des touches à charger dans la page (fichier .nmk)
     #[arg(long, value_name = "FICHIER.nmk")]
     nmk: Option<PathBuf>,
+    /// Fichiers de la calculatrice à charger dans la page (fichier .nfs)
+    #[arg(long, value_name = "FICHIER.nfs")]
+    nfs: Option<PathBuf>,
+    /// État à reprendre dans la page (fichier .nds)
+    #[arg(long, value_name = "FICHIER.nds")]
+    nds: Option<PathBuf>,
     /// Modèle de calculatrice
     #[arg(long, value_enum, ignore_case = true, default_value = "n0110")]
     model: ModelOpt,
@@ -89,6 +95,10 @@ struct Served {
     preload: Option<Preload>,
     /// Le fichier `--nmk`, déjà vérifié.
     nmk: Option<String>,
+    /// Le fichier `--nfs`, déjà vérifié.
+    nfs: Option<String>,
+    /// Le fichier `--nds`, déjà vérifié.
+    nds: Option<String>,
 }
 
 type Shared = Arc<Served>;
@@ -111,12 +121,24 @@ async fn preload(State(served): State<Shared>) -> Json<Value> {
     })
 }
 
-/// Le fichier de mapping des touches donné avec `--nmk`, tel quel (404 sans lui).
-async fn nmk(State(served): State<Shared>) -> Response {
-    match &served.nmk {
+/// Un fichier donné au démarrage (`--nmk`, `--nfs`, `--nds`), tel quel (404 sans lui).
+fn given(text: &Option<String>) -> Response {
+    match text {
         Some(text) => ([(header::CONTENT_TYPE, "application/json")], text.clone()).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn nmk(State(served): State<Shared>) -> Response {
+    given(&served.nmk)
+}
+
+async fn nfs(State(served): State<Shared>) -> Response {
+    given(&served.nfs)
+}
+
+async fn nds(State(served): State<Shared>) -> Response {
+    given(&served.nds)
 }
 
 /// Un fichier du site ; le type MIME (dont `application/wasm`, indispensable pour compiler un
@@ -180,6 +202,30 @@ async fn run(options: Options) -> Result<(), String> {
         }
         None => None,
     };
+    let nfs_text = match &options.nfs {
+        Some(path) => {
+            let text =
+                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
+            let document = nwasabi::json::parse(&text)
+                .map_err(|e| format!("{} : JSON invalide : {e}", path.display()))?;
+            nwasabi::formats::nfs::parse(&document)
+                .map_err(|e| format!("{} : {e}", path.display()))?;
+            Some(text)
+        }
+        None => None,
+    };
+    let nds_text = match &options.nds {
+        Some(path) => {
+            let text =
+                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
+            let document = nwasabi::json::parse(&text)
+                .map_err(|e| format!("{} : JSON invalide : {e}", path.display()))?;
+            nwasabi::formats::nds::restore(&document, None)
+                .map_err(|e| format!("{} : {e}", path.display()))?;
+            Some(text)
+        }
+        None => None,
+    };
     let preload_data = match &options.nwa {
         Some(path) => {
             let shown = path.display();
@@ -206,10 +252,14 @@ async fn run(options: Options) -> Result<(), String> {
         .route("/__nwasabi/health", get(health))
         .route("/__nwasabi/preload", get(preload))
         .route("/__nwasabi/nmk", get(nmk))
+        .route("/__nwasabi/nfs", get(nfs))
+        .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
         .with_state(Arc::new(Served {
             preload: preload_data,
             nmk: nmk_text,
+            nfs: nfs_text,
+            nds: nds_text,
         }));
 
     let (host, port) = (options.host.as_str(), options.port);

@@ -348,3 +348,112 @@ fn a_mapped_host_key_reaches_the_application() {
     // Une combinaison (shift + alpha) n'est aucune des touches de l'application : écran noir comme au repos.
     assert_eq!(keys_screen(&["--nmk", &nmk, "--press", "KeyQ"]), idle);
 }
+
+#[test]
+fn nfs_and_nds_files_go_through_the_cli() {
+    let dir = workdir("formats");
+    let app = format!("{}/tests/apps/bin/keys.nwa", env!("CARGO_MANIFEST_DIR"));
+    let (nfs, nds) = (dir.join("files.nfs"), dir.join("state.nds"));
+    std::fs::write(
+        &nfs,
+        r#"{"nfs":1,"files":[{"name":"hello.py","base64":"cHJpbnQoMSk="}]}"#,
+    )
+    .unwrap();
+
+    // Charge des fichiers, exécute, enregistre l'état puis les fichiers.
+    let saved_nfs = dir.join("saved.nfs");
+    let out = cli(&[
+        "run",
+        &app,
+        "--frames",
+        "3",
+        "--nfs",
+        nfs.to_str().unwrap(),
+        "--save-nds",
+        nds.to_str().unwrap(),
+        "--save-nfs",
+        saved_nfs.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let saved: Value = json::parse(&std::fs::read_to_string(&saved_nfs).unwrap()).unwrap();
+    assert_eq!(saved["files"][0]["name"], "hello.py");
+
+    // Reprend l'état : sans application en argument, et le temps continue où il s'était arrêté.
+    let first = json::parse(stdout(&out).trim()).unwrap();
+    let resumed = cli(&[
+        "run",
+        "--nds",
+        nds.to_str().unwrap(),
+        "--frames",
+        "2",
+        "--json",
+    ]);
+    assert!(
+        resumed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&resumed.stderr)
+    );
+    let second = json::parse(stdout(&resumed).trim()).unwrap();
+    assert!(second["time_ms"].as_u64() > first["time_ms"].as_u64());
+
+    // Sans --nds ni application : erreur d'usage.
+    assert_eq!(cli(&["run"]).status.code(), Some(2));
+}
+
+#[test]
+fn fs_export_and_import_use_the_nfs_format() {
+    let dir = workdir("fs-nfs");
+    let image = dir.join("image.bin");
+    let image = image.to_str().unwrap();
+    assert!(
+        cli(&[
+            "fs", "--image", image, "write", "a.py", "--text", "print(1)"
+        ])
+        .status
+        .success()
+    );
+    let nfs = dir.join("all.nfs");
+    assert!(
+        cli(&["fs", "--image", image, "export", nfs.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let document: Value = json::parse(&std::fs::read_to_string(&nfs).unwrap()).unwrap();
+    assert_eq!(document["files"][0]["name"], "a.py");
+
+    let other = dir.join("other.bin");
+    let other = other.to_str().unwrap();
+    assert!(
+        cli(&["fs", "--image", other, "write", "old.py", "--text", "x"])
+            .status
+            .success()
+    );
+    assert!(
+        cli(&["fs", "--image", other, "import", nfs.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let list = cli(&["fs", "--image", other, "list", "--json"]);
+    let names = stdout(&list);
+    assert!(
+        names.contains("a.py") && !names.contains("old.py"),
+        "{names}"
+    );
+    assert!(
+        cli(&[
+            "fs",
+            "--image",
+            other,
+            "import",
+            nfs.to_str().unwrap(),
+            "--keep"
+        ])
+        .status
+        .success()
+    );
+}

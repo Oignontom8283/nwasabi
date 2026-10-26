@@ -5,6 +5,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use nwasabi::device::DeviceImage;
+use nwasabi::formats;
 use nwasabi::json::{self, Value, ValueExt};
 use nwasabi::kernel::Key;
 use nwasabi::keymap::KeyMap;
@@ -26,6 +27,11 @@ pub type Outcome = Result<i32, String>;
 fn read_file(path: impl AsRef<Path>) -> Result<Vec<u8>, String> {
     let path = path.as_ref();
     fs::read(path).map_err(|e| format!("{} : {e}", path.display()))
+}
+
+fn read_json(path: &Path) -> Result<Value, String> {
+    let text = fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
+    json::parse(&text).map_err(|e| format!("{} : JSON invalide : {e}", path.display()))
 }
 
 fn write_file(path: impl AsRef<Path>, data: &[u8]) -> Result<(), String> {
@@ -126,10 +132,32 @@ fn pressed_keys(keymap: Option<&KeyMap>, name: &str) -> Result<Vec<String>, Stri
 
 pub fn run(args: RunArgs) -> Outcome {
     let mut session = Session::new();
-    call(
-        &mut session,
-        load_request(&args.device, &read_file(&args.app)?)?,
-    )?;
+    match (&args.nds, &args.app) {
+        (Some(nds), _) => {
+            let document = read_json(nds)?;
+            // Une application donnée en plus sert quand le fichier n'a pas de `.nwa` (partie « app » décochée).
+            if let Some(app) = &args.app {
+                call(&mut session, load_request(&args.device, &read_file(app)?)?)?;
+            }
+            call(
+                &mut session,
+                Value::object().with("cmd", "restore").with("nds", document),
+            )?;
+        }
+        (None, Some(app)) => {
+            call(&mut session, load_request(&args.device, &read_file(app)?)?)?;
+        }
+        (None, None) => unreachable!("clap exige l'application ou --nds"),
+    }
+    if let Some(nfs) = &args.nfs {
+        let document = read_json(nfs)?;
+        call(
+            &mut session,
+            Value::object()
+                .with("cmd", "fs_import")
+                .with("nfs", document),
+        )?;
+    }
 
     let keymap = args.nmk.as_deref().map(read_keymap).transpose()?;
     for key in &args.press {
@@ -151,6 +179,14 @@ pub fn run(args: RunArgs) -> Outcome {
         request.set("frames", n);
     }
     let ran = call(&mut session, request)?;
+    if let Some(path) = &args.save_nds {
+        let dump = call(&mut session, Value::object().with("cmd", "dump"))?;
+        write_file(path, dump["nds"].to_string().as_bytes())?;
+    }
+    if let Some(path) = &args.save_nfs {
+        let export = call(&mut session, Value::object().with("cmd", "fs_export"))?;
+        write_file(path, export["nfs"].to_string().as_bytes())?;
+    }
     let screen = call(
         &mut session,
         Value::object()
@@ -414,8 +450,37 @@ pub fn fs_cmd(args: FsArgs) -> Outcome {
             buffer = records::rename(&buffer, from, to).map_err(e)?;
             write_file(image_path, &buffer)?;
         }
+        FsOp::Export { to } => {
+            let document = with_fs_buffer(&mut buffer, formats::nfs::export)?;
+            write_file(to, document.to_string().as_bytes())?;
+        }
+        FsOp::Import { from, keep } => {
+            let document = read_json(from)?;
+            with_fs_buffer(&mut buffer, |fs| {
+                formats::nfs::import(fs, &document, !keep).map(|_| ())
+            })?;
+            write_file(image_path, &buffer)?;
+        }
     }
     Ok(0)
+}
+
+/// Fait travailler le module des fichiers sur un tampon brut : le tampon est copié dans la mémoire d'un
+/// appareil neuf, puis relu après l'opération.
+fn with_fs_buffer<T>(
+    buffer: &mut Vec<u8>,
+    operation: impl FnOnce(&mut nwasabi::storage::Fs<'_>) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut emulator = nwasabi::emulator::Emulator::new(Model::N0110).map_err(|e| e.to_string())?;
+    let (start, _) = emulator.storage_range();
+    emulator
+        .device
+        .memory
+        .write_bytes(start + 4, buffer)
+        .map_err(|e| e.to_string())?;
+    let result = operation(&mut emulator.fs())?;
+    *buffer = emulator.fs().raw().map_err(|e| e.to_string())?;
+    Ok(result)
 }
 
 // ---- survey --------------------------------------------------------------------------------------

@@ -171,3 +171,36 @@ fn an_invalid_nmk_stops_the_server_at_startup() {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("touch.rules[0].while_held"), "{err}");
 }
+
+#[test]
+fn nfs_and_nds_are_served_after_checking() {
+    let nfs = format!("{}/nfs-test.json", std::env::temp_dir().display());
+    std::fs::write(&nfs, r#"{"nfs":1,"files":[]}"#).unwrap();
+    let server = start(&["--nfs", &nfs]);
+    assert_eq!(
+        get(&server, "/__nwasabi/nfs").1,
+        std::fs::read(&nfs).unwrap()
+    );
+    assert_eq!(get(&server, "/__nwasabi/nds").0, 404);
+
+    let bad = format!("{}/nfs-bad.json", std::env::temp_dir().display());
+    std::fs::write(
+        &bad,
+        r#"{"nfs":1,"files":[{"name":"sans_extension","base64":""}]}"#,
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--port", "0", "--nfs", &bad])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("files[0]"));
+
+    let nds = format!("{}/nds-bad.json", std::env::temp_dir().display());
+    std::fs::write(&nds, r#"{"nds":1}"#).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--port", "0", "--nds", &nds])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+}

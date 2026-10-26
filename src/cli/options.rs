@@ -98,8 +98,21 @@ pub enum Command {
 
 #[derive(Args)]
 pub struct RunArgs {
-    /// Fichier .nwa
-    pub app: PathBuf,
+    /// Fichier .nwa (facultatif avec --nds, qui peut contenir l'application)
+    #[arg(required_unless_present = "nds")]
+    pub app: Option<PathBuf>,
+    /// Reprend l'état enregistré dans ce fichier .nds (modèle et firmware viennent du fichier)
+    #[arg(long, value_name = "FICHIER.nds")]
+    pub nds: Option<PathBuf>,
+    /// Charge les fichiers de ce fichier .nfs dans la calculatrice avant de lancer
+    #[arg(long, value_name = "FICHIER.nfs")]
+    pub nfs: Option<PathBuf>,
+    /// Enregistre l'état de la calculatrice dans ce fichier .nds après l'exécution
+    #[arg(long, value_name = "FICHIER.nds")]
+    pub save_nds: Option<PathBuf>,
+    /// Enregistre les fichiers de la calculatrice dans ce fichier .nfs après l'exécution
+    #[arg(long, value_name = "FICHIER.nfs")]
+    pub save_nfs: Option<PathBuf>,
     #[command(flatten)]
     pub device: DeviceOpts,
     /// Nombre maximal d'instructions (défaut : 10 millions)
@@ -188,6 +201,15 @@ pub enum FsOp {
     Remove { name: String },
     /// Renomme un fichier
     Rename { from: String, to: String },
+    /// Enregistre tous les fichiers dans un fichier .nfs
+    Export { to: PathBuf },
+    /// Charge les fichiers d'un fichier .nfs (remplace les fichiers existants, sauf avec --keep)
+    Import {
+        from: PathBuf,
+        /// Garde les fichiers existants (ceux du même nom sont remplacés)
+        #[arg(long)]
+        keep: bool,
+    },
 }
 
 #[derive(Args)]
