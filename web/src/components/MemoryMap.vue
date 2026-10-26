@@ -40,8 +40,18 @@ interface Marker {
   section: string;
   label: string;
   address: number;
+  /** Position sur la carte, en % de la largeur. */
   left: number;
+  /** Fin de la plage sur la carte (en %), pour une structure qui a une étendue ; `null` pour un simple repère. */
   end: number | null;
+  /** Taille de la plage, en octets. */
+  size: number | null;
+}
+interface Entry {
+  section: string;
+  label: string;
+  /** Adresse, ou plage `début → fin · taille`. */
+  where: string;
 }
 interface Tip {
   title: string;
@@ -114,11 +124,16 @@ function located(): Marker[] {
   return markers.value.flatMap((m) => {
     const left = positionOf(m.address);
     const size = sizes[m.section];
-    return left === null ? [] : [{ ...m, left, end: size ? positionOf(m.address + size - 1) : null }];
+    return left === null ? [] : [{ ...m, left, end: size ? positionOf(m.address + size - 1) : null, size: size ?? null }];
   });
 }
-// Les repères ponctuels proches sont fusionnés en un seul libellé ; les plages (les fichiers) ne le sont jamais :
-// elles ont leur libellé et leur accolade, sur une ligne à elles.
+const entryOf = (m: Marker): Entry => ({
+  section: m.section,
+  label: m.label,
+  where: m.size ? `${hex0x(m.address)} → ${hex0x(m.address + m.size - 1)} · ${formatBytes(m.size, locale.value)}` : hex0x(m.address),
+});
+// Les repères ponctuels proches sont fusionnés en un seul libellé (qui déroule la liste de ce qu'il regroupe) ; les plages
+// (les fichiers) ne le sont jamais : elles ont leur libellé sur une ligne à elles, relié à leur accolade par un trait.
 const marks = computed(() => {
   const points = located()
     .filter((m) => m.end === null)
@@ -134,13 +149,12 @@ const marks = computed(() => {
     const [first, second] = items;
     if (!first) return [];
     const label = !second ? first.label : items.length === 2 ? `${first.label} · ${second.label}` : `${first.label} +${items.length - 1}`;
-    const center = items.reduce((sum, m) => sum + m.left, 0) / items.length;
-    return [{ label, left: first.left, center, section: first.section, title: items.map((m) => `${m.label} ${hex0x(m.address)}`).join("\n"), align: align(center) }];
+    return [{ key: first.section, label, left: first.left, entries: items.map(entryOf), align: align(first.left) }];
   });
 });
 const ranges = computed(() =>
   located().flatMap((m) =>
-    m.end === null ? [] : [{ section: m.section, label: m.label, left: m.left, width: Math.max(m.end - m.left, 0.5), title: `${m.label} ${hex0x(m.address)}`, align: align(m.left + (m.end - m.left) / 2) }],
+    m.end === null ? [] : [{ key: m.section, label: m.label, left: m.left, width: Math.max(m.end - m.left, 0.5), entries: [entryOf(m)], align: align(m.left + (m.end - m.left) / 2) }],
   ),
 );
 
@@ -186,13 +200,20 @@ const blockTip = (b: Block): Omit<Tip, "x" | "y"> => ({
   <div ref="root" class="map" role="group" :aria-label="t('memmap.label')" @pointerleave="hide">
     <p class="title">{{ t("memmap.contents") }}</p>
     <div class="marks">
-      <div v-for="r in ranges" :key="r.section" class="range" :style="{ left: r.left + '%', width: r.width + '%' }">
-        <button class="lab" :class="r.align" :title="r.title" @click="showStructure(r.section)">{{ r.label }}</button>
+      <div v-for="r in ranges" :key="r.key" class="range" :class="r.align" :style="{ left: r.left + '%', width: r.width + '%' }">
+        <button class="lab" @click="showStructure(r.entries[0]?.section ?? r.key)">{{ r.label }}</button>
+        <i class="rstem" />
         <i class="brace" />
+        <div class="pop" role="menu">
+          <button v-for="e in r.entries" :key="e.section" role="menuitem" :title="t('memmap.listHint')" @click="showStructure(e.section)"><span>{{ e.label }}</span><span class="mono muted">{{ e.where }}</span></button>
+        </div>
       </div>
-      <div v-for="c in marks" :key="c.section" class="mark" :class="c.align" :style="{ left: c.left + '%' }">
-        <button class="lab" :title="c.title" @click="showStructure(c.section)">{{ c.label }}</button>
+      <div v-for="c in marks" :key="c.key" class="mark" :class="c.align" :style="{ left: c.left + '%' }">
+        <button class="lab" @click="showStructure(c.entries[0]?.section ?? c.key)">{{ c.label }}</button>
         <i class="stem" />
+        <div class="pop" role="menu">
+          <button v-for="e in c.entries" :key="e.section" role="menuitem" :title="t('memmap.listHint')" @click="showStructure(e.section)"><span>{{ e.label }}</span><span class="mono muted">{{ e.where }}</span></button>
+        </div>
       </div>
     </div>
     <div class="strip">
@@ -266,18 +287,36 @@ const blockTip = (b: Block): Omit<Tip, "x" | "y"> => ({
 
 <style scoped>
 .map { position: relative; display: grid; gap: 4px; }
-.marks { position: relative; height: 60px; margin-top: 4px; }
-.lab { padding: 0 6px; font-size: 11px; height: 18px; border-radius: 4px; position: relative; z-index: 1; }
+.marks { position: relative; height: 66px; margin-top: 4px; }
+.lab { padding: 0 6px; font-size: 11px; height: 18px; border-radius: 4px; position: relative; z-index: 2; }
 .mark { position: absolute; top: 0; bottom: 0; width: 0; }
 .mark .lab { position: absolute; top: 0; transform: translateX(-50%); }
 .mark.start .lab { transform: none; left: -6px; }
 .mark.end .lab { transform: none; left: auto; right: -6px; }
 .mark .stem { position: absolute; left: 0; top: 18px; bottom: 0; width: 1px; background: var(--muted); }
-.range { position: absolute; bottom: 0; height: 38px; min-width: 6px; }
+/* Une plage : libellé sur la ligne du bas, trait vertical jusqu'au milieu de l'accolade. */
+.range { position: absolute; bottom: 0; height: 44px; min-width: 6px; }
 .range .lab { position: absolute; top: 0; left: 50%; transform: translateX(-50%); }
-.range .lab.start { left: 0; transform: none; }
-.range .lab.end { left: auto; right: 0; transform: none; }
+.range.start .lab { left: 0; transform: none; }
+.range.end .lab { left: auto; right: 0; transform: none; }
+.range .rstem { position: absolute; left: 50%; top: 18px; bottom: 9px; width: 1px; background: var(--muted); }
 .brace { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; border: 1.5px solid var(--muted); border-bottom: none; border-radius: 4px 4px 0 0; }
+.range:hover .brace, .mark:hover .stem { border-color: var(--accent); background-color: var(--accent); }
+.range:hover .brace { background-color: transparent; }
+.range:hover .rstem { background: var(--accent); }
+/* La liste qui se déroule sous le libellé : une barre verte courte en haut, comme une fiche. */
+.pop { display: none; position: absolute; z-index: 6; top: 18px; min-width: 210px; padding: 6px 0 4px; background: var(--surface); color: var(--text); border: 1px solid var(--text); border-radius: 3px; box-shadow: 3px 3px 0 rgb(0 0 0 / 18%); }
+.pop::before { content: ""; position: absolute; left: -1px; top: -1px; width: 40px; height: 3px; background: var(--accent); }
+.mark .pop { left: 0; transform: translateX(-50%); }
+.mark.start .pop { transform: none; left: -6px; }
+.mark.end .pop { transform: none; left: auto; right: -6px; }
+.range .pop { left: 50%; transform: translateX(-50%); }
+.range.start .pop { left: 0; transform: none; }
+.range.end .pop { left: auto; right: 0; transform: none; }
+.mark:hover .pop, .mark:focus-within .pop, .range:hover .pop, .range:focus-within .pop { display: block; }
+.pop button { display: grid; width: 100%; gap: 1px; justify-content: start; text-align: left; border: none; border-radius: 0; background: transparent; padding: 4px 10px; font-size: 12px; }
+.pop button:hover { background-color: var(--accent-soft); }
+.pop .muted { font-size: 11px; }
 .title { margin: 6px 0 2px; font-size: 12px; color: var(--muted); }
 .title.second { margin-top: 20px; }
 /* Un seul rectangle arrondi par carte ; les zones de la mémoire y sont côte à côte, séparées d'un trait. */

@@ -404,16 +404,13 @@ watch(() => state.revision, () => refresh(true));
     <section v-if="selected && current" class="editor">
       <header>
         <span class="ico"><Icon :name="ICON(current)" :size="14" /></span><strong>{{ selected }}</strong>
+        <small class="kind">{{ isText ? t("files.formatText") : current.kind === "system" ? t("files.formatSystem") : t("files.formatBinary") }}</small>
         <span v-if="dirty" class="muted">● {{ t("files.modified") }}</span>
         <span class="spacer" />
         <label v-if="isText" class="auto"><input v-model="autoImport" type="checkbox" /> {{ t("files.autoImport") }}</label>
         <button class="primary" :disabled="!dirty" title="Ctrl+S" @click="save">{{ t("files.save") }}</button>
         <button :aria-label="t('common.close')" class="flat icon" @click="closeEditor"><Icon name="close" :size="14" /></button>
       </header>
-      <p class="format" :class="{ text: isText }">
-        <Icon :name="isText ? 'file' : 'chip'" :size="13" />
-        {{ isText ? t("files.formatText") : current.kind === "system" ? t("files.formatSystem") : t("files.formatBinary") }}
-      </p>
       <textarea
         v-if="isText"
         v-model="text"
@@ -459,8 +456,7 @@ watch(() => state.revision, () => refresh(true));
 .spacer { flex: 1; }
 .auto { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; }
 textarea { width: 100%; border: none; border-radius: 0; resize: vertical; display: block; min-height: 140px; tab-size: 4; font-size: 13px; }
-.format { margin: 0; padding: 4px 10px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; }
-.format.text { color: var(--accent-strong); }
+.kind { font-size: 11.5px; color: var(--accent-strong); }
 .editor :deep(.hex) { padding: 10px; gap: 14px; }
 .editor :deep(.hex .actions) { margin-top: 2px; }
 .name-input { width: 100%; min-width: 0; height: 21px; padding: 0 5px; font: inherit; border-radius: 4px; }
