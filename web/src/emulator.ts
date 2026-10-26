@@ -9,9 +9,6 @@ import type { Firmware, KeyName, Model, PlayerState, Reply, Request, SpeedMode }
 import wasmUrl from "nwasabi.wasm?url";
 import type { FromWorker, PlayerMethod, ToWorker } from "./worker-protocol.js";
 
-/** Instructions au plus par tranche : le Worker s'arrête entre deux tranches pour traiter les messages de la page. */
-const SLICE = 250_000;
-
 export function useEmulator() {
   // `keymapVersion` change à chaque nouveau mapping des touches : les vues qui l'affichent le suivent.
   const state = reactive({ ...Player.initialState(), ready: false, keymapVersion: 0 });
@@ -78,7 +75,7 @@ export function useEmulator() {
     };
     const offscreen = transferCanvas();
     const wasm = new URL(wasmUrl, location.href).href;
-    await ask<boolean>((id) => ({ kind: "init", id, wasmUrl: wasm, canvas: offscreen, slice: SLICE }), offscreen ? [offscreen] : []);
+    await ask<boolean>((id) => ({ kind: "init", id, wasmUrl: wasm, canvas: offscreen }), offscreen ? [offscreen] : []);
     state.ready = true;
   }
 

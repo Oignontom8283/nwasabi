@@ -132,6 +132,11 @@ export interface PlayerOptions {
   customMhz?: number;
   /** Mapping des touches au départ (défaut : `KeyMap.default()`). */
   keymap?: KeyMap;
+  /**
+   * Temps réel au plus passé à émuler par image, en millisecondes (défaut : 12). Sur le fil de la page, on laisse le reste
+   * de l'image à l'interface ; dans un Worker, on peut donner toute l'image à l'émulation.
+   */
+  maxWallMs?: number;
   /** Instructions au plus par image du navigateur (défaut : 2 millions). */
   slice?: number;
   /**
@@ -159,6 +164,7 @@ export class Player {
   readonly nwasabi: Nwasabi;
   readonly state: PlayerState;
   private readonly slice: number;
+  private readonly maxWallMs: number;
   private readonly maxElapsedMs: number;
   private readonly scheduler: Scheduler;
   private readonly listeners = new Set<(frame: Frame) => void>();
@@ -209,6 +215,7 @@ export class Player {
     this.input = new InputMapper(this, options.keymap ?? KeyMap.default());
     this.state.keymapName = this.input.keymap.name;
     this.slice = options.slice ?? DEFAULT_SLICE;
+    this.maxWallMs = options.maxWallMs ?? MAX_SPEED_WALL_MS;
     this.maxElapsedMs = options.maxElapsedMs ?? DEFAULT_MAX_ELAPSED_MS;
   }
 
@@ -533,7 +540,7 @@ export class Player {
       }
       // Une application occupée sans fin d'image continue tant qu'il lui reste du temps de processeur (ou
       // sans limite de vitesse) et qu'on ne fige pas la page.
-      if (stop.kind === "budget" && (mhz === null || budget > 0) && this.scheduler.now() - wallStart < MAX_SPEED_WALL_MS) {
+      if (stop.kind === "budget" && (mhz === null || budget > 0) && this.scheduler.now() - wallStart < this.maxWallMs) {
         continue;
       }
       this.advance(budget);
