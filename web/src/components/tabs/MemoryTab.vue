@@ -4,11 +4,12 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { choiceDialog } from "../../dialogs.js";
-import { download, formatBytes, hex0x, stem, poll } from "../../util.js";
+import { download, formatBytes, hex0x, stem, poll, assignIfChanged } from "../../util.js";
 import Icon from "../Icon.vue";
 import HexEditor from "../HexEditor.vue";
 import type { HexRegion } from "../HexEditor.vue";
 import MemoryMap from "../MemoryMap.vue";
+import MemoryScanner from "../MemoryScanner.vue";
 
 const { t, locale } = useI18n();
 const emulator = useEmu();
@@ -22,14 +23,14 @@ let stopPolling = () => {};
 
 async function refresh() {
   const r = await quiet({ cmd: "regions" });
-  if (r.ok) regions.value = r.regions;
+  if (r.ok) assignIfChanged(regions, r.regions);
   const i = await quiet({ cmd: "inspect" });
   if (i.ok) {
-    structures.value = i.structures;
-    app.value = i.app ?? null;
+    assignIfChanged(structures, i.structures);
+    assignIfChanged(app, i.app ?? null);
   }
   const u = await quiet({ cmd: "usage" });
-  usage.value = u.ok ? u : null;
+  assignIfChanged(usage, u.ok ? u : null);
 }
 onMounted(() => {
   stopPolling = poll(refresh, 800);
@@ -107,6 +108,11 @@ async function saveState() {
     <section class="card">
       <h2>{{ t("memory.hex") }}</h2>
       <HexEditor :regions="regions" />
+    </section>
+
+    <section class="card">
+      <h2>{{ t("scan.title") }}</h2>
+      <MemoryScanner :regions="regions" />
     </section>
   </div>
 </template>
