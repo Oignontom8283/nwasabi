@@ -231,3 +231,36 @@ export class Scan {
     this.previous = previous;
   }
 }
+
+// ---- valeurs saisies pour être écrites en mémoire ------------------------------------------------------
+
+/** Comment un nombre est saisi : en décimal, ou en hexadécimal (les octets bruts, pour un flottant aussi). */
+export type Base = "dec" | "hex";
+
+/**
+ * Les octets à écrire en mémoire pour la valeur saisie, dans l'ordre où ils s'écrivent (`bigEndian` : octet de poids fort
+ * d'abord). `null` si la saisie n'est pas valable pour ce type : hors limites, ou plus de chiffres que d'octets.
+ */
+export function valueBytes(type: ScanType, base: Base, text: string, bigEndian = false): Uint8Array | null {
+  const size = SIZE[type];
+  let little: Uint8Array;
+  if (base === "dec") {
+    const value = parseValue(text, type);
+    if (value === null) return null;
+    little = encode(value, type);
+  } else {
+    const digits = text.trim().replace(/^0x/i, "").replace(/[\s_]/g, "");
+    if (!/^[0-9a-f]+$/i.test(digits) || digits.length > size * 2) return null;
+    const padded = digits.padStart(size * 2, "0");
+    // Le texte s'écrit poids fort d'abord ; la mémoire du processeur range le poids faible en premier.
+    little = Uint8Array.from({ length: size }, (_, i) => Number.parseInt(padded.slice(padded.length - 2 * (i + 1), padded.length - 2 * i), 16));
+  }
+  return bigEndian ? little.reverse() : little;
+}
+
+/** `pattern` répété (et coupé) pour couvrir exactement `length` octets. */
+export function tile(pattern: Uint8Array, length: number): Uint8Array {
+  const out = new Uint8Array(length);
+  for (let i = 0; i < length; i++) out[i] = pattern[i % pattern.length] as number;
+  return out;
+}

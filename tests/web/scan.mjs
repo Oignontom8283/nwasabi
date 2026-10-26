@@ -17,7 +17,7 @@ const source = readFileSync(join(root, "web", "src", "scan.ts"), "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
 const out = join(mkdtempSync(join(tmpdir(), "nwasabi-scan-")), "scan.mjs");
 writeFileSync(out, outputText);
-const { Scan, SIZE, decode, encode, formatValue, matches, parseValue } = await import(pathToFileURL(out).href);
+const { Scan, SIZE, decode, encode, formatValue, matches, parseValue, tile, valueBytes } = await import(pathToFileURL(out).href);
 
 const BASE = 0x2000_0000;
 const memory = new Uint8Array(150_000); // plus d'une tranche de lecture (64 Kio) : on traverse les limites
@@ -109,3 +109,19 @@ await scan.first(regions, read, { compare: "exact", type: "u8", a: 0 });
 assert.equal(scan.count, 100);
 assert.ok(scan.truncated);
 ok("la limite de résultats est respectée et signalée");
+
+// Valeurs saisies pour l'écriture : décimal ou hexadécimal, petit ou gros boutiste, répétition sur une zone.
+const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join(" ");
+assert.equal(hex(valueBytes("u32", "dec", "305419896")), "78 56 34 12");
+assert.equal(hex(valueBytes("u32", "hex", "0x12345678")), "78 56 34 12", "l'hexadécimal se lit poids fort d'abord");
+assert.equal(hex(valueBytes("u32", "hex", "12345678", true)), "12 34 56 78", "gros-boutiste : même ordre que le texte");
+assert.equal(hex(valueBytes("u16", "hex", "ff")), "ff 00", "moins de chiffres que d'octets : complété par des zéros de poids fort");
+assert.equal(hex(valueBytes("i16", "dec", "-2")), "fe ff");
+assert.equal(hex(valueBytes("f32", "dec", "1,5")), "00 00 c0 3f");
+assert.equal(hex(valueBytes("f32", "hex", "3fc00000")), "00 00 c0 3f", "octets bruts d'un flottant");
+assert.equal(hex(valueBytes("u8", "dec", "255")), "ff");
+assert.equal(valueBytes("u8", "dec", "256"), null);
+assert.equal(valueBytes("u8", "hex", "100"), null, "plus de chiffres que d'octets");
+assert.equal(valueBytes("u32", "hex", "xyz"), null);
+assert.equal(hex(tile(Uint8Array.of(1, 2, 3), 7)), "01 02 03 01 02 03 01", "répété et coupé à la longueur de la zone");
+ok("valeurs saisies : décimal, hexadécimal, ordre des octets, répétition");

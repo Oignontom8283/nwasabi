@@ -2,8 +2,11 @@
 import { useEmu } from "../emulator.js";
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { confirmDialog, promptDialog } from "../dialogs.js";
+import { confirmDialog } from "../dialogs.js";
 import { ui } from "../ui.js";
+import { SCAN_TYPES, SIZE, tile } from "../scan.js";
+import type { Base, ScanType } from "../scan.js";
+import HexValueDialog from "./HexValueDialog.vue";
 import Icon from "./Icon.vue";
 import { hex, hex0x, parseAddress, poll } from "../util.js";
 
@@ -14,6 +17,8 @@ export interface HexRegion {
   name: string;
   base: number;
   size: number;
+  /** "ram", "flash" ou "reserved" (réponse `regions` du module) ; absent pour un fichier. */
+  kind?: string;
 }
 
 const props = withDefaults(
@@ -33,7 +38,8 @@ const { state, quiet, call } = emulator;
 
 const ROW = 20; // hauteur d'une ligne, en pixels
 const COLUMNS = 16;
-const paused = computed(() => props.editable ?? !state.running);
+/** La mémoire se modifie en direct, application lancée ou non ; un fichier hors ligne peut être refusé (`editable`). */
+const canEdit = computed(() => props.editable ?? true);
 
 async function fetchBytes(address: number, length: number): Promise<{ ok: true; bytes: number[] } | { ok: false; error: string }> {
   if (props.read) {
@@ -47,6 +53,7 @@ async function fetchBytes(address: number, length: number): Promise<{ ok: true; 
 const regionIndex = ref(0);
 const region = computed((): HexRegion | undefined => props.regions[regionIndex.value]);
 const rowCount = computed(() => (region.value ? Math.ceil(region.value.size / COLUMNS) : 0));
+const root = ref<HTMLElement | null>(null);
 const scroller = ref<HTMLElement | null>(null);
 const scrollTop = ref(0);
 const viewRows = ref(24);
@@ -58,6 +65,7 @@ const findMessage = ref("");
 const cursor = ref<number | null>(null); // adresse du curseur
 const anchor = ref<number | null>(null); // début de la sélection
 const pending = ref(""); // premier chiffre d'un octet en cours de saisie
+const column = ref<"hex" | "ascii">("hex"); // colonne où l'on saisit : chiffres hexadécimaux ou caractères
 const error = ref("");
 
 const firstRow = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW)));
@@ -67,7 +75,9 @@ const baseAddress = computed(() => (region.value?.base ?? 0) + firstRow.value * 
 
 const bytes = ref<number[]>([]);
 const previous = ref<number[] & { base?: number }>([]);
-const changed = reactive(new Set<number>());
+// Les octets qui viennent de changer restent surlignés un instant : à 8 relevés par seconde, un simple « a changé depuis le
+// relevé précédent » ne se verrait pas.
+const changed = reactive(new Map<number, number>());
 
 let readSeq = 0;
 async function readWindow() {
@@ -88,18 +98,22 @@ async function readWindow() {
   error.value = "";
   const next = reply.bytes;
   // Les octets qui ont changé depuis la lecture précédente de la même fenêtre sont mis en évidence.
-  changed.clear();
+  const now = performance.now();
+  for (const [address, when] of changed) if (now - when > HIGHLIGHT_MS) changed.delete(address);
   if (previous.value.length === next.length && previous.value.base === at) {
-    next.forEach((b, i) => b !== previous.value[i] && changed.add(at + i));
+    next.forEach((b, i) => b !== previous.value[i] && changed.set(at + i, now));
   }
   previous.value = Object.assign(next, { base: at });
   bytes.value = next;
 }
 
+// La fenêtre visible est relue plusieurs fois par seconde : la mémoire s'affiche (et se modifie) en temps réel.
+const REFRESH_MS = 120;
+const HIGHLIGHT_MS = 1200;
 let stopPolling = () => {};
 onMounted(() => {
   measure();
-  stopPolling = poll(readWindow, 500);
+  stopPolling = poll(readWindow, REFRESH_MS);
   addEventListener("resize", measure);
 });
 onBeforeUnmount(() => {
@@ -110,6 +124,8 @@ watch([baseAddress, regionIndex, () => state.revision, () => props.version], rea
 watch(() => props.regions.length, () => {
   if (regionIndex.value >= props.regions.length) regionIndex.value = 0;
   readWindow();
+  // Une demande d'adresse arrivée avant que les zones soient connues (l'onglet vient de s'ouvrir) est reprise maintenant.
+  if (ui.hexGoto && ui.hexGoto.seq !== handledSeq && !props.read) void followRequest(ui.hexGoto);
 });
 
 function measure() {
@@ -125,23 +141,35 @@ function regionOf(address: number) {
   return props.regions.findIndex((r) => address >= r.base && address < r.base + r.size);
 }
 
-async function goTo(address: number, select = true) {
+// Une demande venue d'ailleurs (clic sur une adresse de la recherche, de la carte…) : on s'y rend, puis on ramène l'éditeur
+// dans la fenêtre : la page remonte vers lui, où qu'on ait cliqué.
+let handledSeq = 0;
+async function followRequest(request: { address: number; seq: number }) {
+  if (!(await goTo(request.address))) return;
+  handledSeq = request.seq;
+  root.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function goTo(address: number, select = true): Promise<boolean> {
   const index = regionOf(address);
   if (index < 0) {
     error.value = t("hex.unmapped", { address: hex0x(address) });
-    return;
+    return false;
   }
   error.value = "";
+  // Le curseur est posé avant le changement de zone : sinon l'observateur de la zone, qui remet la fenêtre en haut, passerait
+  // après le défilement qui suit et annulerait le déplacement (c'est ce qui obligeait à cliquer deux fois).
+  if (select) {
+    cursor.value = anchor.value = address;
+    pending.value = "";
+  }
   regionIndex.value = index;
   await nextTick();
   const row = Math.floor((address - (props.regions[index]?.base ?? 0)) / COLUMNS);
   if (scroller.value) scroller.value.scrollTop = Math.max(0, row * ROW - ROW * 3);
   onScroll();
-  if (select) {
-    cursor.value = anchor.value = address;
-    pending.value = "";
-  }
-  readWindow();
+  await readWindow();
+  return true;
 }
 
 function submitGoto() {
@@ -152,7 +180,7 @@ function submitGoto() {
 
 watch(
   () => ui.hexGoto,
-  (request) => request && !props.read && goTo(request.address),
+  (request) => request && !props.read && followRequest(request),
   { immediate: true },
 );
 watch(regionIndex, async () => {
@@ -172,7 +200,8 @@ const selection = computed(() => {
 const inSelection = (address: number) => selection.value && address >= selection.value.start && address <= selection.value.end;
 
 let dragging = false;
-function pointerDown(address: number, event: PointerEvent) {
+function pointerDown(address: number, event: PointerEvent, where: "hex" | "ascii" = "hex") {
+  column.value = where;
   (event.currentTarget as Element).closest<HTMLElement>(".grid")?.focus({ preventScroll: true });
   cursor.value = address;
   if (!event.shiftKey) anchor.value = address;
@@ -206,7 +235,7 @@ function ensureVisible(address: number) {
 }
 
 async function write(address: number, data: number[]): Promise<boolean> {
-  if (!paused.value) return false;
+  if (!canEdit.value) return false;
   if (props.write) {
     if (!props.write(address, data)) return false;
   } else {
@@ -246,21 +275,35 @@ function keydown(event: KeyboardEvent) {
     cursor.value = region.value.base + region.value.size - 1;
     return event.preventDefault();
   }
+  // Dans la colonne ASCII, chaque caractère tapé remplace l'octet sous le curseur (les lettres a à f ne sont pas des chiffres).
+  if (column.value === "ascii" && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && cursor.value !== null) {
+    event.preventDefault();
+    if (!canEdit.value) return;
+    const code = event.key.charCodeAt(0);
+    if (code > 255) return void (error.value = t("hex.badChar", { char: event.key }));
+    // Le curseur avance tout de suite : on peut taper plus vite que le module n'écrit (l'écriture est asynchrone).
+    const at = cursor.value;
+    move(1, false);
+    void write(at, [code]);
+    return;
+  }
   if (/^[0-9a-f]$/i.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && cursor.value !== null) {
     event.preventDefault();
-    if (!paused.value) return void (error.value = t("hex.pauseToEdit"));
+    if (!canEdit.value) return;
     if (!pending.value) {
       pending.value = event.key;
     } else {
       const value = parseInt(pending.value + event.key, 16);
       pending.value = "";
-      void write(cursor.value, [value]).then((ok) => ok && move(1, false));
+      const at = cursor.value;
+      move(1, false);
+      void write(at, [value]);
     }
   }
 }
 
 async function paste(event: ClipboardEvent) {
-  if (cursor.value === null || !paused.value) return;
+  if (cursor.value === null || !canEdit.value) return;
   const text = (event.clipboardData?.getData("text") ?? "").replace(/0x/gi, "").replace(/[^0-9a-f]/gi, "");
   if (text.length < 2) return;
   event.preventDefault();
@@ -289,18 +332,46 @@ async function copy(kind: "hex" | "ascii") {
   }
 }
 
-async function fill() {
+// Écrire une valeur : une seule fenêtre, deux usages (voir `HexValueDialog`).
+interface ValueRequest {
+  mode: "fill" | "edit";
+  address: number;
+  length: number;
+  type: ScanType;
+  base: Base;
+  text: string;
+}
+const valueDialog = ref<ValueRequest | null>(null);
+
+/** « Remplir » : répète une valeur sur toute la sélection. */
+function openFill() {
   const s = selection.value;
-  if (!s) return;
-  const answer = await promptDialog(t("hex.fillValue", { count: s.end - s.start + 1 }), "00", { title: t("hex.fill"), accept: t("hex.fill") });
-  if (answer === null) return;
-  const value = parseInt(answer.replace(/^0x/i, ""), 16);
-  if (!(value >= 0 && value <= 255)) return void (error.value = t("hex.badByte"));
-  const length = s.end - s.start + 1;
+  if (s) valueDialog.value = { mode: "fill", address: s.start, length: s.end - s.start + 1, type: "u8", base: "hex", text: "00" };
+}
+
+/** Clic dans le tableau des valeurs : modifier cette valeur à partir du premier octet sélectionné (pas du curseur). */
+function openEdit(column: Column, base: Base) {
+  const sel = selection.value;
+  const shown = base === "hex" ? column.hex : column.dec;
+  if (!sel || shown === NONE) return;
+  const type = (SCAN_TYPES as readonly string[]).includes(column.id) ? (column.id as ScanType) : "u8";
+  valueDialog.value = { mode: "edit", address: sel.start, length: SIZE[type], type, base: column.id === "bin" || column.id === "chr" ? "dec" : base, text: column.id === "bin" ? String(parseInt(column.dec, 2)) : column.id === "chr" ? String(column.dec.charCodeAt(0)) : shown };
+}
+
+async function applyValue(bytes: Uint8Array) {
+  const request = valueDialog.value;
+  if (!request) return;
+  valueDialog.value = null;
+  const total = request.mode === "fill" ? request.length : bytes.length;
+  const data = request.mode === "fill" ? tile(bytes, total) : bytes;
   const CHUNK = 1 << 16;
-  for (let at = 0; at < length; at += CHUNK) {
-    if (!(await write(s.start + at, Array(Math.min(CHUNK, length - at)).fill(value)))) break;
+  for (let at = 0; at < data.length; at += CHUNK) {
+    if (!(await write(request.address + at, Array.from(data.subarray(at, at + CHUNK))))) {
+      error.value = t("hex.fillFailed", { address: hex0x(request.address + at) });
+      return;
+    }
   }
+  error.value = "";
 }
 
 // Recherche d'une suite d'octets (« de ad be ef » ou « "texte" ») à partir du curseur, dans la zone courante.
@@ -368,41 +439,64 @@ const rows = computed(() => {
 const printable = (b: number) => (b >= 32 && b < 127 ? String.fromCharCode(b) : "·");
 const gap = (j: number) => (group.value > 1 && j > 0 && j % group.value === 0 ? "gap" : "");
 
-// Valeurs lues à partir du curseur (inspecteur) ; relues quand le curseur, la mémoire ou l'ordre des octets changent.
+// Inspecteur : les valeurs que prennent les octets à partir du PREMIER octet sélectionné (pas du dernier), pour chaque type,
+// en tableau. La colonne dont la taille est celle de la sélection est la valeur exacte de la zone choisie.
+interface Column {
+  id: string;
+  label: string;
+  size: number;
+  /** Valeur en décimal et en hexadécimal ; « — » quand les octets manquent. */
+  dec: string;
+  hex: string;
+}
 interface Inspected {
-  u8: number; i8: number; u16: number | null; i16: number | null; u32: number | null; i32: number | null;
-  f32: number | null; f64: number | null; bin: string; ascii: string;
+  address: number;
+  /** Nombre d'octets sélectionnés. */
+  length: number;
+  columns: Column[];
 }
 const inspector = ref<Inspected | null>(null);
 let inspectSeq = 0;
+const NONE = "—";
 async function inspect() {
   const seq = ++inspectSeq;
-  if (cursor.value === null) return void (inspector.value = null);
-  const reply = await fetchBytes(cursor.value, Math.min(8, (region.value?.base ?? 0) + (region.value?.size ?? 0) - cursor.value));
+  const sel = selection.value;
+  const r = region.value;
+  if (!sel || !r) return void (inspector.value = null);
+  const reply = await fetchBytes(sel.start, Math.min(8, r.base + r.size - sel.start));
   if (seq !== inspectSeq) return;
   if (!reply.ok || reply.bytes.length === 0) return void (inspector.value = null);
   const data = new Uint8Array(reply.bytes);
   const view = new DataView(data.buffer);
   const le = !bigEndian.value;
   const has = (n: number) => data.length >= n;
-  inspector.value = {
-    u8: data[0] ?? 0, i8: view.getInt8(0),
-    u16: has(2) ? view.getUint16(0, le) : null, i16: has(2) ? view.getInt16(0, le) : null,
-    u32: has(4) ? view.getUint32(0, le) : null, i32: has(4) ? view.getInt32(0, le) : null,
-    f32: has(4) ? view.getFloat32(0, le) : null, f64: has(8) ? view.getFloat64(0, le) : null,
-    bin: (data[0] ?? 0).toString(2).padStart(8, "0"),
-    ascii: printable(data[0] ?? 0),
-  };
+  const pad = (v: number, digits: number) => "0x" + hex(v >>> 0, digits);
+  const float = (v: number) => String(Number(v.toPrecision(9)));
+  const column = (id: string, size: number, dec: () => string, hexa: () => string): Column => (has(size) ? { id, label: id, size, dec: dec(), hex: hexa() } : { id, label: id, size, dec: NONE, hex: NONE });
+  const columns: Column[] = [
+    column("u8", 1, () => String(view.getUint8(0)), () => pad(view.getUint8(0), 2)),
+    column("i8", 1, () => String(view.getInt8(0)), () => pad(view.getUint8(0), 2)),
+    column("u16", 2, () => String(view.getUint16(0, le)), () => pad(view.getUint16(0, le), 4)),
+    column("i16", 2, () => String(view.getInt16(0, le)), () => pad(view.getUint16(0, le), 4)),
+    column("u32", 4, () => String(view.getUint32(0, le)), () => pad(view.getUint32(0, le), 8)),
+    column("i32", 4, () => String(view.getInt32(0, le)), () => pad(view.getUint32(0, le), 8)),
+    column("f32", 4, () => float(view.getFloat32(0, le)), () => pad(view.getUint32(0, le), 8)),
+    column("f64", 8, () => float(view.getFloat64(0, le)), () => "0x" + hex(view.getUint32(le ? 4 : 0, le), 8) + hex(view.getUint32(le ? 0 : 4, le), 8)),
+    { id: "bin", label: t("hex.binary"), size: 0, dec: view.getUint8(0).toString(2).padStart(8, "0"), hex: NONE },
+    { id: "chr", label: t("hex.character"), size: 0, dec: printable(view.getUint8(0)), hex: NONE },
+  ];
+  inspector.value = { address: sel.start, length: sel.end - sel.start + 1, columns };
 }
-watch([cursor, bytes, bigEndian, () => state.revision], inspect);
-const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
+watch([cursor, anchor, bytes, bigEndian, () => state.revision], inspect);
+const exact = (c: Column, length: number) => c.size === length;
+const beyond = (c: Column, length: number) => c.size > length;
 </script>
 
 <template>
-  <section class="hex" :aria-label="t('hex.label')">
+  <section ref="root" class="hex" :aria-label="t('hex.label')">
     <div class="toolbar" role="toolbar" :aria-label="t('hex.toolbar')">
       <label v-if="regions.length > 1" class="field">{{ t("hex.region") }}
-        <select v-model="regionIndex">
+        <select v-model="regionIndex" v-memo="[regionIndex, regions.length]">
           <option v-for="(r, i) in regions" :key="r.name" :value="i">{{ r.name }} · {{ hex0x(r.base) }}</option>
         </select>
       </label>
@@ -417,19 +511,47 @@ const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
         </span>
       </label>
       <label class="field">{{ t("hex.group") }}
-        <select v-model.number="group"><option :value="1">1</option><option :value="2">2</option><option :value="4">4</option><option :value="8">8</option></select>
+        <select v-model.number="group" v-memo="[group]"><option :value="1">1</option><option :value="2">2</option><option :value="4">4</option><option :value="8">8</option></select>
       </label>
     </div>
     <div class="actions">
       <button :disabled="!selection" @click="copy('hex')">{{ t("hex.copyHex") }}</button>
       <button :disabled="!selection" @click="copy('ascii')">{{ t("hex.copyAscii") }}</button>
-      <button :disabled="!selection || !paused" :title="paused ? '' : t('common.pauseRequired')" @click="fill">{{ t("hex.fill") }}</button>
+      <button :disabled="!selection || !canEdit" @click="openFill">{{ t("hex.fill") }}</button>
       <span v-if="selection" class="muted mono">{{ hex0x(selection.start) }}{{ selection.end > selection.start ? ` → ${hex0x(selection.end)} (${selection.end - selection.start + 1})` : "" }}</span>
       <span class="spacer" />
       <span v-if="findMessage" class="muted">{{ findMessage }}</span>
     </div>
-    <p v-if="!paused" class="banner" role="status"><Icon name="pause" :size="12" /> {{ t("hex.pauseToEdit") }}</p>
     <p v-if="error" class="error">{{ error }}</p>
+
+    <div class="inspector" role="group" :aria-label="t('hex.inspector')">
+      <div class="inspector-head">
+        <span v-if="inspector"><strong>{{ t("hex.inspectAt", { address: hex0x(inspector.address) }) }}</strong>
+          <span class="muted"> · {{ t("hex.selected", { n: inspector.length }, inspector.length) }}</span></span>
+        <span v-else class="muted">{{ t("hex.inspectNone") }}</span>
+        <label class="endian"><input v-model="bigEndian" type="checkbox" data-keep-keys /> {{ t("hex.bigEndian") }}</label>
+      </div>
+      <div v-if="inspector" class="inspector-scroll">
+        <table class="mono">
+          <thead>
+            <tr>
+              <th />
+              <th v-for="c in inspector.columns" :key="c.id" :class="{ exact: exact(c, inspector.length), over: beyond(c, inspector.length) }">{{ c.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">{{ t("hex.decimal") }}</th>
+              <td v-for="c in inspector.columns" :key="c.id" class="edit" :class="{ exact: exact(c, inspector.length), over: beyond(c, inspector.length) }" :title="canEdit ? t('hex.clickToEdit') : c.dec" :tabindex="canEdit && c.dec !== NONE ? 0 : -1" @click="canEdit && openEdit(c, 'dec')" @keydown.enter="canEdit && openEdit(c, 'dec')">{{ c.dec }}</td>
+            </tr>
+            <tr>
+              <th scope="row">{{ t("hex.hexadecimal") }}</th>
+              <td v-for="c in inspector.columns" :key="c.id" class="edit" :class="{ exact: exact(c, inspector.length), over: beyond(c, inspector.length) }" :title="canEdit ? t('hex.clickToEdit') : c.hex" :tabindex="canEdit && c.hex !== NONE ? 0 : -1" @click="canEdit && openEdit(c, 'hex')" @keydown.enter="canEdit && openEdit(c, 'hex')">{{ c.hex }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
     <div class="viewer">
       <div class="head mono" aria-hidden="true">
@@ -457,8 +579,8 @@ const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
                   v-for="(cell, j) in row.cells"
                   :key="cell.address"
                   role="gridcell"
-                  :class="['cell', gap(j), { sel: inSelection(cell.address), cur: cell.address === cursor, chg: changed.has(cell.address), zero: cell.value === 0 }]"
-                  @pointerdown.prevent="pointerDown(cell.address, $event)"
+                  :class="['cell', gap(j), { sel: inSelection(cell.address), cur: cell.address === cursor && column === 'hex', mark: cell.address === cursor && column === 'ascii', chg: changed.has(cell.address), zero: cell.value === 0 }]"
+                  @pointerdown.prevent="pointerDown(cell.address, $event, 'hex')"
                   @pointerenter="pointerEnter(cell.address)"
                 >{{ cell.address === cursor && pending ? pending + "_" : hex(cell.value ?? 0, 2) }}</span>
               </span>
@@ -466,8 +588,8 @@ const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
                 <span
                   v-for="cell in row.cells"
                   :key="cell.address"
-                  :class="['ch', { sel: inSelection(cell.address), cur: cell.address === cursor, chg: changed.has(cell.address) }]"
-                  @pointerdown.prevent="pointerDown(cell.address, $event)"
+                  :class="['ch', { sel: inSelection(cell.address), cur: cell.address === cursor && column === 'ascii', mark: cell.address === cursor && column === 'hex', chg: changed.has(cell.address) }]"
+                  @pointerdown.prevent="pointerDown(cell.address, $event, 'ascii')"
                   @pointerenter="pointerEnter(cell.address)"
                 >{{ printable(cell.value) }}</span>
               </span>
@@ -477,15 +599,8 @@ const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
       </div>
     </div>
 
-    <div v-if="inspector" class="inspector mono" :aria-label="t('hex.inspector')">
-      <span>u8 {{ inspector.u8 }}</span><span>i8 {{ inspector.i8 }}</span>
-      <span>u16 {{ num(inspector.u16) }}</span><span>i16 {{ num(inspector.i16) }}</span>
-      <span>u32 {{ num(inspector.u32) }}</span><span>i32 {{ num(inspector.i32) }}</span>
-      <span>f32 {{ num(inspector.f32) }}</span><span>f64 {{ num(inspector.f64) }}</span>
-      <span>bin {{ inspector.bin }}</span><span>chr {{ inspector.ascii }}</span>
-      <label class="endian"><input v-model="bigEndian" type="checkbox" data-keep-keys /> {{ t("hex.bigEndian") }}</label>
-    </div>
     <p class="muted hint">{{ t("hex.help") }}</p>
+    <HexValueDialog v-if="valueDialog" v-bind="valueDialog" :big-endian="bigEndian" @close="valueDialog = null" @apply="applyValue" />
   </section>
 </template>
 
@@ -512,10 +627,24 @@ const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
 .cell.zero { color: var(--muted); }
 .cell.sel, .ch.sel { background: var(--accent-soft); }
 .cell.cur, .ch.cur { background: var(--accent); color: var(--accent-text); }
+/* Le même octet dans l'autre colonne : un simple contour, pour voir où l'on est sans confondre avec la colonne de saisie. */
+.cell.mark, .ch.mark { outline: 1px solid var(--accent); outline-offset: -1px; }
 .cell.chg, .ch.chg { color: var(--warn); font-weight: 700; }
 .ascii { display: inline-flex; flex: none; width: 16ch; }
 .ch { width: 1ch; }
-.inspector { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
-.endian { font-family: system-ui, sans-serif; font-size: 12px; margin-left: auto; }
+.inspector { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.inspector-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.endian { font-family: system-ui, sans-serif; font-size: 12px; }
+.inspector-scroll { overflow-x: auto; }
+.inspector table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.inspector th, .inspector td { padding: 3px 7px; text-align: right; white-space: nowrap; max-width: 13ch; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--line); }
+.inspector tbody tr:last-child th, .inspector tbody tr:last-child td { border-bottom: none; }
+.inspector thead th { color: var(--muted); font-weight: 600; background: var(--surface-2); }
+.inspector th[scope="row"] { text-align: left; color: var(--muted); font-weight: 500; font-family: system-ui, sans-serif; }
+/* La colonne qui a la taille de la sélection : sa valeur est celle de la zone choisie ; celles qui dépassent la sélection sont atténuées. */
+.inspector .exact { background: var(--accent-soft); color: var(--text); }
+.inspector .over { color: var(--muted); }
+.inspector td.edit { cursor: pointer; }
+.inspector td.edit:hover { outline: 1px solid var(--accent); outline-offset: -1px; }
 .hint { margin: 0; font-size: 12px; }
 </style>
