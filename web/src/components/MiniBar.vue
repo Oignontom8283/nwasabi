@@ -18,13 +18,8 @@ const status = computed(() => {
   return "paused";
 });
 
-// Le temps de l'application est lu à intervalles réguliers : il continue de défiler même sans nouvelle image.
-const timeMs = ref(0);
-let timer = 0;
-onMounted(() => {
-  timer = setInterval(() => (timeMs.value = state.loaded ? emulator.time() : 0), 500);
-});
-onBeforeUnmount(() => clearInterval(timer));
+// Le temps de l'application vient du Worker, qui le renvoie même sans nouvelle image.
+const timeMs = computed(() => (state.loaded ? state.timeMs : 0));
 
 const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.noLimit")));
 </script>

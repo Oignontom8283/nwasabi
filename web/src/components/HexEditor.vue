@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { confirmDialog, promptDialog } from "../dialogs.js";
 import { ui } from "../ui.js";
 import Icon from "./Icon.vue";
-import { hex, hex0x, parseAddress } from "../util.js";
+import { hex, hex0x, parseAddress, poll } from "../util.js";
 
 // Sans autre indication, l'éditeur lit et écrit la mémoire de l'émulateur (modifiable seulement en pause). Avec
 // `read(adresse, longueur)` et `write(adresse, octets)`, il édite autre chose : les octets d'un fichier, par exemple.
@@ -35,12 +35,12 @@ const ROW = 20; // hauteur d'une ligne, en pixels
 const COLUMNS = 16;
 const paused = computed(() => props.editable ?? !state.running);
 
-function fetchBytes(address: number, length: number): { ok: true; bytes: number[] } | { ok: false; error: string } {
+async function fetchBytes(address: number, length: number): Promise<{ ok: true; bytes: number[] } | { ok: false; error: string }> {
   if (props.read) {
     const bytes = props.read(address, length);
     return bytes ? { ok: true, bytes } : { ok: false, error: "" };
   }
-  const reply = quiet({ cmd: "memory_read", address, length });
+  const reply = await quiet({ cmd: "memory_read", address, length });
   return reply.ok ? { ok: true, bytes: (reply.hex.match(/../g) ?? []).map((b: string) => parseInt(b, 16)) } : { ok: false, error: String(reply.error ?? "") };
 }
 
@@ -69,13 +69,17 @@ const bytes = ref<number[]>([]);
 const previous = ref<number[] & { base?: number }>([]);
 const changed = reactive(new Set<number>());
 
-function readWindow() {
+let readSeq = 0;
+async function readWindow() {
   const r = region.value;
   if (!r) return;
   const rows = Math.min(viewRows.value + 1, rowCount.value - firstRow.value);
   const length = Math.max(0, Math.min(rows * COLUMNS, r.base + r.size - baseAddress.value));
   if (length === 0) return void (bytes.value = []);
-  const reply = fetchBytes(baseAddress.value, length);
+  const seq = ++readSeq;
+  const at = baseAddress.value;
+  const reply = await fetchBytes(at, length);
+  if (seq !== readSeq) return; // une lecture plus récente est partie entre-temps
   if (!reply.ok) {
     error.value = reply.error;
     bytes.value = [];
@@ -85,22 +89,21 @@ function readWindow() {
   const next = reply.bytes;
   // Les octets qui ont changé depuis la lecture précédente de la même fenêtre sont mis en évidence.
   changed.clear();
-  if (previous.value.length === next.length && previous.value.base === baseAddress.value) {
-    next.forEach((b, i) => b !== previous.value[i] && changed.add(baseAddress.value + i));
+  if (previous.value.length === next.length && previous.value.base === at) {
+    next.forEach((b, i) => b !== previous.value[i] && changed.add(at + i));
   }
-  previous.value = Object.assign(next, { base: baseAddress.value });
+  previous.value = Object.assign(next, { base: at });
   bytes.value = next;
 }
 
-let timer = 0;
+let stopPolling = () => {};
 onMounted(() => {
   measure();
-  readWindow();
-  timer = setInterval(readWindow, 500);
+  stopPolling = poll(readWindow, 500);
   addEventListener("resize", measure);
 });
 onBeforeUnmount(() => {
-  clearInterval(timer);
+  stopPolling();
   removeEventListener("resize", measure);
 });
 watch([baseAddress, regionIndex, () => state.revision, () => props.version], readWindow);
@@ -202,16 +205,16 @@ function ensureVisible(address: number) {
   onScroll();
 }
 
-function write(address: number, data: number[]) {
+async function write(address: number, data: number[]): Promise<boolean> {
   if (!paused.value) return false;
   if (props.write) {
     if (!props.write(address, data)) return false;
   } else {
-    const reply = call({ cmd: "memory_write", address, hex: data.map((b: number) => hex(b, 2)).join("") });
+    const reply = await call({ cmd: "memory_write", address, hex: data.map((b: number) => hex(b, 2)).join("") });
     if (!reply.ok) return false;
-    emulator.bump();
+    await emulator.bump();
   }
-  readWindow();
+  await readWindow();
   return true;
 }
 
@@ -251,7 +254,7 @@ function keydown(event: KeyboardEvent) {
     } else {
       const value = parseInt(pending.value + event.key, 16);
       pending.value = "";
-      if (write(cursor.value, [value])) move(1, false);
+      void write(cursor.value, [value]).then((ok) => ok && move(1, false));
     }
   }
 }
@@ -268,15 +271,15 @@ async function paste(event: ClipboardEvent) {
 
 // ---- actions --------------------------------------------------------------------------------------
 
-function selectedBytes() {
+async function selectedBytes(): Promise<number[] | null> {
   const s = selection.value;
   if (!s || s.end - s.start > 1 << 20) return null;
-  const reply = fetchBytes(s.start, s.end - s.start + 1);
+  const reply = await fetchBytes(s.start, s.end - s.start + 1);
   return reply.ok ? reply.bytes : null;
 }
 
 async function copy(kind: "hex" | "ascii") {
-  const data = selectedBytes();
+  const data = await selectedBytes();
   if (!data) return;
   const text = kind === "ascii" ? data.map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : ".")).join("") : data.map((b) => hex(b, 2)).join(" ");
   try {
@@ -296,7 +299,7 @@ async function fill() {
   const length = s.end - s.start + 1;
   const CHUNK = 1 << 16;
   for (let at = 0; at < length; at += CHUNK) {
-    if (!write(s.start + at, Array(Math.min(CHUNK, length - at)).fill(value))) break;
+    if (!(await write(s.start + at, Array(Math.min(CHUNK, length - at)).fill(value)))) break;
   }
 }
 
@@ -326,7 +329,7 @@ async function find(direction = 1) {
     const start = direction > 0 ? at : Math.max(r.base, at - CHUNK + 1);
     const length = Math.min(CHUNK + overlap, r.base + r.size - start);
     if (length <= 0) break;
-    const reply = fetchBytes(start, length);
+    const reply = await fetchBytes(start, length);
     if (!reply.ok) break;
     const data = reply.bytes;
     const order = direction > 0 ? [...data.keys()] : [...data.keys()].reverse();
@@ -365,27 +368,33 @@ const rows = computed(() => {
 const printable = (b: number) => (b >= 32 && b < 127 ? String.fromCharCode(b) : "·");
 const gap = (j: number) => (group.value > 1 && j > 0 && j % group.value === 0 ? "gap" : "");
 
-// Valeurs lues à partir du curseur (inspecteur).
-const inspector = computed(() => {
-  if (cursor.value === null) return null;
-  const reply = fetchBytes(cursor.value, Math.min(8, (region.value?.base ?? 0) + (region.value?.size ?? 0) - cursor.value));
-  if (!reply.ok) return null;
+// Valeurs lues à partir du curseur (inspecteur) ; relues quand le curseur, la mémoire ou l'ordre des octets changent.
+interface Inspected {
+  u8: number; i8: number; u16: number | null; i16: number | null; u32: number | null; i32: number | null;
+  f32: number | null; f64: number | null; bin: string; ascii: string;
+}
+const inspector = ref<Inspected | null>(null);
+let inspectSeq = 0;
+async function inspect() {
+  const seq = ++inspectSeq;
+  if (cursor.value === null) return void (inspector.value = null);
+  const reply = await fetchBytes(cursor.value, Math.min(8, (region.value?.base ?? 0) + (region.value?.size ?? 0) - cursor.value));
+  if (seq !== inspectSeq) return;
+  if (!reply.ok || reply.bytes.length === 0) return void (inspector.value = null);
   const data = new Uint8Array(reply.bytes);
-  // `state.revision` et `bytes` forcent le recalcul quand la mémoire change.
-  void state.revision;
-  void bytes.value;
   const view = new DataView(data.buffer);
   const le = !bigEndian.value;
   const has = (n: number) => data.length >= n;
-  return {
-    u8: data[0], i8: view.getInt8(0),
+  inspector.value = {
+    u8: data[0] ?? 0, i8: view.getInt8(0),
     u16: has(2) ? view.getUint16(0, le) : null, i16: has(2) ? view.getInt16(0, le) : null,
     u32: has(4) ? view.getUint32(0, le) : null, i32: has(4) ? view.getInt32(0, le) : null,
     f32: has(4) ? view.getFloat32(0, le) : null, f64: has(8) ? view.getFloat64(0, le) : null,
     bin: (data[0] ?? 0).toString(2).padStart(8, "0"),
     ascii: printable(data[0] ?? 0),
   };
-});
+}
+watch([cursor, bytes, bigEndian, () => state.revision], inspect);
 const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
 </script>
 

@@ -5,7 +5,7 @@
 
 import { reactive } from "vue";
 import type { Emulator } from "./emulator.js";
-import { remember } from "./util.js";
+import { poll, remember } from "./util.js";
 
 /** Un document `.nfs` : seul ce que ce module lit est décrit. */
 interface Nfs {
@@ -33,20 +33,18 @@ function summary(doc: Nfs | null): { files: number; bytes: number } | null {
 
 let emulator: Emulator | null = null;
 let lastGeneration = -1;
-let timer: ReturnType<typeof setInterval> | undefined;
+let stopPolling: () => void = () => {};
 
-function restoreInto() {
-  const doc = remember.get<Nfs | null>(KEY, null);
-  if (!keep.enabled || !doc || !emulator) return;
-  const reply = emulator.quiet({ cmd: "fs_import", nfs: doc, replace: true });
-  if (reply.ok) lastGeneration = emulator.quiet({ cmd: "fs_list" }).generation ?? -1;
+/** Donne à l'émulateur les fichiers à remettre dans chaque appareil neuf (il le fait lui-même, avant la première image). */
+function offerKept(): void {
+  emulator?.setKept(keep.enabled ? remember.get<Nfs | null>(KEY, null) : null);
 }
 
-function save() {
+async function save() {
   if (!keep.enabled || !emulator?.state.loaded) return;
-  const list = emulator.quiet({ cmd: "fs_list" });
+  const list = await emulator.quiet({ cmd: "fs_list" });
   if (!list.ok || list.generation === lastGeneration) return;
-  const reply = emulator.quiet({ cmd: "fs_export" });
+  const reply = await emulator.quiet({ cmd: "fs_export" });
   if (!reply.ok) return;
   lastGeneration = list.generation;
   keep.failed = !remember.set(KEY, reply.nfs);
@@ -56,9 +54,9 @@ function save() {
 /** Branche la conservation sur l'émulateur : à appeler une fois. */
 export function attachPersistence(target: Emulator): void {
   emulator = target;
-  emulator.onDevice(restoreInto);
-  clearInterval(timer);
-  timer = setInterval(save, POLL_MS);
+  offerKept();
+  stopPolling();
+  stopPolling = poll(save, POLL_MS);
 }
 
 /** Le visiteur n'a pas encore répondu : le site pose la question à la première visite. */
@@ -73,20 +71,23 @@ export async function enableKeeping() {
   keep.enabled = true;
   remember.set(ENABLED, true);
   lastGeneration = -1;
-  save();
+  offerKept();
+  await save();
 }
 
 export function disableKeeping() {
   keep.enabled = false;
   remember.set(ENABLED, false);
+  offerKept();
 }
 
 /** Efface les fichiers conservés (pas ceux de l'appareil en cours). */
-export function clearKept() {
+export async function clearKept() {
   remember.remove(KEY);
   keep.stored = null;
+  offerKept();
   // Ce qui est dans l'appareil en cours n'est pas recopié tout de suite : seule une modification le fera.
-  lastGeneration = emulator?.quiet({ cmd: "fs_list" }).generation ?? -1;
+  lastGeneration = (await emulator?.quiet({ cmd: "fs_list" }))?.generation ?? -1;
 }
 
 export async function checkPersistent() {

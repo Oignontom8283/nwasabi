@@ -93,6 +93,14 @@ change à tout moment dans l'onglet Réglages. Si c'est accepté, les fichiers s
 navigateur peut demander l'autorisation de les garder durablement. Ils sont partagés par tout ce qui tourne sur ce site, dans
 ce navigateur : le bouton « Effacer les fichiers conservés » les supprime.
 
+## Performances
+
+L'émulation tourne dans un Web Worker, à côté de la page : une application qui calcule sans attendre occupe un cœur du
+processeur sans jamais figer l'interface. Le Worker dessine l'écran lui-même (`OffscreenCanvas`) et utilise toute l'image
+de 16 ms pour émuler ; la page lui envoie les touches et les requêtes, et reçoit les changements d'état. Il faut donc un
+navigateur qui sait dessiner un `OffscreenCanvas` dans un Worker et le SIMD WebAssembly (Chrome 91, Firefox 105, Edge 91,
+Safari 16.4 ou plus récent).
+
 ## Accessibilité
 
 Toutes les actions se font au clavier (Tab, flèches dans les listes et les onglets, Entrée ou Espace sur une touche de la

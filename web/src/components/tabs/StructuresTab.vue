@@ -4,7 +4,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { showInMemory, ui } from "../../ui.js";
-import { hex0x } from "../../util.js";
+import { hex0x, poll } from "../../util.js";
 
 const { t } = useI18n();
 const emulator = useEmu();
@@ -12,17 +12,16 @@ const { state, quiet } = emulator;
 const info = ref<Reply | null>(null);
 const selected = ref("slot_info");
 const filter = ref("");
-let timer = 0;
+let stopPolling = () => {};
 
-function refresh() {
-  const r = quiet({ cmd: "inspect" });
+async function refresh() {
+  const r = await quiet({ cmd: "inspect" });
   if (r.ok) info.value = r;
 }
 onMounted(() => {
-  refresh();
-  timer = setInterval(refresh, 1000);
+  stopPolling = poll(refresh, 1000);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => stopPolling());
 watch(() => state.revision, refresh);
 watch(
   () => ui.structureGoto,
