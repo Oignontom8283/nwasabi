@@ -75,9 +75,7 @@ impl Memory {
         }
         let offset = address - region.spec.base;
         self.tick += 1;
-        if region.access[(offset / super::LINE_SIZE) as usize] & access::EXECUTE != 0
-            || region.has_access(offset, N as u32, access::EXECUTE)
-        {
+        if region.has_access(offset, N as u32, access::EXECUTE) {
             self.code_epoch += 1;
         }
         region.write_small::<N>(offset, data);

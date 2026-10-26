@@ -24,6 +24,7 @@ struct Ctx {
 
 impl Cpu {
     /// Condition ARM (4 bits) satisfaite avec les indicateurs actuels ?
+    #[inline(always)]
     fn cond_passed(&self, cond: u8) -> bool {
         let r = &self.regs;
         let base = match cond >> 1 {
@@ -39,6 +40,7 @@ impl Cpu {
         base != (cond & 1 != 0)
     }
 
+    #[inline(always)]
     fn read(&self, ctx: Ctx, r: Reg) -> u32 {
         match r {
             15 => ctx.pc4,
@@ -650,6 +652,7 @@ impl Cpu {
         Ok(())
     }
 
+    #[inline(always)]
     fn exec_dp(
         &mut self,
         ctx: Ctx,

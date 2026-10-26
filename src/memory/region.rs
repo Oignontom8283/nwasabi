@@ -107,10 +107,11 @@ impl Region {
         }
     }
 
+    #[inline]
     pub fn contains(&self, address: u32, len: u32) -> bool {
-        address >= self.spec.base
-            && u64::from(address) + u64::from(len)
-                <= u64::from(self.spec.base) + u64::from(self.spec.size)
+        // Décalage depuis le début de la zone : un `address` plus petit que `base` donne un grand nombre et échoue.
+        let offset = address.wrapping_sub(self.spec.base);
+        u64::from(offset) + u64::from(len) <= u64::from(self.spec.size)
     }
 
     /// Copie `out.len()` octets à partir de `offset` (déjà vérifié dans la zone).
@@ -200,23 +201,23 @@ impl Region {
 
     /// Indique que les lignes touchées par `[offset, offset + len)` ont reçu l'indicateur `flag`.
     pub fn mark_access(&mut self, offset: u32, len: u32, flag: u8) {
-        for line in line_range(offset, len) {
-            self.access[line] |= flag;
+        for line in &mut self.access[line_range(offset, len)] {
+            *line |= flag;
         }
     }
 
     /// Vrai si une des lignes de `[offset, offset + len)` porte l'indicateur `flag`.
     pub fn has_access(&self, offset: u32, len: u32, flag: u8) -> bool {
-        line_range(offset, len).any(|line| self.access[line] & flag != 0)
+        self.access[line_range(offset, len)]
+            .iter()
+            .any(|line| line & flag != 0)
     }
 
     /// Date l'écriture des lignes touchées par `[offset, offset + len)`.
     pub fn stamp(&mut self, offset: u32, len: u32, tick: u64) {
         let lines = (self.spec.size / LINE_SIZE) as usize;
         let stamps = self.stamps.get_or_insert_with(|| vec![0; lines]);
-        for line in line_range(offset, len) {
-            stamps[line] = tick;
-        }
+        stamps[line_range(offset, len)].fill(tick);
     }
 
     /// Adresses de début des pages réellement allouées.
@@ -234,8 +235,8 @@ impl Region {
 }
 
 /// Indices des lignes de 32 octets touchées par `[offset, offset + len)`.
-fn line_range(offset: u32, len: u32) -> std::ops::RangeInclusive<usize> {
+fn line_range(offset: u32, len: u32) -> std::ops::Range<usize> {
     let first = (offset / LINE_SIZE) as usize;
     let last = ((offset + len.max(1) - 1) / LINE_SIZE) as usize;
-    first..=last
+    first..last + 1
 }
