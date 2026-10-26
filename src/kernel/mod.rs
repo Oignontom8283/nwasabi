@@ -160,12 +160,21 @@ pub struct Kernel {
     extra_us: u64,
     /// Fin de l'attente en cours (`msleep`, `usleep`) avec l'horloge de l'hôte.
     sleep_until_us: Option<u64>,
+    /// Instant du dernier événement donné à l'application pour la touche qui se répète.
+    repeat_since_us: Option<u64>,
+    /// Nombre de répétitions de l'événement depuis son premier envoi (`long_press_counter`).
+    repeat_count: u32,
     random: u32,
     heap: (u32, u32),
     brk: u32,
     stop: Option<KernelStop>,
     wait: Option<EventWait>,
 }
+
+/// Délai avant la première répétition d'une touche, puis entre deux répétitions (millisecondes) :
+/// relevé dans le noyau d'Epsilon 26.4.0.
+const REPEAT_FIRST_MS: u64 = 299;
+const REPEAT_NEXT_MS: u64 = 50;
 
 /// Taille maximale conservée de la sortie standard.
 const MAX_STDOUT: usize = 1 << 20;
@@ -184,6 +193,8 @@ impl Kernel {
             svc_counts: vec![0; 256],
             extra_us: 0,
             sleep_until_us: None,
+            repeat_since_us: None,
+            repeat_count: 0,
             random: config.random_seed.max(1),
             heap: (0, 0),
             brk: 0,
@@ -223,9 +234,48 @@ impl Kernel {
         self.extra_us = self.extra_us.saturating_add(us);
     }
 
+    /// Le prochain événement pour l'application à l'instant `now_us` : le plus ancien en attente, sinon
+    /// la répétition de la touche enfoncée quand son délai est écoulé.
+    fn next_event(&mut self, now_us: u64) -> Option<u16> {
+        if let Some(event) = self.keyboard.pop_event() {
+            self.repeat_since_us = (self.keyboard.repeating() == Some(event)).then_some(now_us);
+            self.repeat_count = 0;
+            return Some(event);
+        }
+        let Some(event) = self.keyboard.repeating() else {
+            self.repeat_since_us = None;
+            self.repeat_count = 0;
+            return None;
+        };
+        let since = self.repeat_since_us?;
+        if now_us >= since + self.repeat_delay_ms() * 1000 {
+            self.repeat_since_us = Some(now_us);
+            self.repeat_count += 1;
+            return Some(event);
+        }
+        None
+    }
+
+    fn repeat_delay_ms(&self) -> u64 {
+        if self.repeat_count > 0 {
+            REPEAT_NEXT_MS
+        } else {
+            REPEAT_FIRST_MS
+        }
+    }
+
+    /// Millisecondes avant la prochaine répétition (au moins 1), s'il y en a une à venir.
+    fn repeat_remaining_ms(&self, now_us: u64) -> Option<u32> {
+        self.keyboard.repeating()?;
+        let due = self.repeat_since_us? + self.repeat_delay_ms() * 1000;
+        Some(due.saturating_sub(now_us).div_ceil(1000).max(1) as u32)
+    }
+
     /// Oublie les attentes en cours (événement, `msleep`) : à appeler quand l'application repart de zéro.
     pub fn reset_waits(&mut self) {
         self.wait = None;
+        self.repeat_since_us = None;
+        self.repeat_count = 0;
         self.sleep_until_us = None;
         self.stop = None;
     }

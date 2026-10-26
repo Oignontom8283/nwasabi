@@ -81,7 +81,7 @@ impl Kernel {
         };
         let elapsed_ms = ((now - wait.started_us) / 1000) as i64;
         let remaining = i64::from(wait.timeout_ms) - elapsed_ms;
-        let event = self.keyboard.pop_event();
+        let event = self.next_event(now);
         if event.is_some() || (wait.timeout_ms >= 0 && remaining <= 0) {
             self.wait = None;
             let left = if wait.timeout_ms < 0 {
@@ -95,7 +95,12 @@ impl Kernel {
         }
         // Rien à rendre : on refera l'appel (l'instruction `svc` fait 2 octets).
         cpu.regs.pc = cpu.regs.pc.wrapping_sub(2);
-        let remaining_ms = (wait.timeout_ms >= 0).then_some(remaining as u32);
+        let timeout_ms = (wait.timeout_ms >= 0).then_some(remaining as u32);
+        // On reprend au plus tard quand la touche enfoncée doit se répéter.
+        let remaining_ms = match (timeout_ms, self.repeat_remaining_ms(now)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         Ok(self.stop_with(KernelStop::WaitEvent { remaining_ms }))
     }
 
@@ -189,7 +194,8 @@ impl Kernel {
             // USB, appui long. Ils rendent 0.
             // Entrées vides de la table du noyau : l'appel est ignoré, les registres restent intacts.
             25 | 40 | 41 => {}
-            6..=17 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=55 | 58 => {
+            55 => cpu.regs.r[0] = self.repeat_count,
+            6..=17 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=54 | 58 => {
                 cpu.regs.r[0] = 0;
             }
             SVC_DRAW_STRING => {

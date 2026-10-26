@@ -163,6 +163,109 @@ fn event_get_waits_then_times_out() {
     assert_eq!(emu.device.memory.read_u32(SCRATCH).unwrap(), 0);
 }
 
+/// Un `event_get` avec `timeout_ms` : l'événement rendu, ou `None` si l'application attend.
+fn poll(emu: &mut Emulator, cpu: &mut Cpu, timeout_ms: u32) -> Option<u32> {
+    cpu.regs.pc = 0x9020_0102;
+    emu.device.memory.write_u32(SCRATCH, timeout_ms).unwrap();
+    match call(emu, cpu, 23, &[SCRATCH]) {
+        SvcAction::Handled => Some(cpu.regs.r[0]),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_held_arrow_key_repeats_after_299_ms_then_every_50_ms() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Left);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "l'événement de l'appui"
+    );
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    // L'application est réveillée au plus tard quand la touche doit se répéter.
+    assert_eq!(
+        emu.kernel.take_stop(),
+        Some(KernelStop::WaitEvent {
+            remaining_ms: Some(299)
+        })
+    );
+    emu.kernel.advance_time(298_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    emu.kernel.advance_time(1_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "première répétition"
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 1);
+    emu.kernel.advance_time(49_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), None);
+    emu.kernel.advance_time(1_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10_000),
+        Some(0),
+        "puis toutes les 50 ms"
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 2);
+    // Relâchée, la touche ne se répète plus et le compteur retombe.
+    emu.kernel.keyboard.release(Key::Left);
+    emu.kernel.reset_waits();
+    assert_eq!(poll(&mut emu, &mut cpu, 100), None);
+    emu.kernel.advance_time(1_000_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 100),
+        Some(u32::from(keyboard::EVENT_NONE))
+    );
+    call(&mut emu, &mut cpu, 55, &[]);
+    assert_eq!(cpu.regs.r[0], 0);
+}
+
+#[test]
+fn only_some_keys_repeat() {
+    for (key, repeats) in [
+        (Key::Left, true),
+        (Key::Up, true),
+        (Key::Back, true),
+        (Key::Backspace, true),
+        (Key::Ok, false),
+        (Key::One, false),
+        (Key::Sine, false),
+    ] {
+        let (mut emu, mut cpu) = setup();
+        emu.kernel.keyboard.press(key);
+        poll(&mut emu, &mut cpu, 10_000);
+        emu.kernel.advance_time(400_000);
+        assert_eq!(
+            poll(&mut emu, &mut cpu, 10).is_some_and(|e| e != u32::from(keyboard::EVENT_NONE)),
+            repeats,
+            "{key:?}"
+        );
+    }
+}
+
+#[test]
+fn shift_arrows_repeat_and_a_new_key_stops_the_repetition() {
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.keyboard.press(Key::Shift);
+    emu.kernel.keyboard.press(Key::Right);
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), Some(12));
+    assert_eq!(poll(&mut emu, &mut cpu, 10_000), Some(54 + 3));
+    emu.kernel.advance_time(300_000);
+    assert_eq!(poll(&mut emu, &mut cpu, 10), Some(54 + 3));
+    emu.kernel.keyboard.press(Key::Ok);
+    assert_eq!(poll(&mut emu, &mut cpu, 10), Some(4));
+    emu.kernel.reset_waits();
+    assert_eq!(poll(&mut emu, &mut cpu, 10), None);
+    emu.kernel.advance_time(1_000_000);
+    assert_eq!(
+        poll(&mut emu, &mut cpu, 10),
+        Some(u32::from(keyboard::EVENT_NONE))
+    );
+}
+
 #[test]
 fn event_get_wakes_up_when_a_key_arrives() {
     let (mut emu, mut cpu) = setup();

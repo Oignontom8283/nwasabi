@@ -187,6 +187,20 @@ pub const EVENTS_PER_PLANE: u16 = 54;
 /// Numéro de l'événement « rien » (délai écoulé) : le premier événement spécial.
 pub const EVENT_NONE: u16 = 4 * EVENTS_PER_PLANE;
 
+/// Les événements qui se répètent tant que la touche reste enfoncée : flèches, retour et effacer,
+/// et les flèches avec shift (relevé dans le noyau d'Epsilon 26.4.0).
+pub fn is_repeatable(event: u16) -> bool {
+    const SHIFT_ARROWS: std::ops::Range<u16> = EVENTS_PER_PLANE..EVENTS_PER_PLANE + 4;
+    matches!(event, 0..=3 | 5 | 17) || SHIFT_ARROWS.contains(&event)
+}
+
+/// La touche enfoncée dont l'événement se répète.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Repeat {
+    key: Key,
+    event: u16,
+}
+
 /// Ce que fait la touche `Home`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HomeBehavior {
@@ -206,6 +220,7 @@ pub struct Keyboard {
     alpha_lock: bool,
     pub home: HomeBehavior,
     exit_requested: bool,
+    repeat: Option<Repeat>,
 }
 
 impl Default for Keyboard {
@@ -218,6 +233,7 @@ impl Default for Keyboard {
             alpha_lock: false,
             home: HomeBehavior::ExitApp,
             exit_requested: false,
+            repeat: None,
         }
     }
 }
@@ -291,11 +307,21 @@ impl Keyboard {
             }
         }
         self.push_event(event);
+        // Une nouvelle touche arrête la répétition de la précédente.
+        self.repeat = is_repeatable(event).then_some(Repeat { key, event });
     }
 
     /// Relâche une touche.
     pub fn release(&mut self, key: Key) {
         self.state &= !(1 << key.bit());
+        if self.repeat.is_some_and(|r| r.key == key) {
+            self.repeat = None;
+        }
+    }
+
+    /// L'événement qui se répète, tant que sa touche reste enfoncée.
+    pub fn repeating(&self) -> Option<u16> {
+        self.repeat.map(|r| r.event)
     }
 
     /// Ajoute un événement à la file (pour l'hôte qui veut en fabriquer directement).
