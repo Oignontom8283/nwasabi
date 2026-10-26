@@ -81,6 +81,8 @@ fn run_batch(name: &str) -> Vec<String> {
     let count = (expected.len() - 4) / (4 * words);
 
     let mut memory = Memory::new();
+    // QEMU n'a pas la limite de la calculatrice : les accès exclusifs y sont permis dans la RAM.
+    memory.allow_exclusive_accesses(true);
     memory.add_region(region("code", 0, 0x4_0000)).unwrap();
     memory
         .add_region(region("ram", 0x2000_0000, 0x4_0000))
@@ -168,4 +170,5 @@ batches! {
     fp_v8_extensions_match_qemu => "12_fp_v8",
     fp_double_precision_matches_qemu => "13_fp_double",
     fp_half_precision_and_fixed_point_match_qemu => "14_fp_half_and_fixed",
+    exclusive_accesses_match_qemu => "15_exclusive",
 }
