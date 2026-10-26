@@ -63,6 +63,9 @@ pub struct DeviceOpts {
     /// Données externes de l'application (ROM, script…)
     #[arg(long, value_name = "FICHIER")]
     pub data: Option<PathBuf>,
+    /// Fréquence du processeur en MHz, qui règle le temps virtuel (par défaut : celle du modèle)
+    #[arg(long, value_name = "MHZ")]
+    pub mhz: Option<u32>,
 }
 
 /// nwasabi-cli : émulateur d'applications externes NumWorks (.nwa).

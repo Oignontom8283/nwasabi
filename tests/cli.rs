@@ -177,6 +177,25 @@ fn run_is_deterministic_and_matches_the_reference_screen() {
 }
 
 #[test]
+fn the_frequency_option_scales_the_virtual_time() {
+    let Some(app) = corpus_file("mandelbrot") else {
+        return support::skip_without_corpus();
+    };
+    let app = app.to_str().unwrap();
+    let time = |extra: &[&str]| {
+        let mut args = vec!["run", app, "--instructions", "19200000", "--json"];
+        args.extend_from_slice(extra);
+        let out = cli(&args);
+        assert_eq!(out.status.code(), Some(0));
+        let v = json::parse(stdout(&out).trim()).unwrap();
+        v.get("time_ms").and_then(Value::as_u64).unwrap()
+    };
+    // 19,2 millions d'instructions : 100 ms à 192 MHz (la fréquence du N0110), 200 ms à 96 MHz.
+    assert_eq!(time(&[]), 100);
+    assert_eq!(time(&["--mhz", "96"]), 200);
+}
+
+#[test]
 fn link_and_inspect_describe_an_application() {
     let Some(app) = corpus_file("conway-1.2.3") else {
         return support::skip_without_corpus();
