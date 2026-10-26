@@ -1,4 +1,4 @@
-//! Édition de liens de tous les `.nwa` du corpus (si `NWASABI_CORPUS` est défini).
+//! Édition de liens de tous les `.nwa` du corpus (si le corpus est présent : `NWASABI_CORPUS` ou `local/nwa`).
 //!
 //! Les résultats sont comparés à `tests/golden/link_images.tsv` : pour chaque application, taille et
 //! somme de contrôle de l'image et adresses principales. Ce fichier a été confronté à l'éditeur de

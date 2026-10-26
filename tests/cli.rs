@@ -29,8 +29,7 @@ fn workdir(name: &str) -> PathBuf {
 }
 
 fn corpus_file(prefix: &str) -> Option<PathBuf> {
-    let dir = PathBuf::from(std::env::var_os("NWASABI_CORPUS")?);
-    std::fs::read_dir(dir)
+    std::fs::read_dir(support::corpus_dir()?)
         .ok()?
         .filter_map(Result::ok)
         .map(|e| e.path())

@@ -6,15 +6,23 @@
 
 use std::path::PathBuf;
 
-/// Fichiers `.nwa` du corpus de test, s'il est fourni.
+/// Dossier des `.nwa` de tiers : `NWASABI_CORPUS`, sinon `local/nwa` s'il existe.
 ///
-/// Le corpus (applications de tiers) n'est pas distribué avec le dépôt : on l'indique avec la
-/// variable d'environnement `NWASABI_CORPUS` (dossier contenant des `.nwa`). Sans elle, les
-/// tests qui en dépendent sont ignorés avec un message, et ne font pas échouer la suite.
+/// Ces applications ne sont pas distribuées avec le dépôt. Sans dossier, les tests qui en dépendent
+/// sont ignorés en silence et ne font pas échouer la suite.
+pub fn corpus_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("NWASABI_CORPUS").filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(dir));
+    }
+    let fallback = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("local/nwa");
+    fallback.is_dir().then_some(fallback)
+}
+
+/// Fichiers `.nwa` du corpus, s'il est présent.
 pub fn corpus() -> Option<Vec<(String, Vec<u8>)>> {
-    let dir = PathBuf::from(std::env::var_os("NWASABI_CORPUS")?);
+    let dir = corpus_dir()?;
     let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("NWASABI_CORPUS={}: {e}", dir.display()))
+        .unwrap_or_else(|e| panic!("corpus {}: {e}", dir.display()))
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|x| x == "nwa"))
@@ -31,10 +39,8 @@ pub fn corpus() -> Option<Vec<(String, Vec<u8>)>> {
     )
 }
 
-/// Message affiché quand un test est ignoré faute de corpus.
-pub fn skip_without_corpus() {
-    eprintln!("corpus absent (variable NWASABI_CORPUS non définie) : test ignoré");
-}
+/// Appelée quand un test est ignoré faute de corpus : volontairement silencieuse.
+pub fn skip_without_corpus() {}
 
 use nwasabi::elf::{
     ObjectWriter, R_ARM_ABS32, R_ARM_THM_CALL, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SectionId,

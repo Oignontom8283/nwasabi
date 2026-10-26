@@ -120,15 +120,17 @@ fmt:
 clippy:
     cargo clippy --all-targets --all-features -- -D warnings
 
-# Lance les tests natifs (architecture de la machine hôte).
+# Lance les tests natifs (architecture de la machine hôte). Si le dossier local/nwa existe, les .nwa de tiers qu'il contient
+# sont aussi testés ; sinon (ou si NWASABI_CORPUS ne désigne rien), ces tests sont ignorés sans avertissement ni erreur.
 test:
     cargo test --all-features
 
-# Lance les tests natifs avec un corpus d'applications .nwa (dossier de fichiers .nwa).
+# Lance les tests natifs avec un corpus d'applications .nwa de son choix (dossier de fichiers .nwa), à la place de local/nwa.
 test-corpus corpus:
     NWASABI_CORPUS={{corpus}} cargo test --all-features
 
-# Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm chemin/du/corpus`).
+# Teste le module WebAssembly sous Node.js. Les tests qui demandent des .nwa de tiers utilisent le dossier local/nwa s'il existe
+# (ou celui donné : `just test-wasm chemin/du/corpus`) et sont ignorés sans avertissement ni erreur sinon.
 test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/player.mjs
@@ -149,14 +151,14 @@ ci: fmt-check clippy test build-wasm build-js
 
 # Contenu : formatage, clippy, compilation de tout (serveur, CLI, WebAssembly), tous les tests Rust (dont les applications
 # de test en C, les vecteurs QEMU et les fichiers de référence), tests WebAssembly sous Node.js, émulateur web, site de
-# documentation et contenu des paquets npm. Corpus facultatif de .nwa de tiers : `just check-all chemin/du/corpus` (il active
-# aussi les tests de parité et de référence qui en dépendent). Ne recompile pas les applications de test en C
+# documentation et contenu des paquets npm. Les tests qui demandent des .nwa de tiers (parité, références) utilisent local/nwa s'il
+# existe, ou le dossier donné (`just check-all chemin/du/corpus`), et sont sinon ignorés sans avertissement ni erreur. Ne recompile pas les applications de test en C
 # (voir `build-test-apps`) et ne publie rien.
 # VÉRIFICATION INTÉGRALE, LONGUE : tout contrôler (qualité, tests, compilations, web, docs, npm). Voir `ci` pour la version rapide.
 check-all corpus="": fmt-check clippy build-all (test-all corpus) (test-wasm corpus) build-emulator build-docs pack-npm
     @echo "check-all : tout est vérifié"
 
-# Tests natifs, avec le corpus s'il est donné (sinon les tests qui en dépendent sont ignorés).
+# Tests natifs, avec le corpus s'il est donné (sinon local/nwa s'il existe, sinon ces tests sont ignorés en silence).
 [private]
 test-all corpus="":
     @if [ -n "{{corpus}}" ]; then just test-corpus "{{corpus}}"; else just test; fi

@@ -1,4 +1,4 @@
-//! Installation des applications du corpus dans un appareil fabriqué (si `NWASABI_CORPUS` est défini).
+//! Installation des applications du corpus dans un appareil fabriqué (si le corpus est présent : `NWASABI_CORPUS` ou `local/nwa`).
 
 mod support;
 

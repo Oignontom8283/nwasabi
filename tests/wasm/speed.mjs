@@ -11,14 +11,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { DEFAULT_CUSTOM_MHZ, Player } from "../../packages/js/dist/index.js";
+import { corpusDir } from "./corpus.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
 const wasmPath =
   process.env.NWASABI_WASM ?? join(root, "target/wasm32-unknown-unknown/wasm/nwasabi.wasm");
-const corpus = process.argv[2] ?? process.env.NWASABI_CORPUS;
+const corpus = corpusDir();
 if (!corpus) {
-  console.log("corpus absent : test de la vitesse ignoré (donner un dossier ou NWASABI_CORPUS)");
   process.exit(0);
 }
 

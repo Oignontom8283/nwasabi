@@ -1,4 +1,4 @@
-//! Lecture ELF de tous les `.nwa` du corpus (si `NWASABI_CORPUS` est défini).
+//! Lecture ELF de tous les `.nwa` du corpus (si le corpus est présent : `NWASABI_CORPUS` ou `local/nwa`).
 
 mod support;
 

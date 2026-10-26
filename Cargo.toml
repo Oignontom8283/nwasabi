@@ -7,7 +7,7 @@ license = "AGPL-3.0-only"
 # Le paquet publié ne contient que ce qui sert à compiler : le code (`src/`), le script de
 # construction et les sources de l'interface web. Ni les tests (et leurs références), ni l'exemple,
 # ni les recettes `just`.
-exclude = ["/tests", "/example", "/docs", "/packages/wasm", "/justfile", "/web/node_modules", "/web/dist"]
+exclude = ["/tests", "/example", "/docs", "/packages/wasm", "/justfile", "/web/node_modules", "/web/dist", "/local"]
 
 [lib]
 path = "src/lib.rs"
