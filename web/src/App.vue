@@ -1,17 +1,23 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { KeyMap } from "@nwasabi/js";
 import CalculatorSvg from "./components/CalculatorSvg.vue";
+import AboutWindow from "./components/AboutWindow.vue";
+import InfoWindow from "./components/InfoWindow.vue";
 import DialogHost from "./components/DialogHost.vue";
 import Icon from "./components/Icon.vue";
 import MiniBar from "./components/MiniBar.vue";
 import SidePanel from "./components/SidePanel.vue";
 import TopBar from "./components/TopBar.vue";
-import { alertDialog } from "./dialogs.js";
+import { confirmDialog } from "./dialogs.js";
 import { useEmulator } from "./emulator.js";
 import { FetchError, fetchFile, fileNameOf, launchParams } from "./launch.js";
+import { attachPersistence, disableKeeping, enableKeeping, needsAnswer } from "./persist.js";
+import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
+import type { Part } from "./serverLink.js";
 import { applyTheme, panelPixels, screenApi, ui } from "./ui.js";
+import type { PickKind } from "./ui.js";
 import { readBytes } from "./util.js";
 
 const { t } = useI18n();
@@ -19,39 +25,37 @@ const emulator = useEmulator();
 provide("emulator", emulator);
 const { state } = emulator;
 
-const dragging = ref(false);
-let dataBytes = null;
-let lastApp = null;
+let dataBytes: Uint8Array | null = null;
+let lastApp: { bytes: Uint8Array; name: string } | null = null;
 
 // ---- ce que l'on charge ----------------------------------------------------------------------------
 
-function fail(message) {
+function fail(message: string) {
   state.error = message;
 }
 
-function loadApp(bytes, name) {
+function loadApp(bytes: Uint8Array, name: string) {
   lastApp = { bytes, name };
   emulator.load(bytes, name, dataBytes);
 }
 
-function loadData(bytes, name) {
+function loadData(bytes: Uint8Array, name: string) {
   dataBytes = bytes;
-  state.dataName = name;
   if (lastApp) emulator.load(lastApp.bytes, lastApp.name, dataBytes);
 }
 
-function loadKeymapText(text, source) {
+function loadKeymapText(text: string, source: string): boolean {
   try {
     emulator.setKeyMap(KeyMap.parse(text));
     state.error = "";
     return true;
   } catch (error) {
-    fail(t("errors.keymap", { source, message: error.message }));
+    fail(t("errors.keymap", { source, message: (error as Error).message }));
     return false;
   }
 }
 
-function parseJson(text, source) {
+function parseJson(text: string, source: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
@@ -60,10 +64,10 @@ function parseJson(text, source) {
   }
 }
 
-function loadStateText(text, source) {
+function loadStateText(text: string, source: string): boolean {
   const document = parseJson(text, source);
   if (!document) return false;
-  const ok = emulator.restore(document);
+  const ok = emulator.restore(document) ?? false;
   if (ok) {
     lastApp = null; // le dump porte son application ; « Relancer » la reprend du lecteur
     state.error = "";
@@ -71,7 +75,7 @@ function loadStateText(text, source) {
   return ok;
 }
 
-function loadFilesText(text, source) {
+function loadFilesText(text: string, source: string): boolean {
   const document = parseJson(text, source);
   if (!document) return false;
   const reply = emulator.call({ cmd: "fs_import", nfs: document, replace: true });
@@ -83,7 +87,7 @@ function loadFilesText(text, source) {
 }
 
 /** Charge un fichier d'après son extension. */
-async function openFile(file) {
+async function openFile(file: File): Promise<unknown> {
   const name = file.name;
   const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
   if (ext === "nwa") return loadApp(await readBytes(file), name);
@@ -95,22 +99,23 @@ async function openFile(file) {
   fail(t("errors.unknownFile", { name }));
 }
 
-const choose = (which) => (event) => {
-  const files = [...event.target.files];
-  event.target.value = "";
-  if (which === "data" && files[0]) readBytes(files[0]).then((bytes) => loadData(bytes, files[0].name));
+const choose = (which: string) => (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = [...(input.files ?? [])];
+  input.value = "";
+  const first = files[0];
+  if (which === "data" && first) readBytes(first).then((bytes) => loadData(bytes, first.name));
   else for (const file of files) openFile(file);
 };
 
-function onDrop(event) {
-  dragging.value = false;
-  for (const file of event.dataTransfer.files) openFile(file);
+function onDrop(event: DragEvent) {
+  for (const file of event.dataTransfer?.files ?? []) openFile(file);
 }
 
 // ---- adresse de la page et serveur -----------------------------------------------------------------
 
-function describe(error) {
-  if (!(error instanceof FetchError)) return error.message;
+function describe(error: unknown): string {
+  if (!(error instanceof FetchError)) return (error as Error).message;
   if (error.reason === "network") return t("errors.fetchNetwork", { url: error.url });
   return t("errors.fetchHttp", { url: error.url, status: error.reason.slice(5) });
 }
@@ -128,38 +133,54 @@ async function loadFromAddress() {
   }
 }
 
-/** Ce que le serveur `nwasabi` précharge (`--nwa`, `--nmk`, `--nfs`, `--nds`) ; une page hébergée ailleurs n'a rien. */
-async function loadFromServer() {
-  const json = async (path) => {
-    try {
-      const reply = await fetch(path);
-      // Un autre serveur répond par la page d'accueil à toute adresse : seul `nwasabi` répond en JSON.
-      return reply.ok && reply.headers.get("content-type")?.includes("application/json") ? reply : null;
-    } catch {
-      return null;
-    }
-  };
-  const preload = await (await json("__nwasabi/preload"))?.json();
-  if (preload) {
+const decode = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+/** L'application du serveur (`--nwa`, `--data`) ; `initial` : premier chargement, qui fixe aussi le modèle. */
+async function serverApp(initial: boolean) {
+  const got = await fetchPart("__nwasabi/preload");
+  if (got && "error" in got) return fail(got.error);
+  const preload = got ? await got.reply.json() : null;
+  if (!preload) return;
+  if (initial) {
     state.model = preload.model;
     state.firmware = preload.firmware ?? state.firmware;
-    const decode = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    dataBytes = preload.data_base64 ? decode(preload.data_base64) : null;
     emulator.call({ cmd: "new", model: preload.model });
-    loadApp(decode(preload.nwa_base64), preload.name);
   }
-  const nds = await json("__nwasabi/nds");
-  if (nds) loadStateText(await nds.text(), t("errors.fromServer"));
-  const nfs = await json("__nwasabi/nfs");
-  if (nfs) loadFilesText(await nfs.text(), t("errors.fromServer"));
-  const nmk = await json("__nwasabi/nmk");
-  if (nmk) loadKeymapText(await nmk.text(), t("errors.fromServer"));
+  dataBytes = preload.data_base64 ? decode(preload.data_base64) : null;
+  loadApp(decode(preload.nwa_base64), preload.name);
+}
+
+/** Une partie de ce que le serveur donne : l'application, le mapping `.nmk`, les fichiers `.nfs` ou l'état `.nds`. */
+async function serverPart(part: Part) {
+  if (part === "app") return serverApp(false);
+  const got = await fetchPart(`__nwasabi/${part}`);
+  if (!got) return;
+  if ("error" in got) return fail(got.error);
+  const text = await got.reply.text();
+  const source = t("errors.fromServer");
+  if (part === "nds") loadStateText(text, source);
+  else if (part === "nfs") loadFilesText(text, source);
+  else loadKeymapText(text, source);
+}
+
+/** Ce que le serveur `nwasabi` précharge (`--nwa`, `--nmk`, `--nfs`, `--nds`) ; une page hébergée ailleurs n'a rien. */
+async function loadFromServer() {
+  await baseline();
+  await serverApp(true);
+  for (const part of ["nds", "nfs", "nmk"] as const) await serverPart(part);
+  watch(serverPart, () => ui.autoReload);
 }
 
 // ---- clavier global, plein écran, onglet caché -----------------------------------------------------
 
 // En plein écran, Espace quitte et n'est jamais donné à l'application (même s'il est dans le mapping).
-function onKeyCapture(event) {
+function onKeyCapture(event: KeyboardEvent) {
+  // Ctrl + R recharge les fichiers du serveur qui ont changé sur le disque.
+  if (event.altKey && event.code === "KeyR" && event.type === "keydown" && server.stale.length) {
+    event.preventDefault();
+    reload();
+    return;
+  }
   if (event.code === "Space" && document.fullscreenElement) {
     event.preventDefault();
     event.stopPropagation();
@@ -190,12 +211,19 @@ onMounted(async () => {
   addEventListener("keyup", onKeyCapture, true);
   document.addEventListener("visibilitychange", onVisibility);
   await emulator.init();
+  attachPersistence(emulator);
   // Les champs de saisie, listes, éditeurs et touches de la calculatrice gardent le clavier pour eux.
   detachKeyboard = emulator.attachKeyboard(window, (e) =>
-    e.target.closest?.("input, textarea, select, [contenteditable], dialog, [data-calc-key], [data-keep-keys]"),
+    !!(e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable], dialog, [data-calc-key], [data-keep-keys]"),
   );
   await loadFromServer();
   await loadFromAddress();
+  // Première visite : le site demande s'il peut conserver les fichiers de la calculatrice dans ce navigateur.
+  if (needsAnswer()) {
+    const yes = await confirmDialog(t("keepPrompt.message"), { title: t("keepPrompt.title"), accept: t("keepPrompt.accept"), cancel: t("keepPrompt.decline") });
+    if (yes) await enableKeeping();
+    else disableKeeping();
+  }
 });
 onBeforeUnmount(() => {
   removeEventListener("resize", onResize);
@@ -203,24 +231,27 @@ onBeforeUnmount(() => {
   removeEventListener("keyup", onKeyCapture, true);
   document.removeEventListener("visibilitychange", onVisibility);
   detachKeyboard();
+  stopWatching();
   emulator.stop();
 });
 
 const stageStyle = computed(() => ({ right: ui.panelOpen ? `${panelPixels()}px` : "0px" }));
 
-const input_app = ref(null);
-const input_data = ref(null);
-const input_keys = ref(null);
-const input_state = ref(null);
-const input_files = ref(null);
-const pickers = { app: input_app, data: input_data, keys: input_keys, state: input_state, files: input_files };
-const pick = (which) => pickers[which].value?.click();
+const about = ref(false);
+const info = ref(false);
+const input_app = ref<HTMLInputElement | null>(null);
+const input_data = ref<HTMLInputElement | null>(null);
+const input_keys = ref<HTMLInputElement | null>(null);
+const input_state = ref<HTMLInputElement | null>(null);
+const input_files = ref<HTMLInputElement | null>(null);
+const pickers: Record<PickKind, typeof input_app> = { app: input_app, data: input_data, keys: input_keys, state: input_state, files: input_files };
+const pick = (which: PickKind) => pickers[which].value?.click();
 provide("pick", pick);
 </script>
 
 <template>
-  <div class="app" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
-    <TopBar @pick="pick" />
+  <div class="app" @dragover.prevent @drop.prevent="onDrop">
+    <TopBar @pick="pick" @about="about = !about" @info="info = !info" />
     <input ref="input_app" type="file" accept=".nwa" hidden @change="choose('app')($event)" />
     <input ref="input_data" type="file" hidden @change="choose('data')($event)" />
     <input ref="input_keys" type="file" accept=".nmk,application/json" hidden @change="choose('keys')($event)" />
@@ -241,13 +272,14 @@ provide("pick", pick);
       <button class="icon" :aria-label="t('common.dismiss')" @click="state.error = ''"><Icon name="close" /></button>
     </div>
     <p class="sr-only" role="status" aria-live="polite">{{ state.running ? t("mini.states.running") : t("mini.states.paused") }}</p>
+    <AboutWindow v-if="about" @close="about = false" />
+    <InfoWindow v-if="info" @close="info = false" />
     <DialogHost />
   </div>
 </template>
 
 <style scoped>
 .app { height: 100%; display: flex; flex-direction: column; }
-.app.dragging { outline: 3px dashed var(--accent); outline-offset: -6px; }
 .workspace { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 /* La calculatrice est centrée dans la zone qui reste : toute la largeur quand le grand panneau est fermé. */
 .stage { position: absolute; left: 0; top: 0; bottom: 0; padding: 12px; }
