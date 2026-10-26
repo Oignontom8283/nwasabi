@@ -57,6 +57,29 @@ une fréquence très élevée n'est atteinte que si la machine est assez puissan
 
 Documentation, code source et suivi des problèmes : <https://github.com/Oignontom8283/nwasabi>.
 
+## Touches : clavier et gestes tactiles (`.nmk`)
+
+Un mapping décrit comment le clavier de l'ordinateur et les gestes tactiles deviennent des touches de la
+calculatrice (format `.nmk`, JSON : voir `docs/nmk.md` dans le dépôt). Sans rien faire, le mapping par défaut
+s'applique : flèches, chiffres, Entrée = OK… et un balayage vers la gauche, la droite, le haut ou le bas
+appuie sur la flèche correspondante.
+
+```ts
+import { KeyMap, Player } from "@nwasabi/js";
+
+const player = await Player.create(fetch(wasmUrl));
+player.input.attachKeyboard(window);            // clavier de l'ordinateur
+player.input.attachPointer(canvas);             // gestes sur l'écran (CSS : touch-action: none)
+
+// Un mapping de jeu, lu depuis un fichier .nmk (lève NmkError, avec le chemin de l'erreur, s'il est invalide).
+player.setKeyMap(KeyMap.parse(await (await fetch("jeu.nmk")).text()));
+```
+
+`player.input` est un `InputMapper` : `hostKey(event, down)` (clavier) et `pointerDown/Move/Up/Cancel` (gestes)
+permettent de brancher soi-même les événements ; `KeyMap.default()` donne le mapping par défaut, et
+`player.state.keymapName` le nom du mapping en vigueur. Quand plusieurs entrées visent la même touche de la
+calculatrice, elle reste enfoncée tant qu'une d'elles est tenue.
+
 ## Licence
 
 MIT ou Apache-2.0, au choix (voir [LICENSE/MIT](./LICENSE/MIT) et [LICENSE/APACHE](./LICENSE/APACHE)).
