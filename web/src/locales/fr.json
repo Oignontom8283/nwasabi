@@ -19,13 +19,13 @@
     "about": "nwasabi — émulateur d'applications NumWorks",
     "menu": "Charger…",
     "noApp": "Aucune application",
-    "openFiles": "Fichiers de la calculatrice (.nfs)…",
+    "openFiles": "Charger des fichiers de la calculatrice (.nfs)…",
     "openFilesHint": "Charge tous les fichiers d'un fichier .nfs.",
     "openApp": "Charger une autre application (.nwa)…",
     "openAppHint": "Charge un fichier .nwa (vous pouvez aussi le glisser sur la page).",
-    "openData": "Données externes…",
+    "openData": "Charger les données externes…",
     "openDataHint": "Charge les données externes de l'application (par exemple un fichier lu par l'application).",
-    "openKeys": "Mapping des touches (.nmk)…",
+    "openKeys": "Charger un mapping de touches (.nmk)…",
     "openKeysHint": "Charge un fichier .nmk : il lie les touches du clavier et les gestes tactiles aux touches de la calculatrice.",
     "openState": "Charger un état (.nds)…",
     "openStateHint": "Reprend une émulation enregistrée (.nds), exactement là où elle s'était arrêtée.",
@@ -47,7 +47,14 @@
       "auto": "automatique",
       "light": "clair",
       "dark": "sombre"
-    }
+    },
+    "load": "Charger un .nwa",
+    "large": "Agrandir ou réduire l'écran dans la page",
+    "aboutWindow": "Licence et conditions d'utilisation",
+    "repo": "Dépôt GitHub de nwasabi",
+    "info": "Informations de cette installation",
+    "reload": "Recharger",
+    "reloadHint": "Un fichier donné au serveur a changé sur le disque : le recharger."
   },
   "screen": {
     "dropApp": "Glissez un fichier .nwa ici",
@@ -77,7 +84,7 @@
   },
   "mini": {
     "label": "Informations sur la simulation",
-    "openPanel": "Ouvrir le panneau de réglages et d'outils",
+    "openPanel": "Ouvrir le panneau d'outils : fichiers, mémoire, structures, touches, réglages, trace",
     "hideHint": "Masquer cette barre",
     "showHint": "Afficher la barre d'informations",
     "status": "État",
@@ -101,7 +108,10 @@
     "capture": "Capture",
     "captureHint": "Enregistre l'écran en image PNG.",
     "fullscreen": "Plein écran",
-    "fullscreenHint": "Affiche seulement l'écran, sans les touches. Espace ou Échap pour quitter."
+    "fullscreenHint": "Affiche seulement l'écran, sans les touches. Espace ou Échap pour quitter.",
+    "tools": "Outils",
+    "large": "Agrandir",
+    "largeHint": "Agrandit l'écran dans la page, sans les touches de la calculatrice. Il s'adapte au panneau ouvert à côté."
   },
   "panel": {
     "label": "Panneau d'outils",
@@ -140,7 +150,7 @@
     "colSize": "Taille",
     "list": "Fichiers de la calculatrice",
     "empty": "Aucun fichier",
-    "hint": "Clic droit (ou touche Menu) pour renommer, télécharger ou supprimer. F2 renomme, Suppr supprime.",
+    "hint": "Clic droit (ou touche Menu) pour renommer, copier la taille, télécharger ou supprimer. F2 renomme, Suppr supprime (Maj + Suppr : sans confirmation). Ctrl + clic ou Maj + clic pour en choisir plusieurs.",
     "kinds": {
       "python": "Python",
       "system": "Système",
@@ -157,7 +167,16 @@
     "modified": "modifié",
     "autoImport": "importé automatiquement",
     "save": "Enregistrer",
-    "opaque": "Format opaque : seul le téléchargement est proposé. Voici les premiers octets."
+    "copySize": "Copier la taille en octets",
+    "copyName": "Copier le nom",
+    "formatText": "Format reconnu : texte (script Python), modifiable comme du texte.",
+    "formatSystem": "Fichier du système : binaire, affiché et modifiable en hexadécimal.",
+    "formatBinary": "Format non reconnu : binaire, affiché et modifiable en hexadécimal.",
+    "confirmDeleteMany": "Supprimer ces {n} fichiers ? Cette action est définitive.",
+    "deleteMany": "Supprimer {n} fichiers",
+    "clearAll": "Tout effacer",
+    "clearAllHint": "Supprime tous les fichiers de la calculatrice (après confirmation).",
+    "confirmClear": "Supprimer les {n} fichiers de la calculatrice ? Cette action est définitive."
   },
   "state": {
     "title": "État de l'émulation",
@@ -206,7 +225,22 @@
     "real": "Réelle (comme sur la calculatrice)",
     "simulated": "Simulée par l'émulateur",
     "simulatedWhole": "{name} : le système de la calculatrice n'existe pas ici, c'est l'émulateur qui le joue.",
-    "note": "Réelle : ce que l'application voit comme sur une vraie calculatrice (son code, sa RAM, ses fichiers). Simulée : ce que l'émulateur fabrique à la place du système (en-têtes, RAM du noyau…). Cliquez une zone pour la voir en hexadécimal."
+    "note": "Réelle : ce que l'application voit comme sur une vraie calculatrice (son code, sa RAM, ses fichiers). Simulée : ce que l'émulateur fabrique à la place du système (en-têtes, RAM du noyau…). Cliquez une zone pour la voir en hexadécimal.",
+    "structures": "Structures du système (cliquez pour les détailler)",
+    "clickHint": "Cliquer pour voir en hexadécimal.",
+    "realTag": "réelle",
+    "simulatedTag": "simulée",
+    "explain": {
+      "system": "En-têtes et tables que le système de la calculatrice laisse en mémoire ; ici, c'est l'émulateur qui les fabrique.",
+      "appsflash": "Zone de la mémoire flash réservée aux applications externes.",
+      "files": "Stockage de la calculatrice : les scripts et les réglages.",
+      "app": "Le code de l'application, tel qu'il est chargé en mémoire flash.",
+      "data": "Variables de l'application (données initialisées et non initialisées).",
+      "heap": "Le tas : la mémoire que l'application demande pendant son exécution.",
+      "stack": "La pile : variables locales et adresses de retour des fonctions.",
+      "reserved": "Zone entièrement simulée : le système de la calculatrice n'existe pas ici.",
+      "region": "Zone de la carte mémoire du processeur."
+    }
   },
   "hex": {
     "label": "Éditeur hexadécimal",
@@ -308,7 +342,30 @@
     "swipeDistance": "Distance d'un balayage",
     "longPress": "Durée d'un appui long",
     "doubleTap": "Délai d'un double appui",
-    "pressMs": "Durée d'une touche tenue"
+    "pressMs": "Durée d'une touche tenue",
+    "keyboardHelp": "Chaque ligne lie une touche de l'ordinateur à une ou plusieurs touches de la calculatrice, appuyées ensemble (par exemple Maj + flèche). Le menu « + » ajoute une touche à la combinaison.",
+    "touchHelp": "Sur un écran tactile (ou à la souris), un geste sur l'écran de la calculatrice appuie sur des touches. Chaque ligne associe un geste, un nombre de doigts et les touches à appuyer.",
+    "gestureInfo": {
+      "tap": "toucher l'écran brièvement",
+      "double_tap": "deux touchers rapprochés (délai ci-dessous)",
+      "long_press": "garder le doigt posé (durée ci-dessous)",
+      "swipe_left": "glisser le doigt vers la gauche (distance ci-dessous)",
+      "swipe_right": "glisser le doigt vers la droite",
+      "swipe_up": "glisser le doigt vers le haut",
+      "swipe_down": "glisser le doigt vers le bas"
+    },
+    "gestureHint": "Le mouvement qui déclenche la règle.",
+    "fingersHint": "Nombre de doigts posés en même temps pour ce geste (1 à 3).",
+    "calcKeysHint": "Les touches de la calculatrice appuyées ensemble quand le geste est reconnu.",
+    "heldHint": "Pour un appui long : la touche reste enfoncée tant que le doigt reste posé, au lieu d'un simple appui bref.",
+    "thresholdsHelp": "Ces valeurs règlent la sensibilité de la reconnaissance des gestes ; elles sont enregistrées dans le fichier .nmk.",
+    "setting": "Réglage",
+    "value": "Valeur",
+    "meaning": "Ce que cela change",
+    "swipeDistanceInfo": "Distance minimale parcourue par le doigt pour compter comme un balayage et non comme un simple toucher.",
+    "longPressInfo": "Temps pendant lequel le doigt doit rester posé, sans bouger, pour compter comme un appui long.",
+    "doubleTapInfo": "Temps maximal entre deux touchers pour qu'ils forment un double appui.",
+    "pressMsInfo": "Durée pendant laquelle la touche reste enfoncée pour un geste bref (appui, balayage, double appui), pour que l'application ait le temps de la voir."
   },
   "settings": {
     "speed": "Vitesse du processeur",
@@ -359,28 +416,116 @@
       "clearance_level": "0 officiel, 1 applications tierces installées, 2 userland tiers.",
       "compilation_flags": "Valeur renvoyée par l'appel système compilation_flags.",
       "last_reset_type": "0 matériel, 1 logiciel."
+    },
+    "autoReload": "Recharger automatiquement les fichiers du serveur",
+    "autoReloadHint": "Avec le serveur nwasabi : quand l'application, les données, le mapping, les fichiers ou l'état changent sur le disque, la page les recharge toute seule. Sans cela, un bouton « Recharger » (ou Ctrl + R) apparaît.",
+    "page": "Cette page",
+    "keep": {
+      "label": "Conserver les fichiers dans le navigateur",
+      "help": "Les fichiers de la calculatrice sont copiés dans les données de ce navigateur et remis à chaque lancement (le site pose la question à la première visite) ; le navigateur peut demander votre autorisation de les garder durablement. Ils sont partagés par tout ce qui tourne sur ce site, dans ce navigateur : pensez à les effacer sur un ordinateur qui n'est pas le vôtre.",
+      "stored": "aucun fichier conservé | 1 fichier conservé ({size}) | {n} fichiers conservés ({size})",
+      "nothing": "Rien n'est encore conservé.",
+      "persistent": "stockage persistant accordé",
+      "notPersistent": "stockage persistant non accordé (le navigateur peut l'effacer s'il manque de place)",
+      "failed": "Impossible d'enregistrer : le stockage du navigateur est plein ou bloqué.",
+      "clear": "Effacer les fichiers conservés",
+      "confirmClear": "Effacer les fichiers conservés dans ce navigateur ? Ceux de la calculatrice en cours ne sont pas touchés. Cette action est définitive."
     }
   },
   "trace": {
     "cpu": "Processeur",
-    "cpuHelp": "Registres à l'instant de la dernière lecture ; ceux qui viennent de changer sont surlignés.",
+    "cpuHelp": "Le processeur est un ARM Cortex-M7. Ses registres sont de petites mémoires internes de 32 bits, lues à intervalles réguliers (ceux qui viennent de changer sont surlignés).",
     "instructions": "instructions exécutées",
     "noDevice": "Aucun appareil.",
     "flag": {
-      "N": "N : résultat négatif",
-      "Z": "Z : résultat nul",
-      "C": "C : retenue",
-      "V": "V : débordement",
-      "Q": "Q : saturation"
+      "N": "N (négatif) : le dernier résultat est négatif, son bit de poids fort vaut 1.",
+      "Z": "Z (zéro) : le dernier résultat vaut zéro, ou une comparaison a trouvé deux valeurs égales.",
+      "C": "C (retenue) : une addition a débordé, ou une soustraction n'a pas emprunté ; sert aux comparaisons non signées.",
+      "V": "V (débordement) : le résultat ne tient pas dans un entier signé de 32 bits.",
+      "Q": "Q (saturation) : une instruction à saturation a atteint sa limite ; le drapeau reste levé jusqu'à ce qu'on l'efface."
     },
     "svc": "Appels système",
-    "svcHelp": "Les appels de l'application au noyau, du plus fréquent au plus rare ({frames} images).",
+    "svcHelp": "Les appels de l'application au noyau (instruction svc), du plus fréquent au plus rare ({frames} images).",
     "svcName": "Appel",
     "calls": "Appels",
     "none": "Aucun appel.",
     "stdout": "Sortie standard",
     "empty": "(vide)",
     "copy": "Copier",
-    "clear": "Effacer"
+    "clear": "Effacer",
+    "register": "Registre",
+    "value": "Valeur",
+    "role": "Rôle",
+    "regInfo": {
+      "args": "Arguments et résultat d'une fonction (r0 à r3) ; une fonction peut les écraser librement.",
+      "saved": "Variables locales : une fonction doit les remettre comme elle les a trouvées.",
+      "r12": "Registre de travail temporaire (IP), écrasé librement par les appels.",
+      "sp": "Pointeur de pile (r13) : sommet de la pile, où vivent les variables locales et les adresses de retour.",
+      "lr": "Registre de lien (r14) : adresse où reprendre quand la fonction en cours se termine.",
+      "pc": "Compteur ordinal (r15) : adresse de l'instruction en cours d'exécution.",
+      "xpsr": "Registre d'état : drapeaux N Z C V Q, bit Thumb et numéro de l'exception en cours.",
+      "fpscr": "Contrôle et état de la virgule flottante : mode d'arrondi et drapeaux d'erreur."
+    },
+    "flagsTitle": "Drapeaux du registre d'état",
+    "flagsHelp": "Quatre bits de xpsr résument le résultat de la dernière opération et servent aux branchements conditionnels ; en couleur, ceux qui sont levés.",
+    "svcInfo": {
+      "1": "Lit la luminosité du rétroéclairage.",
+      "2": "Règle la luminosité du rétroéclairage.",
+      "3": "Dit si la batterie est en charge.",
+      "4": "Niveau de la batterie.",
+      "5": "Tension de la batterie.",
+      "18": "Lit les pixels d'un rectangle de l'écran.",
+      "19": "Dessine un rectangle de pixels sur l'écran.",
+      "20": "Remplit un rectangle d'une seule couleur.",
+      "21": "Attend la fin de l'image en cours (synchronisation verticale).",
+      "22": "Copie le texte associé à un événement.",
+      "23": "Attend et renvoie le prochain événement (touche…).",
+      "24": "Dit si un événement a une signification définie.",
+      "29": "Identifiant FCC de l'appareil.",
+      "33": "Retire et renvoie l'état du clavier mis en attente.",
+      "34": "Lit l'état actuel des touches.",
+      "39": "Version de la carte électronique.",
+      "45": "Nombre aléatoire.",
+      "47": "Copie le numéro de série.",
+      "48": "Millisecondes écoulées depuis le démarrage.",
+      "49": "Attend un nombre de millisecondes.",
+      "50": "Attend un nombre de microsecondes.",
+      "52": "Dit si le câble USB est branché.",
+      "55": "Nombre de répétitions d'une touche maintenue.",
+      "56": "Options de compilation du firmware.",
+      "128": "Affiche du texte (ajout de nwasabi).",
+      "129": "Agrandit le tas, la mémoire dynamique de l'application.",
+      "130": "Écrit du texte sur la sortie standard.",
+      "137": "Termine l'application."
+    }
+  },
+  "about": {
+    "title": "Licence et conditions d'utilisation",
+    "license": {
+      "title": "Licence",
+      "text": "nwasabi est un logiciel libre, distribué sous la licence publique générale Affero GNU, version 3 (AGPL-3.0), assortie d'une exception de liaison qui permet d'utiliser sa bibliothèque dans une application sans que celle-ci en hérite. Le texte complet de la licence, le code source et la documentation sont dans le dépôt."
+    },
+    "terms": {
+      "title": "Conditions d'utilisation",
+      "text": "Cet outil est fourni « tel quel », sans garantie d'aucune sorte, expresse ou implicite, notamment de qualité, d'adéquation à un usage particulier ou d'absence d'erreur. En l'utilisant, vous acceptez que ses auteurs et contributeurs ne puissent être tenus pour responsables d'un dommage, d'une perte de données ou d'un préjudice quelconque, direct ou indirect, résultant de son usage."
+    },
+    "third": {
+      "title": "Applications et données chargées",
+      "text": "nwasabi est indépendant de ce qu'on y exécute : il émule une calculatrice et ne connaît ni ne contrôle les applications chargées. Ces applications, ainsi que les fichiers et données associés, restent la propriété exclusive de leurs auteurs d'origine, qui en détiennent les droits. nwasabi ne s'en approprie rien et n'est responsable ni de leur contenu, ni de leur fonctionnement, ni du respect de leur licence : il appartient à chacun de n'utiliser que ce qu'il a le droit d'utiliser."
+    },
+    "trademarks": {
+      "title": "Marques",
+      "text": "NumWorks et les autres noms de produits ou d'entreprises cités appartiennent à leurs propriétaires respectifs. nwasabi n'est ni affilié à NumWorks ni approuvé ou soutenu par cette société."
+    },
+    "repo": "Dépôt GitHub : code source, licence et documentation"
+  },
+  "info": {
+    "title": "Informations"
+  },
+  "keepPrompt": {
+    "title": "Conserver vos fichiers ?",
+    "message": "Voulez-vous que nwasabi conserve les fichiers de la calculatrice (vos scripts, par exemple) dans ce navigateur, pour les retrouver à chaque visite ? Le navigateur peut vous demander l'autorisation de les garder durablement. Ils restent sur cet ordinateur, sont partagés par tout ce qui tourne sur ce site, et vous pouvez les effacer ou changer d'avis à tout moment dans l'onglet Réglages.",
+    "accept": "Oui, les conserver",
+    "decline": "Non merci"
   }
 }
