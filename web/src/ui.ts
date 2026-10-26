@@ -1,8 +1,9 @@
 // État de la mise en page, partagé entre les vues (et mémorisé quand c'est utile).
 
-import { reactive, watch } from "vue";
+import { inject, reactive, watch } from "vue";
 import { remember } from "./util.js";
 
+export type Theme = "auto" | "light" | "dark";
 export const TABS = ["files", "memory", "structures", "keys", "settings", "trace"];
 
 export const ui = reactive({
@@ -12,22 +13,26 @@ export const ui = reactive({
   panelWidth: remember.get("nwasabi.panelWidth", 0),
   /** Petite barre d'infos visible quand le grand panneau est fermé ? */
   miniVisible: remember.get("nwasabi.miniVisible", true),
-  tab: remember.get("nwasabi.tab", "files"),
+  tab: remember.get<string>("nwasabi.tab", "files"),
+  /** Recharger tout seul ce que le serveur donne quand le fichier change sur le disque ? */
+  autoReload: remember.get("nwasabi.autoReload", false),
+  /** Écran agrandi (sans la calculatrice autour, mais pas en plein écran) ? */
+  large: remember.get("nwasabi.large", false),
   /** Écran en plein écran ? */
   fullscreen: false,
   /** Thème : "auto", "light" ou "dark". */
-  theme: remember.get("nwasabi.theme", "auto"),
+  theme: remember.get<Theme>("nwasabi.theme", "auto"),
   /** Largeur de la fenêtre (suivie par l'application). */
   winWidth: innerWidth,
   /** Demande de l'onglet Mémoire : adresse à montrer dans l'éditeur hexadécimal. */
-  hexGoto: null,
+  hexGoto: null as { address: number; seq: number } | null,
   /** Demande de l'onglet Structures : section à montrer. */
-  structureGoto: null,
+  structureGoto: null as { section: string; seq: number } | null,
 });
 
 watch(() => ui.panelOpen, (v) => remember.set("nwasabi.panelOpen", v));
 // La largeur change à chaque image pendant un glissement : on n'écrit dans le stockage qu'une fois qu'elle se stabilise.
-let widthTimer = 0;
+let widthTimer: ReturnType<typeof setTimeout> | undefined;
 watch(
   () => ui.panelWidth,
   (v) => {
@@ -44,6 +49,8 @@ export function panelPixels() {
   return Math.max(PANEL_MIN, Math.min(wanted, ui.winWidth - PANEL_ROOM));
 }
 watch(() => ui.miniVisible, (v) => remember.set("nwasabi.miniVisible", v));
+watch(() => ui.autoReload, (v) => remember.set("nwasabi.autoReload", v));
+watch(() => ui.large, (v) => remember.set("nwasabi.large", v));
 watch(() => ui.tab, (v) => remember.set("nwasabi.tab", v));
 watch(
   () => ui.theme,
@@ -53,21 +60,21 @@ watch(
   },
 );
 
-export function applyTheme(theme = ui.theme) {
+export function applyTheme(theme: Theme = ui.theme): void {
   const root = document.documentElement;
   if (theme === "auto") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", theme);
 }
 
 /** Va à l'onglet Mémoire, à cette adresse. */
-export function showInMemory(address) {
+export function showInMemory(address: number): void {
   ui.hexGoto = { address, seq: Date.now() };
   ui.tab = "memory";
   ui.panelOpen = true;
 }
 
 /** Va à l'onglet Structures, à cette section. */
-export function showStructure(section) {
+export function showStructure(section: string): void {
   ui.structureGoto = { section, seq: Date.now() };
   ui.tab = "structures";
   ui.panelOpen = true;
@@ -79,3 +86,13 @@ export const screenApi = {
   exitFullscreen: () => {},
   capture: () => {},
 };
+
+/** Ce que le menu de chargement peut ouvrir : un sélecteur de fichier par sorte de fichier. */
+export type PickKind = "app" | "data" | "keys" | "state" | "files";
+
+/** La fonction qui ouvre un sélecteur de fichier, fournie par `App.vue`. */
+export function usePick(): (which: PickKind) => void {
+  const pick = inject<(which: PickKind) => void>("pick");
+  if (!pick) throw new Error("« pick » non fourni");
+  return pick;
+}

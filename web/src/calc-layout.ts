@@ -3,6 +3,8 @@
 // Les dimensions et les positions viennent de la disposition publiée du simulateur d'Omega (des faits de
 // géométrie, qu'on ne peut pas changer : ce sont ceux de l'appareil) ; les formes, couleurs et dessins sont les nôtres.
 
+import type { KeyName } from "@nwasabi/js";
+
 export const VIEW = { width: 1160, height: 2220 };
 export const BODY = { x: 0, y: 0, width: 1160, height: 2220, radius: 96 };
 export const BEZEL = { x: 121, y: 120, width: 918, height: 724, radius: 56 };
@@ -21,15 +23,33 @@ const GLYPHS = {
   back: "M9 14l-4-4 4-4 M5 10h9a5 5 0 0 1 0 10h-3",
 };
 
-// [nom EADK, libellé, légende shift, lettre alpha, style, rectangle [x, y, largeur, hauteur]]
+export interface CalcKey {
+  /** Nom EADK de la touche. */
+  name: KeyName;
+  label: string;
+  /** Légendes au-dessus : seconde fonction (shift) et lettre (alpha). */
+  shift?: string;
+  alpha?: string;
+  style: "plain" | "mod" | "small" | "nav" | "home" | "power";
+  glyph?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  round?: boolean;
+}
+
+// [nom EADK, libellé, légende shift, lettre alpha, style]
+type Item = readonly [KeyName, string, string, string, ("mod" | "small")?];
 const ROW_X6 = [133, 286, 439, 592, 745, 898];
 const ROW_X5 = [133, 317, 502, 686, 871];
-const pad = (item) => [item[0], item[1], item[2], item[3], item[4] ?? ""];
-const row6 = (y, items) => items.map((item, i) => [...pad(item), [ROW_X6[i], y, 129, 87]]);
-const row5 = (y, items) => items.map((item, i) => [...pad(item), [ROW_X5[i], y, 156, 101]]);
+const row = (xs: number[], y: number, width: number, height: number, items: Item[]): CalcKey[] =>
+  items.map(([name, label, shift, alpha, style], i) => ({ name, label, shift, alpha, style: style ?? "plain", x: xs[i] ?? 0, y, width, height }));
+const row6 = (y: number, items: Item[]) => row(ROW_X6, y, 129, 87, items);
+const row5 = (y: number, items: Item[]) => row(ROW_X5, y, 156, 101, items);
 
 const PLAIN = [
-  ...row6(1210, [["shift", "shift", "", "", "mod"], ["alpha", "alpha", "ALPHA", "", "mod"], ["xnt", "x,n,t", "cut", ":"], ["var", "var", "copy", ";"], ["toolbox", "toolbox", "paste", '"', "small"], ["backspace", "⌫", "clear", "%"]]),
+  ...row6(1210, [["shift", "shift", "", "", "mod"], ["alpha", "alpha", "lock", "", "mod"], ["xnt", "x,n,t", "cut", ":"], ["var", "var", "copy", ";"], ["toolbox", "toolbox", "paste", '"', "small"], ["backspace", "⌫", "clear", "%"]]),
   ...row6(1332, [["exp", "eˣ", "[", "A"], ["ln", "ln", "]", "B"], ["log", "log", "{", "C"], ["imaginary", "i", "}", "D"], ["comma", ",", "_", "E"], ["power", "xʸ", "sto→", "F"]]),
   ...row6(1455, [["sine", "sin", "asin", "G"], ["cosine", "cos", "acos", "H"], ["tangent", "tan", "atan", "I"], ["pi", "π", "=", "J"], ["sqrt", "√", "<", "K"], ["square", "x²", ">", "L"]]),
   ...row5(1578, [["seven", "7", "", "M"], ["eight", "8", "", "N"], ["nine", "9", "", "O"], ["left_parenthesis", "(", "", "P"], ["right_parenthesis", ")", "", "Q"]]),
@@ -38,12 +58,9 @@ const PLAIN = [
   ...row5(1988, [["zero", "0", "", "?"], ["dot", ".", "", "!"], ["ee", "×10ˣ", "", ""], ["ans", "Ans", "", ""], ["exe", "EXE", "", ""]]),
 ];
 
-/** Toutes les touches : { name, label, shift, alpha, style, glyph?, x, y, width, height, round? }. */
-export const KEYS = [
-  ...PLAIN.map(([name, label, shift, alpha, style, rect]) => {
-    const [x, y, width, height] = rect;
-    return { name, label, shift, alpha, style: style || "plain", x, y, width, height };
-  }),
+/** Toutes les touches. */
+export const KEYS: CalcKey[] = [
+  ...PLAIN,
   // Navigation : croix à gauche, home et on/off au milieu, OK et back à droite.
   { name: "left", label: "◀", style: "nav", x: 133, y: 983, width: 140, height: 87 },
   { name: "up", label: "▲", style: "nav", x: 231, y: 886, width: 87, height: 140 },
@@ -55,4 +72,4 @@ export const KEYS = [
   { name: "on_off", label: "on/off", style: "power", glyph: GLYPHS.power, x: 502, y: 1044, width: 156, height: 101 },
 ];
 
-export const KEY_BY_NAME = Object.fromEntries(KEYS.map((k) => [k.name, k]));
+export const KEY_BY_NAME: Record<string, CalcKey | undefined> = Object.fromEntries(KEYS.map((k) => [k.name, k]));
