@@ -4,7 +4,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { choiceDialog } from "../../dialogs.js";
-import { download, formatBytes, hex0x, stem } from "../../util.js";
+import { download, formatBytes, hex0x, stem, poll } from "../../util.js";
 import Icon from "../Icon.vue";
 import HexEditor from "../HexEditor.vue";
 import type { HexRegion } from "../HexEditor.vue";
@@ -18,24 +18,23 @@ const regions = ref<HexRegion[]>([]);
 const structures = ref<Reply | null>(null);
 const app = ref<Reply | null>(null);
 const usage = ref<Reply | null>(null);
-let timer = 0;
+let stopPolling = () => {};
 
-function refresh() {
-  const r = quiet({ cmd: "regions" });
+async function refresh() {
+  const r = await quiet({ cmd: "regions" });
   if (r.ok) regions.value = r.regions;
-  const i = quiet({ cmd: "inspect" });
+  const i = await quiet({ cmd: "inspect" });
   if (i.ok) {
     structures.value = i.structures;
     app.value = i.app ?? null;
   }
-  const u = quiet({ cmd: "usage" });
+  const u = await quiet({ cmd: "usage" });
   usage.value = u.ok ? u : null;
 }
 onMounted(() => {
-  refresh();
-  timer = setInterval(refresh, 800);
+  stopPolling = poll(refresh, 800);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => stopPolling());
 watch(() => state.revision, refresh);
 
 const percent = (used: number, total: number) => (total > 0 ? Math.max(0, Math.min(100, Math.round((used / total) * 100))) : 0);
@@ -68,7 +67,7 @@ async function saveState() {
     { title: t("state.save"), accept: t("state.save") },
   );
   if (!chosen) return;
-  const document = emulator.dump(chosen);
+  const document = await emulator.dump(chosen);
   if (document) download(`${stem(state.appName || "nwasabi")}.nds`, JSON.stringify(document), "application/json");
 }
 </script>

@@ -3,7 +3,7 @@ import { useEmu } from "../../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
-import { hex0x } from "../../util.js";
+import { hex0x, poll } from "../../util.js";
 
 const { t, te, n } = useI18n();
 const emulator = useEmu();
@@ -14,7 +14,7 @@ const stdout = ref("");
 const frames = ref(0);
 const prevCpu = ref<Reply | null>(null);
 const changed = ref(new Set<string>());
-let timer = 0;
+let stopPolling = () => {};
 
 // Noms des appels système du noyau d'Epsilon (et des appels privés de nwasabi).
 const NAMES: Record<number, string> = {
@@ -27,13 +27,13 @@ const NAMES: Record<number, string> = {
   137: "exit (nwasabi)",
 };
 
-function refresh() {
-  const s = quiet({ cmd: "svc_stats" });
+async function refresh() {
+  const s = await quiet({ cmd: "svc_stats" });
   if (s.ok) {
     counts.value = [...(s.counts as Array<{ svc: number; calls: number }>)].sort((a, b) => b.calls - a.calls);
     frames.value = s.frames;
   }
-  const c = quiet({ cmd: "cpu" });
+  const c = await quiet({ cmd: "cpu" });
   if (c.ok) {
     const diff = new Set<string>();
     const before = prevCpu.value;
@@ -45,14 +45,13 @@ function refresh() {
     prevCpu.value = c;
     cpu.value = c;
   } else cpu.value = null;
-  const o = quiet({ cmd: "stdout" });
+  const o = await quiet({ cmd: "stdout" });
   if (o.ok) stdout.value = o.text;
 }
 onMounted(() => {
-  refresh();
-  timer = setInterval(refresh, 700);
+  stopPolling = poll(refresh, 700);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => stopPolling());
 
 const flags = computed(() => {
   const x = cpu.value?.xpsr ?? 0;
@@ -64,9 +63,9 @@ const LABELS: Record<string, string> = { r0: "r0–r3", r4: "r4–r11" };
 const ROLES = ["r0", "r4", "r12", "sp", "lr", "pc", "xpsr", "fpscr"];
 const roleKey = (name: string) => (/^r[0-3]$/.test(name) ? "args" : /^r([4-9]|1[01])$/.test(name) ? "saved" : name);
 
-function clearOutput() {
-  call({ cmd: "stdout", clear: true });
-  refresh();
+async function clearOutput() {
+  await call({ cmd: "stdout", clear: true });
+  await refresh();
 }
 async function copyOutput() {
   try {

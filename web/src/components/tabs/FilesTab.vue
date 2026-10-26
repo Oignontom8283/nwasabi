@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { useI18n } from "vue-i18n";
 import { fromBase64, toBase64 } from "@nwasabi/js";
 import { confirmDialog } from "../../dialogs.js";
-import { download, formatBytes, readBytes } from "../../util.js";
+import { download, formatBytes, poll, readBytes } from "../../util.js";
 import ContextMenu from "../ContextMenu.vue";
 import type { MenuItem } from "../ContextMenu.vue";
 import type { Reply } from "@nwasabi/js";
@@ -33,7 +33,6 @@ const message = ref("");
 const menu = ref<{ x: number; y: number; items: MenuItem[] } | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
 const nfsInput = ref<HTMLInputElement | null>(null);
-let timer = 0;
 let lastGeneration = -1;
 
 // L'éditeur : texte d'un script, ou aperçu d'un fichier opaque.
@@ -66,23 +65,23 @@ const current = computed(() => files.value.find((f) => f.name === selected.value
 const paused = computed(() => !state.running);
 const usedPercent = computed(() => (stats.value ? Math.round((stats.value.used / stats.value.total) * 100) : 0));
 
-function refresh(force = false) {
-  const list = quiet({ cmd: "fs_list" });
+async function refresh(force = false) {
+  const list = await quiet({ cmd: "fs_list" });
   if (!list.ok) return;
   if (!force && list.generation === lastGeneration) return;
   lastGeneration = list.generation;
   files.value = list.files;
   corrupt.value = list.corrupt_at;
-  const s = quiet({ cmd: "fs_stats" });
+  const s = await quiet({ cmd: "fs_stats" });
   stats.value = s.ok ? s : null;
   if (selected.value && !(list.files as FsFile[]).some((f) => f.name === selected.value)) closeEditor();
   marked.value = new Set([...marked.value].filter((name) => (list.files as FsFile[]).some((f) => f.name === name)));
 }
 
-function fail(reply: Reply) {
+async function fail(reply: Reply): Promise<boolean> {
   message.value = reply.ok ? "" : (reply.error ?? "");
   state.error = "";
-  refresh(true);
+  await refresh(true);
   return reply.ok;
 }
 
@@ -98,12 +97,12 @@ async function select(file: FsFile) {
   if (dirty.value && !(await confirmDialog(t("files.discard"), { accept: t("files.discardAccept") }))) return;
   selected.value = file.name;
   if (file.kind === "python") {
-    const src = call({ cmd: "fs_read", name: file.name, python: true });
+    const src = await call({ cmd: "fs_read", name: file.name, python: true });
     text.value = original.value = src.text ?? "";
     autoImport.value = originalAuto.value = !!src.auto_import;
   } else {
     text.value = original.value = "";
-    const reply = call({ cmd: "fs_read", name: file.name });
+    const reply = await call({ cmd: "fs_read", name: file.name });
     const bytes = reply.ok ? fromBase64(reply.base64) : new Uint8Array();
     buffer.value = bytes;
     originalBuffer.value = bytes.slice();
@@ -111,13 +110,13 @@ async function select(file: FsFile) {
   }
 }
 
-function save() {
+async function save() {
   if (!current.value) return;
   if (!isText.value) {
-    if (fail(call({ cmd: "fs_write", name: selected.value, base64: toBase64(buffer.value) }))) originalBuffer.value = buffer.value.slice();
+    if (await fail(await call({ cmd: "fs_write", name: selected.value, base64: toBase64(buffer.value) }))) originalBuffer.value = buffer.value.slice();
     return;
   }
-  if (fail(call({ cmd: "fs_write", name: selected.value, python: true, text: text.value, auto_import: autoImport.value }))) {
+  if (await fail(await call({ cmd: "fs_write", name: selected.value, python: true, text: text.value, auto_import: autoImport.value }))) {
     original.value = text.value;
     originalAuto.value = autoImport.value;
   }
@@ -150,7 +149,7 @@ function focusName(target: unknown) {
   });
 }
 
-function endEdit(commit: boolean) {
+async function endEdit(commit: boolean) {
   const edit = editing.value;
   if (!edit) return;
   editing.value = null;
@@ -162,8 +161,8 @@ function endEdit(commit: boolean) {
     const request = python
       ? { cmd: "fs_write", name, python: true, text: "", auto_import: false }
       : { cmd: "fs_write", name, text: "" };
-    if (fail(call(request))) select({ name, kind: python ? "python" : "other", size: 0 });
-  } else if (fail(call({ cmd: "fs_rename", from: edit.name, to: name })) && selected.value === edit.name) {
+    if (await fail(await call(request))) select({ name, kind: python ? "python" : "other", size: 0 });
+  } else if ((await fail(await call({ cmd: "fs_rename", from: edit.name, to: name }))) && selected.value === edit.name) {
     selected.value = name;
   }
 }
@@ -192,7 +191,7 @@ async function remove(list: FsFile[], skipConfirm = false) {
   const question = list.length === 1 ? t("files.confirmDelete", { name: list[0]?.name ?? "" }) : t("files.confirmDeleteMany", { n: list.length });
   if (!skipConfirm && !(await confirmDialog(question, { danger: true, accept: t("files.delete") }))) return;
   for (const file of list) {
-    if (fail(call({ cmd: "fs_remove", name: file.name })) && selected.value === file.name) closeEditor();
+    if ((await fail(await call({ cmd: "fs_remove", name: file.name }))) && selected.value === file.name) closeEditor();
   }
 }
 
@@ -257,22 +256,22 @@ async function copy(text: string) {
   }
 }
 
-function downloadFile(file: FsFile) {
-  const reply = call({ cmd: "fs_read", name: file.name });
+async function downloadFile(file: FsFile) {
+  const reply = await call({ cmd: "fs_read", name: file.name });
   if (reply.ok) download(file.name, fromBase64(reply.base64) as Uint8Array<ArrayBuffer>);
 }
 
 async function importFiles(event: Event) {
   const input = event.target as HTMLInputElement;
   for (const file of input.files ?? []) {
-    fail(call({ cmd: "fs_write", name: file.name, base64: toBase64(await readBytes(file)) }));
+    await fail(await call({ cmd: "fs_write", name: file.name, base64: toBase64(await readBytes(file)) }));
   }
   input.value = "";
 }
 
-function exportNfs() {
-  const reply = call({ cmd: "fs_export" });
-  if (fail(reply)) download("files.nfs", JSON.stringify(reply.nfs, null, 1), "application/json");
+async function exportNfs() {
+  const reply = await call({ cmd: "fs_export" });
+  if (await fail(reply)) download("files.nfs", JSON.stringify(reply.nfs, null, 1), "application/json");
 }
 
 async function importNfs(event: Event) {
@@ -288,7 +287,7 @@ async function importNfs(event: Event) {
     return;
   }
   const replace = await confirmDialog(t("files.importMode", { name: file.name }), { accept: t("files.replaceAll"), title: t("files.importNfs") });
-  if (fail(call({ cmd: "fs_import", nfs: document, replace }))) emulator.bump();
+  if (await fail(await call({ cmd: "fs_import", nfs: document, replace }))) await emulator.bump();
 }
 
 function openMenu(event: { preventDefault(): void; clientX: number; clientY: number }, file: FsFile) {
@@ -327,12 +326,12 @@ function rowKey(event: KeyboardEvent, file: FsFile, index: number) {
 
 const ICON = (f: FsFile) => (f.kind === "python" ? "python" : f.kind === "system" ? "gear" : "file");
 
+let stopPolling = () => {};
 onMounted(() => {
-  refresh(true);
   // L'application modifie le stockage en direct : on interroge la « génération » régulièrement.
-  timer = setInterval(() => refresh(), 400);
+  stopPolling = poll(() => refresh(), 400);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => stopPolling());
 watch(() => state.revision, () => refresh(true));
 </script>
 
@@ -445,7 +444,7 @@ watch(() => state.revision, () => refresh(true));
 .row .type, .row .size { font-size: 12px; }
 .r { text-align: right; }
 .ico { display: inline-flex; color: var(--muted); }
-.empty { margin: 0; padding: 18px; text-align: center; }
+.empty { margin: 0; padding: 18px; text-align: center; pointer-events: none; }
 .status { display: flex; align-items: center; gap: 10px; padding: 3px 10px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 12px; }
 .bar { width: 80px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; flex: none; }
 .bar div { height: 100%; background: var(--accent); }

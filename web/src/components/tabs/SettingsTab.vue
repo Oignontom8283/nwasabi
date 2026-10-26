@@ -21,20 +21,20 @@ const NUMBERS: Array<[string, number, number]> = [
   ["compilation_flags", 0, 65535], ["last_reset_type", 0, 1],
 ];
 
-function load() {
-  const r = quiet({ cmd: "settings_get" });
+async function load() {
+  const r = await quiet({ cmd: "settings_get" });
   if (!r.ok) return;
   Object.assign(values, r, {
     battery_level: r.battery.level, battery_voltage: r.battery.voltage, battery_charging: r.battery.charging,
   });
 }
 
-function set(name: string, value: unknown) {
-  const r = call({ cmd: "settings_set", name, value });
+async function set(name: string, value: unknown) {
+  const r = await call({ cmd: "settings_set", name, value });
   message.value = r.ok ? "" : `${t(`settings.fields.${name}`)} : ${r.error}`;
   if (r.ok) state.error = "";
-  load();
-  emulator.bump();
+  await load();
+  await emulator.bump();
 }
 
 const setBattery = () => set("battery", { level: Number(values.battery_level), voltage: Number(values.battery_voltage), charging: !!values.battery_charging });
@@ -45,7 +45,7 @@ async function toggleKeeping(event: Event) {
 }
 
 async function clearStored() {
-  if (await confirmDialog(t("settings.keep.confirmClear"), { danger: true, accept: t("settings.keep.clear"), title: t("settings.keep.clear") })) clearKept();
+  if (await confirmDialog(t("settings.keep.confirmClear"), { danger: true, accept: t("settings.keep.clear"), title: t("settings.keep.clear") })) await clearKept();
 }
 
 onMounted(() => {
