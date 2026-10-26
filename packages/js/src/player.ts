@@ -16,6 +16,18 @@ export type Model = "n0110" | "n0115" | "n0120";
 /** Disposition du firmware : `"24"` (appareils relevés, Epsilon 23–24) ou `"26.4.0"`. */
 export type Firmware = "24" | "26.4.0";
 
+/**
+ * Vitesse du processeur émulé :
+ * - `"model"` : la fréquence du modèle (192 MHz sur N0110 et N0115, 540 MHz sur N0120) ;
+ * - `"custom"` : la fréquence `customMhz` ;
+ * - `"max"` : aucune limite, l'application s'exécute au plus vite (elle reste rythmée par les images
+ *   de l'écran : 60 par seconde).
+ */
+export type SpeedMode = "model" | "custom" | "max";
+
+/** Fréquence personnalisée de départ, en MHz : celle du N0110. */
+export const DEFAULT_CUSTOM_MHZ = 192;
+
 /** Pourquoi l'exécution s'est arrêtée la dernière fois (champ `stop` de la réponse `run`). */
 export interface StopInfo {
   kind: string;
@@ -28,6 +40,12 @@ export interface PlayerState {
   running: boolean;
   model: Model;
   firmware: Firmware;
+  /** Vitesse du processeur (voir `SpeedMode`). */
+  speed: SpeedMode;
+  /** Fréquence en MHz du mode `"custom"` ; ignorée dans les autres modes. */
+  customMhz: number;
+  /** Fréquence appliquée en ce moment, en MHz ; `null` quand la vitesse n'est pas limitée. Donnée par le module. */
+  limitMhz: number | null;
   appName: string;
   stop: StopInfo | null;
   frames: number;
@@ -102,6 +120,10 @@ export interface PlayerOptions {
   onFrame?: (frame: Frame) => void;
   /** État à utiliser (par exemple un objet réactif) ; sinon un objet ordinaire. */
   state?: PlayerState;
+  /** Vitesse du processeur au départ (défaut : `"model"`). */
+  speed?: SpeedMode;
+  /** Fréquence du mode `"custom"` au départ, en MHz (défaut : `DEFAULT_CUSTOM_MHZ`). */
+  customMhz?: number;
   /** Instructions au plus par image du navigateur (défaut : 2 millions). */
   slice?: number;
   /**
@@ -119,6 +141,8 @@ const FRAME_MS = 1000 / 60;
 const DEFAULT_MAX_ELAPSED_MS = 250;
 /** Garde-fou : nombre maximal d'exécutions successives dans une même image du navigateur. */
 const MAX_RUNS_PER_TICK = 1000;
+/** Temps réel au plus passé à exécuter l'application dans une image du navigateur (ms), pour ne pas figer la page. */
+const MAX_SPEED_WALL_MS = 12;
 
 /** Instructions au plus par image du navigateur (au-delà, on rend la main pour ne pas figer la page). */
 const DEFAULT_SLICE = 2_000_000;
@@ -149,6 +173,9 @@ export class Player {
       running: false,
       model: "n0110",
       firmware: "24",
+      speed: "model",
+      customMhz: DEFAULT_CUSTOM_MHZ,
+      limitMhz: null,
       appName: "",
       stop: null,
       frames: 0,
@@ -165,6 +192,8 @@ export class Player {
     this.state = options.state ?? Player.initialState();
     this.scheduler = options.scheduler ?? defaultScheduler();
     if (options.onFrame) this.listeners.add(options.onFrame);
+    if (options.speed) this.state.speed = options.speed;
+    if (options.customMhz !== undefined) this.state.customMhz = options.customMhz;
     this.slice = options.slice ?? DEFAULT_SLICE;
     this.maxElapsedMs = options.maxElapsedMs ?? DEFAULT_MAX_ELAPSED_MS;
   }
@@ -172,13 +201,52 @@ export class Player {
   /** Charge le module WebAssembly (à fournir, voir `Nwasabi.load`) et crée un appareil vide. */
   static async create(wasm: WasmSource, options: PlayerOptions = {}): Promise<Player> {
     const player = new Player(await Nwasabi.load(wasm), options);
-    player.nwasabi.call({
-      cmd: "new",
-      model: player.state.model,
-      firmware: player.state.firmware,
-      clock: "host",
-    });
+    player.newDevice();
     return player;
+  }
+
+  /** Les champs de vitesse à joindre aux requêtes qui créent l'appareil. */
+  private speedFields(): { speed: SpeedMode; mhz: number } {
+    return { speed: this.state.speed, mhz: this.state.customMhz };
+  }
+
+  /** Retient la fréquence appliquée que le module annonce dans sa réponse. */
+  private readSpeed(reply: Reply): void {
+    if (reply.ok && "limit_mhz" in reply) this.state.limitMhz = (reply.limit_mhz as number | null) ?? null;
+  }
+
+  /** Crée un appareil vide du modèle et de la vitesse choisis. */
+  private newDevice(): Reply {
+    const reply = this.nwasabi.request({
+      cmd: "new",
+      model: this.state.model,
+      firmware: this.state.firmware,
+      clock: "host",
+      ...this.speedFields(),
+    });
+    this.readSpeed(reply);
+    return reply;
+  }
+
+  /** Choisit la vitesse du processeur ; elle s'applique tout de suite, sans relancer l'application. */
+  setSpeed(speed: SpeedMode): void {
+    const previous = this.state.speed;
+    this.state.speed = speed;
+    if (!this.pushSpeed()) this.state.speed = previous;
+  }
+
+  /** Change la fréquence du mode `"custom"` (en MHz) ; sans effet tant qu'un autre mode est choisi. Une valeur refusée par le module (hors de 1 à 100 000) est ignorée. */
+  setCustomMhz(mhz: number): void {
+    const previous = this.state.customMhz;
+    this.state.customMhz = mhz;
+    if (!this.pushSpeed()) this.state.customMhz = previous;
+  }
+
+  private pushSpeed(): boolean {
+    const reply = this.nwasabi.request({ cmd: "speed", ...this.speedFields() });
+    if (reply.ok) this.readSpeed(reply);
+    else this.state.error = reply.error ?? "vitesse refusée";
+    return reply.ok;
   }
 
   /** Envoie une requête au module ; les erreurs sont gardées dans `state.error`. */
@@ -276,6 +344,7 @@ export class Player {
       model: state.model,
       firmware: state.firmware,
       clock: "host", // le temps de l'application est celui que ce lecteur lui donne, jamais plus
+      ...this.speedFields(),
       nwa_base64: toBase64(this.nwa),
     };
     if (this.data) request.data_base64 = toBase64(this.data);
@@ -286,6 +355,7 @@ export class Player {
       reply = this.call({ ...request, data_base64: "" });
     }
     state.loaded = reply.ok;
+    this.readSpeed(reply);
     this.draw();
     this.bump();
     if (reply.ok) this.start();
@@ -299,7 +369,7 @@ export class Player {
     if (this.nwa) {
       this.restart();
     } else {
-      this.call({ cmd: "new", model, firmware, clock: "host" });
+      this.newDevice();
       this.bump();
     }
   }
@@ -337,8 +407,17 @@ export class Player {
     }
     let budget = Math.max(0, Math.min(now - this.last, this.maxElapsedMs));
     this.last = now;
+    const mhz = state.limitMhz;
+    const wallStart = this.scheduler.now();
     for (let runs = 0; runs < MAX_RUNS_PER_TICK && state.running; runs++) {
-      const reply = this.call({ cmd: "run", instructions: this.slice, frames: 1 });
+      // Avec une fréquence, l'application ne peut exécuter que ce que le processeur fait pendant le temps
+      // qui lui reste (MHz × microsecondes) ; sans limite, ce qu'une tranche permet.
+      const room = mhz === null ? Infinity : Math.floor(mhz * budget * 1000);
+      if (room < 1) {
+        this.advance(budget);
+        break;
+      }
+      const reply = this.call({ cmd: "run", instructions: Math.min(this.slice, room), frames: 1 });
       if (!reply.ok) return this.stop();
       for (const name of this.pressed) this.sampled.add(name);
       for (const name of [...this.deferred]) {
@@ -347,8 +426,15 @@ export class Player {
       }
       const stop = reply.stop as StopInfo;
       state.stop = stop;
-      state.instructions += reply.instructions as number;
+      const executed = reply.instructions as number;
+      state.instructions += executed;
       state.frames += reply.frames as number;
+      // Le temps que le processeur a mis à exécuter ces instructions passe pour l'application.
+      if (mhz !== null && executed > 0) {
+        const spent = Math.min(budget, executed / (mhz * 1000));
+        this.advance(spent);
+        budget -= spent;
+      }
       if (stop.kind === "sleep") {
         // L'application dort : le temps passe pour elle, dans la limite du budget.
         const wanted = (stop.ms as number) ?? 0;
@@ -357,6 +443,11 @@ export class Player {
         budget -= step;
         if (budget > 0) continue;
         break;
+      }
+      // Une application occupée sans fin d'image continue tant qu'il lui reste du temps de processeur (ou
+      // sans limite de vitesse) et qu'on ne fige pas la page.
+      if (stop.kind === "budget" && (mhz === null || budget > 0) && this.scheduler.now() - wallStart < MAX_SPEED_WALL_MS) {
+        continue;
       }
       this.advance(budget);
       budget = 0;

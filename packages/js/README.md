@@ -35,6 +35,26 @@ const player = await Player.create(readFileSync("nwasabi.wasm"), {
 player.load(readFileSync("app.nwa"), "app.nwa");
 ```
 
+## Vitesse du processeur
+
+Par défaut, l'application s'exécute à la fréquence du modèle émulé (192 MHz sur N0110 et N0115, 540 MHz
+sur N0120). Trois modes, que l'on peut changer à tout moment sans relancer l'application :
+
+```ts
+player.setSpeed("custom"); // "model" (défaut), "custom" ou "max"
+player.setCustomMhz(96);   // la fréquence du mode "custom", en MHz (192 au départ, celle du N0110)
+```
+
+- `"model"` : la fréquence du modèle ;
+- `"custom"` : la fréquence donnée par `setCustomMhz` ; elle est **ignorée** dans les autres modes ;
+- `"max"` : aucune limite, l'application s'exécute au plus vite (elle reste rythmée par les 60 images
+  par seconde de l'écran).
+
+Le mode et la fréquence peuvent aussi être donnés à la création (`Player.create(wasm, { speed: "custom",
+customMhz: 96 })`). `player.state.limitMhz` donne la fréquence appliquée en ce moment (`null` sans limite).
+Ce que l'application exécute vraiment par seconde ne peut pas dépasser ce que l'ordinateur sait faire :
+une fréquence très élevée n'est atteinte que si la machine est assez puissante.
+
 Documentation, code source et suivi des problèmes : <https://github.com/Oignontom8283/nwasabi>.
 
 ## Licence

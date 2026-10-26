@@ -50,7 +50,7 @@ pub enum KernelStop {
 /// D'où vient le temps que voit l'application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ClockMode {
-    /// Temps virtuel et déterministe : il avance avec les instructions exécutées (`cycles_per_us`) et
+    /// Temps virtuel et déterministe : il avance avec les instructions exécutées (la fréquence du processeur) et
     /// par les attentes de l'application (`msleep`, image). C'est le mode des tests et de la ligne de
     /// commande : même exécution, même résultat, sans jamais attendre.
     #[default]
@@ -62,15 +62,34 @@ pub enum ClockMode {
     Host,
 }
 
+/// Vitesse du processeur émulé.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CpuSpeed {
+    /// La fréquence du modèle émulé (192 MHz sur N0110 et N0115, 540 MHz sur N0120).
+    #[default]
+    Model,
+    /// La fréquence choisie par [`KernelConfig::custom_mhz`].
+    Custom,
+    /// Aucune limite : l'hôte exécute l'application au plus vite. Le temps virtuel (horloge
+    /// [`ClockMode::Virtual`]) continue de suivre la fréquence du modèle.
+    Max,
+}
+
+/// Fréquence personnalisée par défaut : celle du N0110.
+pub const DEFAULT_CUSTOM_MHZ: u32 = 192;
+
 /// Réglages du noyau simulé.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KernelConfig {
     /// Origine du temps (voir [`ClockMode`]).
     pub clock: ClockMode,
-    /// Cycles du processeur par microseconde : relie les instructions exécutées au temps virtuel.
-    /// 0 : la fréquence du modèle (192 MHz sur N0110 et N0115, 540 MHz sur N0120).
-    pub cycles_per_us: u32,
-    /// Un appel système inconnu arrête l'application. Sinon il renvoie 0 et on continue.
+    /// Vitesse du processeur : elle relie les instructions exécutées au temps virtuel, et c'est elle
+    /// que l'hôte applique pour limiter ce qu'une application exécute par seconde réelle.
+    pub speed: CpuSpeed,
+    /// Fréquence en MHz utilisée quand `speed` vaut [`CpuSpeed::Custom`] ; ignorée sinon. Elle vaut
+    /// au départ [`DEFAULT_CUSTOM_MHZ`] et peut être changée à tout moment.
+    pub custom_mhz: u32,
+    /// Un appel système inconnu arrête l'application. Sinon il ne change rien et on continue.
     pub strict_svc: bool,
     /// `write` (sortie standard du C) dessine aussi le texte en haut de l'écran, comme l'appareil.
     pub stdout_to_screen: bool,
@@ -82,7 +101,8 @@ impl Default for KernelConfig {
     fn default() -> Self {
         Self {
             clock: ClockMode::Virtual,
-            cycles_per_us: 0,
+            speed: CpuSpeed::Model,
+            custom_mhz: DEFAULT_CUSTOM_MHZ,
             strict_svc: true,
             stdout_to_screen: true,
             random_seed: 0x1234_5678,
@@ -180,10 +200,7 @@ const REPEAT_NEXT_MS: u64 = 50;
 const MAX_STDOUT: usize = 1 << 20;
 
 impl Kernel {
-    pub fn new(mut config: KernelConfig, status: DeviceStatus) -> Self {
-        if config.cycles_per_us == 0 {
-            config.cycles_per_us = status.cpu_mhz;
-        }
+    pub fn new(config: KernelConfig, status: DeviceStatus) -> Self {
         Self {
             display: Display::new(),
             keyboard: Keyboard::new(),
@@ -216,13 +233,26 @@ impl Kernel {
         self.brk
     }
 
+    /// Cycles du processeur par microseconde, c'est-à-dire sa fréquence en MHz, d'après la vitesse
+    /// choisie (au moins 1). Pour [`CpuSpeed::Max`], la fréquence du modèle.
+    pub fn cycles_per_us(&self) -> u32 {
+        match self.config.speed {
+            CpuSpeed::Custom => self.config.custom_mhz,
+            CpuSpeed::Model | CpuSpeed::Max => self.status.cpu_mhz,
+        }
+        .max(1)
+    }
+
+    /// La fréquence que l'hôte doit appliquer en MHz, ou `None` si la vitesse n'est pas limitée.
+    pub fn limit_mhz(&self) -> Option<u32> {
+        (self.config.speed != CpuSpeed::Max).then(|| self.cycles_per_us())
+    }
+
     /// Temps écoulé depuis le démarrage, en microsecondes, pour `cycles` cycles de processeur déjà
     /// exécutés. Avec l'horloge de l'hôte, les instructions n'y comptent pour rien.
     pub fn micros(&self, cycles: u64) -> u64 {
         match self.config.clock {
-            ClockMode::Virtual => {
-                cycles / u64::from(self.config.cycles_per_us.max(1)) + self.extra_us
-            }
+            ClockMode::Virtual => cycles / u64::from(self.cycles_per_us()) + self.extra_us,
             ClockMode::Host => self.extra_us,
         }
     }

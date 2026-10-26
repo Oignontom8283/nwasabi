@@ -76,7 +76,7 @@ fn vblank_aligns_time_on_the_next_frame_and_counts_it() {
 }
 
 #[test]
-fn the_clock_frequency_depends_on_the_model_unless_set() {
+fn the_cpu_speed_follows_the_model_by_default() {
     use crate::profile::{FirmwareProfile, Model};
     for (model, mhz) in [
         (Model::N0110, 192),
@@ -86,14 +86,47 @@ fn the_clock_frequency_depends_on_the_model_unless_set() {
         let emu =
             Emulator::with_profile(FirmwareProfile::default_for(model), KernelConfig::default())
                 .unwrap();
-        assert_eq!(emu.kernel.config.cycles_per_us, mhz, "{model:?}");
+        assert_eq!(emu.kernel.cycles_per_us(), mhz, "{model:?}");
+        assert_eq!(emu.kernel.limit_mhz(), Some(mhz));
     }
-    let config = KernelConfig {
-        cycles_per_us: 100,
-        ..KernelConfig::default()
+}
+
+#[test]
+fn a_custom_frequency_only_counts_in_custom_mode() {
+    use crate::kernel::CpuSpeed;
+    use crate::profile::{FirmwareProfile, Model};
+    let build = |speed| {
+        let config = KernelConfig {
+            speed,
+            custom_mhz: 100,
+            ..KernelConfig::default()
+        };
+        Emulator::with_profile(FirmwareProfile::default_for(Model::N0120), config).unwrap()
     };
-    let emu = Emulator::with_profile(FirmwareProfile::default_for(Model::N0120), config).unwrap();
-    assert_eq!(emu.kernel.config.cycles_per_us, 100);
+    // La fréquence choisie est ignorée hors du mode personnalisé.
+    assert_eq!(build(CpuSpeed::Model).kernel.cycles_per_us(), 540);
+    assert_eq!(build(CpuSpeed::Custom).kernel.cycles_per_us(), 100);
+    assert_eq!(build(CpuSpeed::Custom).kernel.limit_mhz(), Some(100));
+    // Sans limite : pas de fréquence à appliquer, et le temps virtuel garde celle du modèle.
+    let max = build(CpuSpeed::Max);
+    assert_eq!(max.kernel.limit_mhz(), None);
+    assert_eq!(max.kernel.cycles_per_us(), 540);
+    // La fréquence par défaut est celle du N0110.
+    assert_eq!(KernelConfig::default().custom_mhz, 192);
+}
+
+#[test]
+fn virtual_time_follows_the_custom_frequency() {
+    use crate::kernel::CpuSpeed;
+    let (mut emu, mut cpu) = setup();
+    emu.kernel.config.speed = CpuSpeed::Custom;
+    emu.kernel.config.custom_mhz = 10;
+    cpu.cycles = 10_000 * 7; // 7 ms à 10 cycles par microseconde
+    call(&mut emu, &mut cpu, 48, &[]);
+    assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (7, 0));
+    // Une fréquence nulle est ramenée à 1 MHz plutôt que de diviser par zéro.
+    emu.kernel.config.custom_mhz = 0;
+    assert_eq!(emu.kernel.cycles_per_us(), 1);
 }
 
 #[test]

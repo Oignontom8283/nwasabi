@@ -24,7 +24,7 @@ use crate::emulator::{Emulator, RunStop};
 use crate::inspect::read_structures;
 use crate::json::{self, Value, ValueExt};
 use crate::kernel::Key;
-use crate::kernel::{ClockMode, KernelConfig};
+use crate::kernel::{ClockMode, CpuSpeed, Kernel, KernelConfig};
 use crate::memory::WatchKind;
 use crate::profile::{FirmwareProfile, Model, Slot};
 use crate::storage::PythonSource;
@@ -75,8 +75,12 @@ fn profile_of(req: &Value, model: Model) -> Result<FirmwareProfile, String> {
     }
 }
 
+/// Fréquence personnalisée maximale acceptée, en MHz (une valeur absurde est une erreur de frappe).
+const MAX_CUSTOM_MHZ: u32 = 100_000;
+
 /// Réglages du noyau demandés par `clock` : `"virtual"` (défaut, déterministe) ou `"host"` (le temps
-/// n'avance que par la commande `advance`, que l'hôte appelle avec le temps réellement écoulé).
+/// n'avance que par la commande `advance`, que l'hôte appelle avec le temps réellement écoulé), et
+/// par `speed` / `mhz` (voir [`apply_speed`]).
 fn config_of(req: &Value) -> Result<KernelConfig, String> {
     let clock = match req
         .get("clock")
@@ -87,10 +91,49 @@ fn config_of(req: &Value) -> Result<KernelConfig, String> {
         "host" => ClockMode::Host,
         other => return Err(format!("horloge inconnue : {other} (virtual ou host)")),
     };
-    Ok(KernelConfig {
+    let mut config = KernelConfig {
         clock,
         ..KernelConfig::default()
-    })
+    };
+    apply_speed(req, &mut config)?;
+    Ok(config)
+}
+
+/// Applique à `config` les champs `speed` (`"model"`, `"custom"` ou `"max"`) et `mhz` (la fréquence
+/// personnalisée, ignorée hors du mode `"custom"`) de la requête ; un champ absent ne change rien.
+fn apply_speed(req: &Value, config: &mut KernelConfig) -> Result<(), String> {
+    if let Some(value) = req.get("speed") {
+        config.speed = match value.as_str() {
+            Some("model") => CpuSpeed::Model,
+            Some("custom") => CpuSpeed::Custom,
+            Some("max") => CpuSpeed::Max,
+            _ => return Err("vitesse inconnue : model, custom ou max".to_owned()),
+        };
+    }
+    if req.get("mhz").is_some() {
+        let mhz = number(req, "mhz")?;
+        if !(1..=MAX_CUSTOM_MHZ).contains(&mhz) {
+            return Err(format!("« mhz » doit être entre 1 et {MAX_CUSTOM_MHZ}"));
+        }
+        config.custom_mhz = mhz;
+    }
+    Ok(())
+}
+
+/// Ajoute à une réponse la vitesse du processeur : `speed` (le mode), `mhz` (la fréquence
+/// personnalisée), `cpu_mhz` (la fréquence du temps virtuel) et `limit_mhz` (celle que l'hôte doit
+/// appliquer, `null` quand la vitesse n'est pas limitée).
+fn with_speed(value: Value, kernel: &Kernel) -> Value {
+    let name = match kernel.config.speed {
+        CpuSpeed::Model => "model",
+        CpuSpeed::Custom => "custom",
+        CpuSpeed::Max => "max",
+    };
+    value
+        .with("speed", name)
+        .with("mhz", kernel.config.custom_mhz)
+        .with("cpu_mhz", kernel.cycles_per_us())
+        .with("limit_mhz", kernel.limit_mhz())
 }
 
 fn key_of(req: &Value) -> Result<Key, String> {
@@ -159,6 +202,7 @@ impl Session {
                     "run",
                     "key",
                     "advance",
+                    "speed",
                     "time",
                     "screen",
                     "stdout",
@@ -200,6 +244,12 @@ impl Session {
                 };
                 self.emu()?.kernel.advance_time(us);
                 Ok(Value::object().with("time_ms", self.time_ms()?))
+            }
+            "speed" => {
+                // Change la vitesse du processeur (et/ou la fréquence personnalisée) ; sans champ, la rend.
+                let emu = self.emu()?;
+                apply_speed(req, &mut emu.kernel.config)?;
+                Ok(with_speed(Value::object(), &emu.kernel))
             }
             "time" => {
                 // Temps de simulation depuis le début : celui de l'application, lisible à tout moment.
@@ -354,9 +404,10 @@ impl Session {
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
         let profile = profile_of(req, model)?;
         let emu = Emulator::with_profile(profile, config_of(req)?).map_err(|e| e.to_string())?;
+        let reply = with_speed(Value::object().with("model", model.name()), &emu.kernel);
         self.emu = Some(emu);
         self.frames = 0;
-        Ok(Value::object().with("model", model.name()))
+        Ok(reply)
     }
 
     fn load(&mut self, req: &Value) -> Reply {
@@ -372,11 +423,15 @@ impl Session {
         emu.install_nwa(&nwa, data.as_deref())
             .map_err(|e| e.to_string())?;
         let info = views::app(emu.app().expect("application installée"));
+        let reply = with_speed(
+            Value::object()
+                .with("model", model.name())
+                .with("app", info),
+            &emu.kernel,
+        );
         self.emu = Some(emu);
         self.frames = 0;
-        Ok(Value::object()
-            .with("model", model.name())
-            .with("app", info))
+        Ok(reply)
     }
 
     /// Exécute jusqu'à un arrêt qui demande l'hôte, `frames` images ou `instructions` instructions.

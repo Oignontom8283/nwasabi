@@ -39,6 +39,8 @@ export function useEmulator() {
     load: through("load"),
     restart: through("restart"),
     changeModel: through("changeModel"),
+    setSpeed: through("setSpeed"),
+    setCustomMhz: through("setCustomMhz"),
     start: through("start"),
     stop: through("stop"),
     key: through("key"),

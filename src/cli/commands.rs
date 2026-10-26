@@ -48,10 +48,14 @@ fn call(session: &mut Session, request: Value) -> Result<Value, String> {
 
 /// Requête `new` ou `load` pour l'appareil demandé.
 fn device_request(command: &str, device: &DeviceOpts) -> Value {
-    Value::object()
+    let request = Value::object()
         .with("cmd", command)
         .with("model", device.model.as_str())
-        .with("firmware", device.firmware.as_str())
+        .with("firmware", device.firmware.as_str());
+    match device.mhz {
+        Some(mhz) => request.with("speed", "custom").with("mhz", mhz),
+        None => request,
+    }
 }
 
 fn load_request(device: &DeviceOpts, nwa: &[u8]) -> Result<Value, String> {
