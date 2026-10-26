@@ -18,8 +18,8 @@
     "dist",
     "nwasabi.wasm",
     "README.md",
-    "LICENSE-MIT",
-    "LICENSE-APACHE"
+    "./LICENSE/MIT",
+    "./LICENSE/APACHE"
   ],
   "sideEffects": false,
   "keywords": ["numworks", "emulator", "webassembly", "wasm", "nwa", "epsilon"],
