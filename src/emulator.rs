@@ -110,6 +110,15 @@ pub struct Emulator {
     pub kernel: Kernel,
     storage: Storage,
     app: Option<LinkedApp>,
+    /// Les octets donnés à [`Emulator::install_nwa`] (pour enregistrer l'état, voir `snapshot`).
+    source: Option<AppSource>,
+}
+
+/// Le fichier `.nwa` installé et ses données externes, tels que donnés.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppSource {
+    pub nwa: Vec<u8>,
+    pub data: Option<Vec<u8>>,
 }
 
 impl Emulator {
@@ -131,6 +140,7 @@ impl Emulator {
             kernel: Kernel::new(config, status),
             storage,
             app: None,
+            source: None,
         })
     }
 
@@ -145,6 +155,10 @@ impl Emulator {
         let app = link(nwa, external_data, &layout, &LinkOptions::default())?;
         self.device.install(&app)?;
         self.app = Some(app);
+        self.source = Some(AppSource {
+            nwa: nwa.to_vec(),
+            data: external_data.map(<[u8]>::to_vec),
+        });
         self.launch()
     }
 
@@ -160,6 +174,16 @@ impl Emulator {
             device: &mut self.device,
             status: &mut self.kernel.status,
         }
+    }
+
+    /// Le `.nwa` (et ses données externes) installé en dernier, tel que donné.
+    pub fn app_source(&self) -> Option<&AppSource> {
+        self.source.as_ref()
+    }
+
+    /// Plage `[début, fin)` du tampon des fichiers en RAM.
+    pub fn storage_range(&self) -> (u32, u32) {
+        self.storage.range()
     }
 
     /// L'application installée en dernier.

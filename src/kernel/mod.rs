@@ -11,6 +11,7 @@ pub mod display;
 pub mod event_text;
 pub mod font;
 pub mod keyboard;
+mod state;
 mod svc;
 #[cfg(test)]
 mod tests;
