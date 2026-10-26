@@ -63,6 +63,24 @@ fn copy_site_sources(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Vide `dir` en gardant `node_modules` (qui coûte cher à reconstruire) ; sans effet si `dir` n'existe pas.
+fn clean_except_node_modules(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name() == "node_modules" {
+            continue;
+        }
+        let path = entry.path();
+        let _ = if path.is_dir() {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+    }
+}
+
 fn build_wasm(manifest: &Path, out: &Path) -> Result<PathBuf, String> {
     run(
         Command::new("rustup").args(["target", "add", WASM_TARGET]),
@@ -133,9 +151,15 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
     write_site_workspace(&manifest.join("package.json"), &work.join("package.json"))?;
     // Le site n'utilise que @nwasabi/js : les autres workspaces (documentation, paquet @nwasabi/wasm)
     // ne sont pas dans le paquet publié sur crates.io et ne sont pas nécessaires.
+    // La copie précédente peut contenir des fichiers qui n'existent plus dans les sources (renommés, supprimés) :
+    // elle serait bâtie avec eux. On repart donc de sources propres, en gardant `node_modules`.
     for dir in SITE_WORKSPACES {
+        clean_except_node_modules(&work.join(dir));
         copy_site_sources(&manifest.join(dir), &work.join(dir))?;
     }
+    let _ = fs::remove_dir_all(work.join("assets"));
+    // Les icônes de l'interface (`web/src/components/Icon.vue` les lit à cet emplacement relatif).
+    copy_site_sources(&manifest.join("assets/icons"), &work.join("assets/icons"))?;
     if !work.join("node_modules").exists() {
         run(
             npm()
@@ -176,6 +200,13 @@ fn placeholder(dist: &Path) -> Result<(), String> {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=NWASABI_NO_WEB");
+    // Texte de la fenêtre « i » du site (voir `web/vite.config.ts`) : le changer refait le site.
+    for name in ["NWASABI_INFO", "NWASABI_INFO_FILE", "NWASABI_INFO_TITLE"] {
+        println!("cargo:rerun-if-env-changed={name}");
+    }
+    if let Ok(path) = std::env::var("NWASABI_INFO_FILE") {
+        println!("cargo:rerun-if-changed={path}");
+    }
     // Sans la feature `serve` (CLI, WebAssembly, tests du cœur) il n'y a rien à construire.
     if env::var_os("CARGO_FEATURE_SERVE").is_none() {
         println!(
@@ -194,7 +225,9 @@ fn main() {
         "src",
         "web/src",
         "web/index.html",
-        "web/vite.config.js",
+        "web/vite.config.ts",
+        "web/tsconfig.json",
+        "assets/icons",
         "web/package.json",
         "packages/js/src",
         "packages/js/package.json",
