@@ -105,3 +105,19 @@ export function poll(task: () => Promise<void> | void, ms: number): () => void {
   const timer = setInterval(run, ms);
   return () => clearInterval(timer);
 }
+
+/**
+ * Remplace la valeur d'une référence seulement si elle a changé (comparaison des données, pas des objets) : un relevé
+ * périodique qui rend les mêmes données ne doit pas faire redessiner la vue, sous peine de perdre menus ouverts et survols.
+ */
+export function assignIfChanged<T>(target: { value: T }, value: T): void {
+  if (JSON.stringify(target.value) !== JSON.stringify(value)) target.value = value;
+}
+
+/** Les octets d'un texte hexadécimal (`"deadbeef"`), comme les rend le module pour une lecture de mémoire. */
+export function hexToBytes(text: string): Uint8Array {
+  const bytes = new Uint8Array(text.length >> 1);
+  const digit = (code: number) => (code <= 57 ? code - 48 : (code | 32) - 87);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (digit(text.charCodeAt(2 * i)) << 4) | digit(text.charCodeAt(2 * i + 1));
+  return bytes;
+}
