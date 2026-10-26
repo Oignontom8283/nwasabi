@@ -635,3 +635,52 @@ fn relaunching_forgets_pending_waits() {
     cpu.regs.pc = 0x9020_0102;
     assert_eq!(call(&mut emu, &mut cpu, 49, &[10]), SvcAction::Handled);
 }
+
+// ---- état enregistré (format .nds) -----------------------------------------------------------------
+
+#[test]
+fn the_kernel_state_round_trips_with_both_display_encodings() {
+    let (mut emu, _) = setup();
+    // Un écran uni se code en suites ; un écran bruité, en pixels bruts.
+    for noisy in [false, true] {
+        let kernel = &mut emu.kernel;
+        for y in 0..240u32 {
+            for x in 0..320u32 {
+                let color = if noisy {
+                    (x * 31 + y * 17 + x * y) as u16
+                } else {
+                    0x07e0
+                };
+                kernel.display.set(x, y, color);
+            }
+        }
+        kernel.keyboard.press(Key::Ok);
+        kernel.advance_time(12_345);
+        kernel.stdout = b"hello".to_vec();
+        kernel.frames = 42;
+        let state = kernel.to_state();
+        let encoding = state["display"]["encoding"].as_str().unwrap().to_owned();
+        assert_eq!(encoding, if noisy { "raw16" } else { "rle16" });
+
+        let mut other = Emulator::new(Model::N0110).unwrap().kernel;
+        other.restore_state(&state).unwrap();
+        assert_eq!(other.display, kernel.display);
+        assert_eq!(other.to_state(), state);
+        assert_eq!(other.frames, 42);
+        assert_eq!(other.stdout, b"hello");
+    }
+}
+
+#[test]
+fn a_bad_kernel_state_changes_nothing() {
+    let (mut emu, _) = setup();
+    let mut state = emu.kernel.to_state();
+    let before = emu.kernel.to_state();
+    state["display"]["base64"] = "AAAA".into();
+    assert!(emu.kernel.restore_state(&state).is_err());
+    assert_eq!(emu.kernel.to_state(), before);
+    let mut state = before.clone();
+    state["keyboard"]["state"] = "pas un nombre".into();
+    assert!(emu.kernel.restore_state(&state).is_err());
+    assert_eq!(emu.kernel.to_state(), before);
+}

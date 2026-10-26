@@ -190,6 +190,28 @@ impl Memory {
             .map(|r| r.access.as_slice())
     }
 
+    /// Remplace les indicateurs d'accès de la zone `name` (restauration d'un état enregistré). Rend faux si la
+    /// zone n'existe pas ou si la taille ne correspond pas.
+    pub fn set_access_map(&mut self, name: &str, map: &[u8]) -> bool {
+        self.code_epoch += 1;
+        match self.regions.iter_mut().find(|r| r.spec.name == name) {
+            Some(r) if r.access.len() == map.len() => {
+                r.access.copy_from_slice(map);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Adresses de début de toutes les pages allouées (les autres valent partout l'octet de remplissage
+    /// de leur zone), dans l'ordre des zones puis des adresses.
+    pub fn allocated_page_addresses(&self) -> Vec<u32> {
+        self.regions
+            .iter()
+            .flat_map(|r| r.allocated_page_addresses())
+            .collect()
+    }
+
     /// Efface tous les indicateurs d'accès (par exemple au lancement d'une application).
     pub fn clear_access(&mut self) {
         // Les lignes ne portent plus « exécuté » : les modifications du code ne seraient plus vues.

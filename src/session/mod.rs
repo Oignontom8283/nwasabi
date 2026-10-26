@@ -21,6 +21,7 @@ mod views;
 
 use crate::checksum;
 use crate::emulator::{Emulator, RunStop};
+use crate::formats::{nds, nfs};
 use crate::inspect::read_structures;
 use crate::json::{self, Value, ValueExt};
 use crate::kernel::Key;
@@ -43,6 +44,8 @@ type Reply = Result<Value, String>;
 pub struct Session {
     emu: Option<Emulator>,
     frames: u64,
+    /// Disposition du firmware de l'appareil (`"24"` ou `"26.4.0"`), pour enregistrer son état.
+    firmware: String,
 }
 
 fn text<'a>(req: &'a Value, key: &str) -> Result<&'a str, String> {
@@ -68,11 +71,9 @@ fn model_of(name: &str) -> Result<Model, String> {
 /// `\"26.4.0\"` (firmware officiel récent : les applications qui devinent le modèle d'après la
 /// flash, comme celles écrites avec eadkp, s'y trompent sur N0110 et N0115).
 fn profile_of(req: &Value, model: Model) -> Result<FirmwareProfile, String> {
-    match req.get("firmware").and_then(Value::as_str).unwrap_or("24") {
-        "24" => Ok(FirmwareProfile::epsilon_24(model)),
-        "26.4.0" => Ok(FirmwareProfile::epsilon_26_4_0(model)),
-        other => Err(format!("firmware inconnu : {other} (24 ou 26.4.0)")),
-    }
+    let layout = req.get("firmware").and_then(Value::as_str).unwrap_or("24");
+    FirmwareProfile::for_layout(layout, model)
+        .ok_or_else(|| format!("firmware inconnu : {layout} (24 ou 26.4.0)"))
 }
 
 /// Fréquence personnalisée maximale acceptée, en MHz (une valeur absurde est une erreur de frappe).
@@ -223,6 +224,10 @@ impl Session {
                     "fs_write",
                     "fs_remove",
                     "fs_rename",
+                    "fs_export",
+                    "fs_import",
+                    "dump",
+                    "restore",
                     "settings_get",
                     "settings_set",
                 ],
@@ -389,9 +394,91 @@ impl Session {
                     .with("counts", counts)
                     .with("frames", emu.kernel.frames))
             }
+            "fs_export" => {
+                let doc = nfs::export(&mut self.emu()?.fs())?;
+                Ok(Value::object().with("nfs", doc))
+            }
+            "fs_import" => {
+                let doc = req.get("nfs").ok_or("champ « nfs » (document) manquant")?;
+                let replace = req.get("replace").and_then(Value::as_bool).unwrap_or(true);
+                let count = nfs::import(&mut self.emu()?.fs(), doc, replace)?;
+                Ok(Value::object().with("files", count))
+            }
+            "dump" => self.dump(req),
+            "restore" => self.restore(req),
             c if c.starts_with("fs_") => self.fs(c, req),
             c if c.starts_with("settings_") => self.settings(c, req),
             other => Err(format!("commande inconnue : {other} (voir « help »)")),
+        }
+    }
+
+    /// Enregistre l'état de l'appareil (format `.nds`). `parts` (liste parmi `app`, `memory`, `fs`, `state`)
+    /// choisit ce qui est gardé ; par défaut, tout.
+    fn dump(&mut self, req: &Value) -> Reply {
+        let parts = match req.get("parts") {
+            None => nds::Parts::default(),
+            Some(list) => {
+                let list = list
+                    .as_array()
+                    .ok_or("« parts » : une liste est attendue")?;
+                let mut parts = nds::Parts {
+                    app: false,
+                    memory: false,
+                    fs: false,
+                    state: false,
+                };
+                for part in list {
+                    match part.as_str() {
+                        Some("app") => parts.app = true,
+                        Some("memory") => parts.memory = true,
+                        Some("fs") => parts.fs = true,
+                        Some("state") => parts.state = true,
+                        _ => return Err("« parts » : app, memory, fs ou state".to_owned()),
+                    }
+                }
+                parts
+            }
+        };
+        let firmware = self.firmware().to_owned();
+        let doc = nds::dump(self.emu()?, &firmware, parts)?;
+        Ok(Value::object().with("nds", doc))
+    }
+
+    /// Remplace l'appareil par l'état d'un document `.nds`. Sans `.nwa` dans le document, celui de l'appareil
+    /// actuel est gardé.
+    fn restore(&mut self, req: &Value) -> Reply {
+        let doc = req.get("nds").ok_or("champ « nds » (document) manquant")?;
+        let current = self.emu.as_mut().map(nds::current);
+        let restored = nds::restore(doc, current.as_ref())?;
+        let reply = with_speed(
+            Value::object()
+                .with("model", restored.emulator.device.profile.model.name())
+                .with("firmware", restored.firmware.as_str())
+                .with(
+                    "parts",
+                    restored
+                        .parts
+                        .iter()
+                        .map(|p| Value::from(*p))
+                        .collect::<Vec<_>>(),
+                ),
+            &restored.emulator.kernel,
+        );
+        let reply = match restored.emulator.app() {
+            Some(app) => reply.with("app", views::app(app)),
+            None => reply,
+        };
+        self.frames = restored.emulator.kernel.frames;
+        self.firmware = restored.firmware;
+        self.emu = Some(restored.emulator);
+        Ok(reply)
+    }
+
+    fn firmware(&self) -> &str {
+        if self.firmware.is_empty() {
+            "24"
+        } else {
+            &self.firmware
         }
     }
 
@@ -405,6 +492,11 @@ impl Session {
         let profile = profile_of(req, model)?;
         let emu = Emulator::with_profile(profile, config_of(req)?).map_err(|e| e.to_string())?;
         let reply = with_speed(Value::object().with("model", model.name()), &emu.kernel);
+        self.firmware = req
+            .get("firmware")
+            .and_then(Value::as_str)
+            .unwrap_or("24")
+            .to_owned();
         self.emu = Some(emu);
         self.frames = 0;
         Ok(reply)
@@ -429,6 +521,11 @@ impl Session {
                 .with("app", info),
             &emu.kernel,
         );
+        self.firmware = req
+            .get("firmware")
+            .and_then(Value::as_str)
+            .unwrap_or("24")
+            .to_owned();
         self.emu = Some(emu);
         self.frames = 0;
         Ok(reply)

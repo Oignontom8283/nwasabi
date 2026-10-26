@@ -60,7 +60,7 @@ Documentation, code source et suivi des problèmes : <https://github.com/Oignont
 ## Touches : clavier et gestes tactiles (`.nmk`)
 
 Un mapping décrit comment le clavier de l'ordinateur et les gestes tactiles deviennent des touches de la
-calculatrice (format `.nmk`, JSON : voir `docs/nmk.md` dans le dépôt). Sans rien faire, le mapping par défaut
+calculatrice (format `.nmk`, JSON : voir `docs/format/nmk.md` dans le dépôt). Sans rien faire, le mapping par défaut
 s'applique : flèches, chiffres, Entrée = OK… et un balayage vers la gauche, la droite, le haut ou le bas
 appuie sur la flèche correspondante.
 

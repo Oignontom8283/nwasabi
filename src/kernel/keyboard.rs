@@ -196,9 +196,9 @@ pub fn is_repeatable(event: u16) -> bool {
 
 /// La touche enfoncée dont l'événement se répète.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Repeat {
-    key: Key,
-    event: u16,
+pub(super) struct Repeat {
+    pub(super) key: Key,
+    pub(super) event: u16,
 }
 
 /// Ce que fait la touche `Home`.
@@ -338,6 +338,90 @@ impl Keyboard {
 
     pub fn pending_events(&self) -> usize {
         self.events.len()
+    }
+}
+
+// ---- enregistrement de l'état (format `.nds`) -------------------------------------------------
+
+use crate::json::{Value, ValueExt};
+
+fn field<'a>(value: &'a Value, name: &str) -> Result<&'a Value, String> {
+    value
+        .get(name)
+        .ok_or_else(|| format!("champ « {name} » manquant"))
+}
+
+fn flag(value: &Value, name: &str) -> Result<bool, String> {
+    field(value, name)?
+        .as_bool()
+        .ok_or_else(|| format!("« {name} » : vrai ou faux est attendu"))
+}
+
+impl Keyboard {
+    pub fn to_state(&self) -> Value {
+        let repeat = self.repeat.as_ref().map(|r| {
+            Value::object()
+                .with("key", r.key.name())
+                .with("event", r.event)
+        });
+        Value::object()
+            .with("state", self.state.to_string())
+            .with(
+                "events",
+                self.events
+                    .iter()
+                    .map(|&e| Value::from(e))
+                    .collect::<Vec<_>>(),
+            )
+            .with("shift", self.shift)
+            .with("alpha", self.alpha)
+            .with("alpha_lock", self.alpha_lock)
+            .with("home_delivers", self.home == HomeBehavior::Deliver)
+            .with("exit_requested", self.exit_requested)
+            .with("repeat", repeat.unwrap_or(Value::Null))
+    }
+
+    pub fn restore_state(&mut self, v: &Value) -> Result<(), String> {
+        let state = field(v, "state")?
+            .as_str()
+            .and_then(|s| s.parse::<u64>().ok())
+            .ok_or("« state » : un entier de 64 bits écrit en texte est attendu")?;
+        let events = field(v, "events")?
+            .as_array()
+            .ok_or("« events » : une liste est attendue")?
+            .iter()
+            .map(|e| {
+                e.as_u64()
+                    .and_then(|n| u16::try_from(n).ok())
+                    .ok_or("« events » : numéro d'événement invalide")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let repeat = match field(v, "repeat")? {
+            Value::Null => None,
+            r => Some(Repeat {
+                key: field(r, "key")?
+                    .as_str()
+                    .and_then(Key::from_name)
+                    .ok_or("« repeat.key » : touche inconnue")?,
+                event: field(r, "event")?
+                    .as_u64()
+                    .and_then(|n| u16::try_from(n).ok())
+                    .ok_or("« repeat.event » invalide")?,
+            }),
+        };
+        self.state = state;
+        self.events = events.into();
+        self.shift = flag(v, "shift")?;
+        self.alpha = flag(v, "alpha")?;
+        self.alpha_lock = flag(v, "alpha_lock")?;
+        self.home = if flag(v, "home_delivers")? {
+            HomeBehavior::Deliver
+        } else {
+            HomeBehavior::ExitApp
+        };
+        self.exit_requested = flag(v, "exit_requested")?;
+        self.repeat = repeat;
+        Ok(())
     }
 }
 
