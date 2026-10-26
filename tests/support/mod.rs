@@ -179,6 +179,26 @@ impl SyntheticApp {
     }
 }
 
+/// Une application dont `main` est le code Thumb donné (sans appel système ni référence) : sert à tester
+/// ce que fait le processeur d'une instruction précise, dans une vraie application installée.
+#[allow(dead_code)]
+pub fn app_running(code: &[u8]) -> Vec<u8> {
+    let mut w = ObjectWriter::new();
+    let main_section = w.add_section(".text.main", SHF_ALLOC | SHF_EXECINSTR, 4, code);
+    w.add_symbol(
+        "main",
+        1,
+        code.len() as u32,
+        SymbolBind::Global,
+        SymbolKind::Func,
+        SymbolSection::Section(main_section.0),
+    );
+    w.add_section(API_LEVEL, SHF_ALLOC, 4, &0u32.to_le_bytes());
+    w.add_section(NAME, SHF_ALLOC, 1, b"Test\0");
+    w.add_section(ICON, SHF_ALLOC | SHF_WRITE, 1, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    w.finish()
+}
+
 /// Symbole non défini (à résoudre par l'éditeur de liens).
 pub fn undefined(w: &mut ObjectWriter, name: &str, bind: SymbolBind) -> SymbolId {
     w.add_symbol(

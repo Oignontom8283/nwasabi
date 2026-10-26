@@ -334,3 +334,172 @@ fn exception_entry_aligns_the_stack_on_eight_bytes() {
         "le mot de remplissage est retiré au retour"
     );
 }
+
+// --- Accès exclusifs -------------------------------------------------------------------------------
+
+/// Un bus plat qui refuse les accès exclusifs, comme la SRAM partageable de la calculatrice.
+struct Refusing(Flat);
+
+impl Bus for Refusing {
+    fn read8(&mut self, a: u32) -> Result<u8, BusFault> {
+        self.0.read8(a)
+    }
+    fn read16(&mut self, a: u32) -> Result<u16, BusFault> {
+        self.0.read16(a)
+    }
+    fn read32(&mut self, a: u32) -> Result<u32, BusFault> {
+        self.0.read32(a)
+    }
+    fn write8(&mut self, a: u32, v: u8) -> Result<(), BusFault> {
+        self.0.write8(a, v)
+    }
+    fn write16(&mut self, a: u32, v: u16) -> Result<(), BusFault> {
+        self.0.write16(a, v)
+    }
+    fn write32(&mut self, a: u32, v: u32) -> Result<(), BusFault> {
+        self.0.write32(a, v)
+    }
+    fn check_exclusive(&mut self, address: u32, write: bool, width: Width) -> Result<(), BusFault> {
+        Err(BusFault {
+            address,
+            write,
+            width,
+            kind: FaultKind::ExclusiveUnsupported,
+        })
+    }
+}
+
+const DATA: u32 = 0x2000;
+
+#[test]
+fn exclusive_instructions_are_decoded() {
+    use super::instr::ExclusiveOp::*;
+    let exclusive = |hw1, hw2| match decode32(hw1, hw2) {
+        Some(Instr::Exclusive {
+            op,
+            rt,
+            rd,
+            rn,
+            offset,
+        }) => (op, rt, rd, rn, offset),
+        other => panic!("{hw1:#06x} {hw2:#06x} : {other:?}"),
+    };
+    // ldrex r0, [r1, #4] ; strex r2, r0, [r1, #4] ; ldrexb r0, [r1] ; ldrexh r0, [r1] ;
+    // strexb r2, r0, [r1] ; strexh r2, r0, [r1]
+    assert_eq!(exclusive(0xe851, 0x0f01), (Ldrex, 0, 0, 1, 4));
+    assert_eq!(exclusive(0xe841, 0x0201), (Strex, 0, 2, 1, 4));
+    assert_eq!(exclusive(0xe8d1, 0x0f4f), (Ldrexb, 0, 0, 1, 0));
+    assert_eq!(exclusive(0xe8d1, 0x0f5f), (Ldrexh, 0, 0, 1, 0));
+    assert_eq!(exclusive(0xe8c1, 0x0f42), (Strexb, 0, 2, 1, 0));
+    assert_eq!(exclusive(0xe8c1, 0x0f52), (Strexh, 0, 2, 1, 0));
+    assert_eq!(decode32(0xf3bf, 0x8f2f), Some(Instr::Clrex));
+    // Les voisins ne sont pas pris pour des accès exclusifs : `tbb` et `ldrd`.
+    assert!(matches!(
+        decode32(0xe8d1, 0xf000),
+        Some(Instr::TableBranch { .. })
+    ));
+}
+
+/// ldrex r0, [r1] ; strex r2, r3, [r1] (r1 = DATA)
+const LDREX_STREX: [u16; 4] = [0xe851, 0x0f00, 0xe841, 0x3200];
+
+fn run_exclusive(code: &[u16], count: u64) -> (Cpu, Flat, Stop) {
+    run(
+        code,
+        |c| {
+            c.regs.r[1] = DATA;
+            c.regs.r[3] = 0xabcd_1234;
+        },
+        count,
+    )
+}
+
+#[test]
+fn strex_succeeds_after_ldrex_of_the_same_address() {
+    let (cpu, bus, stop) = run_exclusive(&LDREX_STREX, 2);
+    assert_eq!(stop, Stop::Budget);
+    assert_eq!(cpu.regs.r[2], 0, "0 : l'écriture a eu lieu");
+    assert_eq!(
+        &bus.0[DATA as usize..DATA as usize + 4],
+        &0xabcd_1234u32.to_le_bytes()
+    );
+    assert_eq!(cpu.exclusive, None, "le moniteur est libéré par strex");
+}
+
+#[test]
+fn strex_fails_without_a_matching_ldrex() {
+    // strex seul : le moniteur est ouvert.
+    let (cpu, bus, _) = run_exclusive(&[0xe841, 0x3200], 1);
+    assert_eq!(cpu.regs.r[2], 1, "1 : l'écriture est refusée");
+    assert_eq!(&bus.0[DATA as usize..DATA as usize + 4], &[0; 4]);
+    // ldrex d'une adresse, strex d'une autre.
+    let program = [0xe851, 0x0f00, 0xe841, 0x3201];
+    let (cpu, bus, _) = run_exclusive(&program, 2);
+    assert_eq!(cpu.regs.r[2], 1);
+    assert_eq!(&bus.0[DATA as usize + 4..DATA as usize + 8], &[0; 4]);
+    // clrex entre les deux.
+    let program = [0xe851, 0x0f00, 0xf3bf, 0x8f2f, 0xe841, 0x3200];
+    let (cpu, ..) = run_exclusive(&program, 3);
+    assert_eq!(cpu.regs.r[2], 1);
+}
+
+#[test]
+fn byte_and_halfword_exclusives_transfer_the_right_width() {
+    // ldrexb r0, [r1] ; strexb r2, r3, [r1]
+    let (cpu, bus, _) = run_exclusive(&[0xe8d1, 0x0f4f, 0xe8c1, 0x3f42], 2);
+    assert_eq!(cpu.regs.r[2], 0);
+    assert_eq!(&bus.0[DATA as usize..DATA as usize + 4], &[0x34, 0, 0, 0]);
+    // ldrexh r0, [r1] ; strexh r2, r3, [r1]
+    let (cpu, bus, _) = run_exclusive(&[0xe8d1, 0x0f5f, 0xe8c1, 0x3f52], 2);
+    assert_eq!(cpu.regs.r[2], 0);
+    assert_eq!(
+        &bus.0[DATA as usize..DATA as usize + 4],
+        &[0x34, 0x12, 0, 0]
+    );
+}
+
+#[test]
+fn unaligned_exclusive_accesses_fault() {
+    let (_, _, stop) = run(&[0xe851, 0x0f00], |c| c.regs.r[1] = DATA + 2, 1);
+    assert!(matches!(
+        stop,
+        Stop::UsageFault {
+            kind: UsageFault::Unaligned,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn a_bus_without_global_monitor_makes_exclusive_accesses_fault() {
+    for program in [
+        &[0xe851u16, 0x0f00][..], // ldrex
+        &[0xe841, 0x3200][..],    // strex
+        &[0xe8d1, 0x0f4f][..],    // ldrexb
+        &[0xe8c1, 0x3f52][..],    // strexh
+    ] {
+        let mut bus = Refusing(Flat::with_halfwords(program));
+        let mut cpu = Cpu::new();
+        cpu.regs.pc = START;
+        cpu.regs.r[1] = DATA;
+        let stop = cpu.run(&mut bus, &mut (), 1);
+        match stop {
+            Stop::BusFault(fault) => {
+                assert_eq!(fault.kind, FaultKind::ExclusiveUnsupported);
+                assert_eq!(fault.address, DATA);
+            }
+            other => panic!("{program:x?} : {other:?}"),
+        }
+        assert_eq!(cpu.exclusive, None, "rien n'a été acquis");
+    }
+}
+
+#[test]
+fn an_exception_clears_the_exclusive_monitor() {
+    let mut cpu = Cpu::new();
+    cpu.exclusive = Some(DATA);
+    cpu.regs.sp = 0x8000;
+    let mut bus = Flat::new();
+    cpu.take_exception(&mut bus, 11).unwrap();
+    assert_eq!(cpu.exclusive, None);
+}
