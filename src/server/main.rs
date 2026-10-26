@@ -2,7 +2,8 @@
 //!
 //! Il sert la page de démonstration et la version WebAssembly de nwasabi : l'émulation elle-même
 //! s'exécute dans le navigateur, pas dans ce binaire. Avec `--nwa`, la page est servie déjà chargée
-//! avec l'application : elle la récupère sur `/__nwasabi/preload`.
+//! avec l'application : elle la récupère sur `/__nwasabi/preload`. Avec `--nmk`, le mapping des touches
+//! (vérifié au démarrage) est sur `/__nwasabi/nmk`.
 //!
 //! Le site (construit par `build.rs`) est embarqué dans le binaire par `rust-embed` : le serveur ne lit
 //! jamais le disque pour répondre, il ne sert que ce qui est embarqué et l'application donnée au
@@ -51,6 +52,9 @@ struct Options {
     /// Application à précharger dans la page
     #[arg(long, value_name = "FICHIER.nwa")]
     nwa: Option<PathBuf>,
+    /// Mapping des touches à charger dans la page (fichier .nmk)
+    #[arg(long, value_name = "FICHIER.nmk")]
+    nmk: Option<PathBuf>,
     /// Modèle de calculatrice
     #[arg(long, value_enum, ignore_case = true, default_value = "n0110")]
     model: ModelOpt,
@@ -80,15 +84,22 @@ struct Preload {
     data: Option<Vec<u8>>,
 }
 
-type Shared = Arc<Option<Preload>>;
+/// Ce que le serveur donne à la page en plus du site.
+struct Served {
+    preload: Option<Preload>,
+    /// Le fichier `--nmk`, déjà vérifié.
+    nmk: Option<String>,
+}
+
+type Shared = Arc<Served>;
 
 async fn health() -> Json<Value> {
     Json(json!({ "ok": true }))
 }
 
-async fn preload(State(preload): State<Shared>) -> Json<Value> {
+async fn preload(State(served): State<Shared>) -> Json<Value> {
     use nwasabi::json::base64_encode;
-    Json(match preload.as_ref() {
+    Json(match served.preload.as_ref() {
         Some(p) => json!({
             "name": p.name,
             "model": p.model,
@@ -98,6 +109,14 @@ async fn preload(State(preload): State<Shared>) -> Json<Value> {
         }),
         None => Value::Null,
     })
+}
+
+/// Le fichier de mapping des touches donné avec `--nmk`, tel quel (404 sans lui).
+async fn nmk(State(served): State<Shared>) -> Response {
+    match &served.nmk {
+        Some(text) => ([(header::CONTENT_TYPE, "application/json")], text.clone()).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// Un fichier du site ; le type MIME (dont `application/wasm`, indispensable pour compiler un
@@ -151,6 +170,16 @@ async fn run(options: Options) -> Result<(), String> {
         FirmwareOpt::V24 => "24",
         FirmwareOpt::V26 => "26.4.0",
     };
+    let nmk_text = match &options.nmk {
+        Some(path) => {
+            let text =
+                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
+            nwasabi::keymap::KeyMap::parse(&text)
+                .map_err(|e| format!("{} : {e}", path.display()))?;
+            Some(text)
+        }
+        None => None,
+    };
     let preload_data = match &options.nwa {
         Some(path) => {
             let shown = path.display();
@@ -176,8 +205,12 @@ async fn run(options: Options) -> Result<(), String> {
     let app = Router::new()
         .route("/__nwasabi/health", get(health))
         .route("/__nwasabi/preload", get(preload))
+        .route("/__nwasabi/nmk", get(nmk))
         .fallback(get(site))
-        .with_state(Arc::new(preload_data));
+        .with_state(Arc::new(Served {
+            preload: preload_data,
+            nmk: nmk_text,
+        }));
 
     let (host, port) = (options.host.as_str(), options.port);
     let listener = tokio::net::TcpListener::bind((host, port))

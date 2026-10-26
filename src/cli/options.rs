@@ -108,9 +108,13 @@ pub struct RunArgs {
     /// S'arrêter après ce nombre d'images
     #[arg(long, value_parser = count)]
     pub frames: Option<u64>,
-    /// Touche enfoncée avant de lancer (répétable ; voir « keys »)
+    /// Touche enfoncée avant de lancer (répétable ; voir « keys »). Avec --nmk, une touche de l'ordinateur
+    /// (KeyW, key:e…) est aussi acceptée
     #[arg(long, value_name = "TOUCHE")]
     pub press: Vec<String>,
+    /// Mapping des touches (fichier .nmk) pour traduire les touches de --press
+    #[arg(long, value_name = "FICHIER.nmk")]
+    pub nmk: Option<PathBuf>,
     /// Enregistre l'écran final en PNG
     #[arg(long, value_name = "FICHIER.png")]
     pub screenshot: Option<PathBuf>,
@@ -208,6 +212,9 @@ pub struct SessionArgs {
 
 #[derive(Args)]
 pub struct KeysArgs {
+    /// Affiche plutôt le mapping d'un fichier .nmk (complété par le défaut) : touches de l'ordinateur, gestes
+    #[arg(long, value_name = "FICHIER.nmk")]
+    pub nmk: Option<PathBuf>,
     /// Sortie en JSON
     #[arg(long)]
     pub json: bool,
