@@ -305,3 +305,44 @@ fn access_extent_measures_the_used_part_of_a_range() {
         Some((0x2000_0fe0, 0x2000_1000))
     );
 }
+
+#[test]
+fn exclusive_accesses_fault_in_ram_but_not_in_flash() {
+    let mut m = Memory::new();
+    let region = |name: &str, base, kind| RegionSpec {
+        kind,
+        ..spec(name, base, 0x1000, Perms::READ_WRITE_EXECUTE, 0)
+    };
+    m.add_region(region("flash", 0x9000_0000, RegionKind::Flash))
+        .unwrap();
+    m.add_region(region("ram", 0x2000_0000, RegionKind::Ram))
+        .unwrap();
+    m.add_region(region("noyau", 0x2003_f000, RegionKind::Reserved))
+        .unwrap();
+
+    // La flash n'est pas partageable : les accès exclusifs y sont permis.
+    assert_eq!(m.check_exclusive(0x9000_0000, false, Width::U32), Ok(()));
+    // La RAM l'est, et le bus n'a pas de moniteur global : BusFault, en lecture comme en écriture.
+    for (address, write, width) in [
+        (0x2000_0010, false, Width::U32),
+        (0x2000_0010, true, Width::U8),
+        (0x2003_f000, false, Width::U16),
+    ] {
+        let fault = m.check_exclusive(address, write, width).unwrap_err();
+        assert_eq!(fault.kind, FaultKind::ExclusiveUnsupported);
+        assert_eq!(
+            (fault.address, fault.write, fault.width),
+            (address, write, width)
+        );
+    }
+    // Hors de toute zone, c'est un accès à de la mémoire absente.
+    assert_eq!(
+        m.check_exclusive(0x4000_0000, false, Width::U32)
+            .unwrap_err()
+            .kind,
+        FaultKind::Unmapped
+    );
+    // Les tests du processeur contre QEMU, qui n'a pas cette limite, les autorisent.
+    m.allow_exclusive_accesses(true);
+    assert_eq!(m.check_exclusive(0x2000_0010, true, Width::U32), Ok(()));
+}

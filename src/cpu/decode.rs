@@ -6,8 +6,8 @@
 use super::alu::{ShiftKind, decode_imm_shift, sign_extend, thumb_expand_imm};
 use super::fpu;
 use super::instr::{
-    Addr, DpOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg, RevKind, Rhs,
-    ShiftAmount, SysReg,
+    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg,
+    RevKind, Rhs, ShiftAmount, SysReg,
 };
 
 /// Une instruction de 32 bits commence par un demi-mot dont les 5 premiers bits valent 0b11101,
@@ -493,7 +493,64 @@ fn decode_dual_and_table(a: u32, b: u32) -> Option<Instr> {
             rm: bits(b, 3, 0) as Reg,
         });
     }
-    None
+    decode_exclusive(a, b)
+}
+
+/// `ldrex`, `strex` (décalage sur 8 bits, multiple de 4) et leurs versions `b` et `h`.
+fn decode_exclusive(a: u32, b: u32) -> Option<Instr> {
+    let rn = bits(a, 3, 0) as Reg;
+    let rt = bits(b, 15, 12) as Reg;
+    match bits(a, 8, 4) {
+        // strex Rd, Rt, [Rn, #imm]
+        0b00100 => Some(Instr::Exclusive {
+            op: ExclusiveOp::Strex,
+            rt,
+            rd: bits(b, 11, 8) as Reg,
+            rn,
+            offset: bits(b, 7, 0) << 2,
+        }),
+        // ldrex Rt, [Rn, #imm]
+        0b00101 if bits(b, 11, 8) == 0b1111 => Some(Instr::Exclusive {
+            op: ExclusiveOp::Ldrex,
+            rt,
+            rd: 0,
+            rn,
+            offset: bits(b, 7, 0) << 2,
+        }),
+        // strexb, strexh Rd, Rt, [Rn]
+        0b01100 if bits(b, 11, 8) == 0b1111 && matches!(bits(b, 7, 4), 4 | 5) => {
+            Some(Instr::Exclusive {
+                op: if bit(b, 4) {
+                    ExclusiveOp::Strexh
+                } else {
+                    ExclusiveOp::Strexb
+                },
+                rt,
+                rd: bits(b, 3, 0) as Reg,
+                rn,
+                offset: 0,
+            })
+        }
+        // ldrexb, ldrexh Rt, [Rn]
+        0b01101
+            if bits(b, 11, 8) == 0b1111
+                && bits(b, 3, 0) == 0b1111
+                && matches!(bits(b, 7, 4), 4 | 5) =>
+        {
+            Some(Instr::Exclusive {
+                op: if bit(b, 4) {
+                    ExclusiveOp::Ldrexh
+                } else {
+                    ExclusiveOp::Ldrexb
+                },
+                rt,
+                rd: 0,
+                rn,
+                offset: 0,
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Traitement de données avec registre décalé par une constante.
@@ -723,9 +780,10 @@ fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
                     3 => Some(Instr::Wfi),
                     _ => None,
                 },
-                // barrières : clrex, dsb, dmb, isb
+                // clrex, puis les barrières dsb, dmb, isb
                 0b0111011 => match bits(b, 7, 4) {
-                    2 | 4 | 5 | 6 => Some(Instr::Barrier),
+                    2 => Some(Instr::Clrex),
+                    4..=6 => Some(Instr::Barrier),
                     _ => None,
                 },
                 // mrs

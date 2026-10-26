@@ -21,6 +21,8 @@ impl Cpu {
     /// Empile le contexte et saute au gestionnaire de l'exception `exception`. L'instruction à
     /// laquelle revenir est `regs.pc` (la suivante).
     pub fn take_exception<B: Bus>(&mut self, bus: &mut B, exception: u32) -> Result<(), Stop> {
+        // Une exception efface le moniteur d'exclusivité local.
+        self.exclusive = None;
         let float = self.control & CONTROL_FPCA != 0;
         let size = FRAME_INTEGER + if float { FRAME_FLOAT } else { 0 };
         let aligned_by_padding = self.regs.sp & 4 != 0;
@@ -82,6 +84,7 @@ impl Cpu {
         bus: &mut B,
         exc_return: u32,
     ) -> Result<(), Stop> {
+        self.exclusive = None;
         let (to_handler, use_psp) = match exc_return & 0xf {
             0x1 => (true, false),
             0x9 => (false, false),

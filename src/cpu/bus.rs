@@ -13,6 +13,9 @@ pub enum FaultKind {
     Unmapped,
     /// La mémoire existe mais l'accès (lecture, écriture ou exécution) n'y est pas permis.
     AccessDenied,
+    /// Accès exclusif (`ldrex`, `strex`…) refusé : la mémoire est partageable et le bus n'a pas de
+    /// moniteur d'exclusivité global, comme sur la calculatrice (voir [`Bus::check_exclusive`]).
+    ExclusiveUnsupported,
 }
 
 /// Un accès mémoire qui a échoué, signalé par un [`Bus`].
@@ -35,6 +38,19 @@ pub trait Bus {
     fn write8(&mut self, address: u32, value: u8) -> Result<(), BusFault>;
     fn write16(&mut self, address: u32, value: u16) -> Result<(), BusFault>;
     fn write32(&mut self, address: u32, value: u32) -> Result<(), BusFault>;
+
+    /// Contrôle un accès exclusif (`ldrex`, `ldrexb`, `ldrexh`, `strex`, `strexb`, `strexh`) avant qu'il
+    /// ait lieu. Un bus peut le refuser avec [`FaultKind::ExclusiveUnsupported`] : c'est ce que fait le
+    /// matériel quand la mémoire visée est « partageable » et que le système n'a pas de moniteur
+    /// d'exclusivité global. Par défaut tout est permis.
+    fn check_exclusive(
+        &mut self,
+        _address: u32,
+        _write: bool,
+        _width: Width,
+    ) -> Result<(), BusFault> {
+        Ok(())
+    }
 
     /// Numéro qui change chaque fois que du code déjà exécuté a pu être modifié. Le processeur
     /// s'en sert pour garder les instructions décodées : tant qu'il ne change pas, elles sont

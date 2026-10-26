@@ -555,6 +555,37 @@ def cases_fp_half_and_fixed():
     return out
 
 
+def cases_exclusive():
+    """ldrex/strex et leurs versions octet et demi-mot, avec ou sans clrex entre les deux."""
+    out = []
+    for _ in range(200):
+        a, d, t, b = regs_distinct(4, list(range(0, 11)))
+        o1, o2 = random.sample(range(0, 60, 4), 2)
+        h = 2 * random.randrange(0, 30)
+        by = random.randrange(0, 62)
+        # Chaque cas part d'un moniteur ouvert : l'état d'un cas précédent ne doit pas fuir dans le suivant
+        # (la taille d'un strex qui suit un ldrex d'une autre taille n'est pas définie par l'architecture).
+        out.append("clrex\n" + random.choice([
+            f"ldrex {a}, [r11, #{o1}]",
+            f"ldrex {a}, [r11, #{o1}]\nstrex {d}, {t}, [r11, #{o1}]",
+            f"ldrex {a}, [r11, #{o1}]\nstrex {d}, {t}, [r11, #{o1}]",
+            f"strex {d}, {t}, [r11, #{o1}]",
+            f"ldrex {a}, [r11, #{o1}]\nstrex {d}, {t}, [r11, #{o2}]",
+            f"ldrex {a}, [r11, #{o1}]\nclrex\nstrex {d}, {t}, [r11, #{o1}]",
+            f"ldrex {a}, [r11, #{o1}]\nldrex {b}, [r11, #{o2}]\nstrex {d}, {t}, [r11, #{o1}]",
+            f"ldrex {a}, [r11, #{o1}]\nldrex {b}, [r11, #{o2}]\nstrex {d}, {t}, [r11, #{o2}]",
+            f"adds {b}, r11, #{by}\nldrexb {a}, [{b}]\nstrexb {d}, {t}, [{b}]",
+            f"adds {b}, r11, #{by}\nldrexb {a}, [{b}]",
+            f"adds {b}, r11, #{by}\nstrexb {d}, {t}, [{b}]",
+            f"adds {b}, r11, #{h}\nldrexh {a}, [{b}]\nstrexh {d}, {t}, [{b}]",
+            f"adds {b}, r11, #{h}\nldrexh {a}, [{b}]",
+            f"adds {b}, r11, #{h}\nstrexh {d}, {t}, [{b}]",
+            f"adds {b}, r11, #{by}\nldrexb {a}, [{b}]\nclrex\nstrexb {d}, {t}, [{b}]",
+            "clrex",
+        ]))
+    return out
+
+
 FAMILIES = [
     ('thumb16', cases_thumb16),
     ('it_blocks', cases_it_blocks),
@@ -571,6 +602,7 @@ FAMILIES = [
     ('fp_v8', cases_fp_v8),
     ('fp_double', cases_fp_double),
     ('fp_half_and_fixed', cases_fp_half_and_fixed),
+    ('exclusive', cases_exclusive),
 ]
 
 # ---------------------------------------------------------------------------------------------

@@ -29,6 +29,9 @@ pub struct Memory {
     watches: watch::Watchpoints,
     /// Change quand du code déjà exécuté a pu être modifié (voir `Bus::code_epoch`).
     code_epoch: u64,
+    /// Accepte les accès exclusifs (`ldrex`, `strex`) dans la RAM. Faux par défaut, comme sur la
+    /// calculatrice (voir [`Memory::allow_exclusive_accesses`]).
+    exclusive_accesses: bool,
 }
 
 impl Default for Memory {
@@ -45,7 +48,18 @@ impl Memory {
             tick: 0,
             watches: watch::Watchpoints::default(),
             code_epoch: 0,
+            exclusive_accesses: false,
         }
+    }
+
+    /// Choisit si les accès exclusifs (`ldrex*`, `strex*`) sont permis dans la RAM.
+    ///
+    /// Sur la calculatrice, la MPU déclare toute la SRAM « partageable » et le bus n'a pas de moniteur
+    /// d'exclusivité global : ces instructions y provoquent une BusFault. C'est le comportement par
+    /// défaut ici (la flash, qui n'est pas partageable, les accepte). Les tests du processeur contre
+    /// QEMU, qui n'a pas cette limite, les permettent.
+    pub fn allow_exclusive_accesses(&mut self, allow: bool) {
+        self.exclusive_accesses = allow;
     }
 
     /// Ajoute une zone. Elle ne doit chevaucher aucune zone existante.
