@@ -137,6 +137,26 @@ onBeforeUnmount(() => {
           <option value="26.4.0">Epsilon 26.4.0</option>
         </select>
       </label>
+      <label title="Fréquence du processeur émulé : celle du modèle, une fréquence au choix, ou aucune limite (l'application reste rythmée par les 60 images par seconde de l'écran). Le nombre d'instructions réellement exécutées dépend aussi de la puissance de l'ordinateur.">
+        Vitesse
+        <select :value="state.speed" @change="(e) => emulator.setSpeed(e.target.value)">
+          <option value="model">Modèle{{ state.speed === "model" && state.limitMhz ? ` (${state.limitMhz} MHz)` : "" }}</option>
+          <option value="custom">Personnalisée</option>
+          <option value="max">Maximale</option>
+        </select>
+      </label>
+      <label v-if="state.speed === 'custom'" title="Fréquence du processeur, en MHz.">
+        <input
+          class="mhz"
+          type="number"
+          min="1"
+          max="100000"
+          step="1"
+          :value="state.customMhz"
+          @change="(e) => emulator.setCustomMhz(Number(e.target.value))"
+        />
+        MHz
+      </label>
       <button :disabled="!state.loaded" @click="state.running ? emulator.stop() : emulator.start()">
         {{ state.running ? "Pause" : "Reprendre" }}
       </button>
@@ -178,6 +198,7 @@ header {
   border-bottom: 1px solid var(--line);
 }
 h1 { font-size: 18px; margin: 0 8px 0 0; }
+input.mhz { width: 6em; }
 .button {
   display: inline-block;
   border: 1px solid var(--line);
