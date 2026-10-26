@@ -1,0 +1,15 @@
+{
+  "keyboard": {
+    "KeyZ": [
+      "ok"
+    ]
+  },
+  "name": null,
+  "touch": {
+    "double_tap_ms": 300,
+    "long_press_ms": 500,
+    "press_ms": 80,
+    "rules": [],
+    "swipe_distance": 40
+  }
+}

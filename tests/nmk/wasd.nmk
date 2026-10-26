@@ -1,0 +1,14 @@
+{
+  "nmk": 1,
+  "name": "Jeu",
+  "keyboard": { "KeyW": "up", "KeyA": "left", "KeyS": "down", "KeyD": "right", "Space": "ok", "KeyQ": ["shift", "alpha"], "key:e": null, "key:Enter": "exe" },
+  "touch": {
+    "long_press_ms": 400,
+    "rules": [
+      { "gesture": "long_press", "key": "ok", "while_held": true },
+      { "gesture": "tap", "fingers": 2, "key": "back" },
+      { "gesture": "swipe_up", "key": null },
+      { "gesture": "swipe_left", "key": ["shift", "left"] }
+    ]
+  }
+}

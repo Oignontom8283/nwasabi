@@ -1,0 +1,160 @@
+{
+  "keyboard": {
+    "KeyA": [
+      "left"
+    ],
+    "KeyD": [
+      "right"
+    ],
+    "KeyQ": [
+      "shift",
+      "alpha"
+    ],
+    "KeyS": [
+      "down"
+    ],
+    "KeyW": [
+      "up"
+    ],
+    "Space": [
+      "ok"
+    ],
+    "key: ": [
+      "ok"
+    ],
+    "key:(": [
+      "left_parenthesis"
+    ],
+    "key:)": [
+      "right_parenthesis"
+    ],
+    "key:*": [
+      "multiplication"
+    ],
+    "key:+": [
+      "plus"
+    ],
+    "key:,": [
+      "comma"
+    ],
+    "key:-": [
+      "minus"
+    ],
+    "key:.": [
+      "dot"
+    ],
+    "key:/": [
+      "division"
+    ],
+    "key:0": [
+      "zero"
+    ],
+    "key:1": [
+      "one"
+    ],
+    "key:2": [
+      "two"
+    ],
+    "key:3": [
+      "three"
+    ],
+    "key:4": [
+      "four"
+    ],
+    "key:5": [
+      "five"
+    ],
+    "key:6": [
+      "six"
+    ],
+    "key:7": [
+      "seven"
+    ],
+    "key:8": [
+      "eight"
+    ],
+    "key:9": [
+      "nine"
+    ],
+    "key:ArrowDown": [
+      "down"
+    ],
+    "key:ArrowLeft": [
+      "left"
+    ],
+    "key:ArrowRight": [
+      "right"
+    ],
+    "key:ArrowUp": [
+      "up"
+    ],
+    "key:Backspace": [
+      "backspace"
+    ],
+    "key:Control": [
+      "alpha"
+    ],
+    "key:Enter": [
+      "exe"
+    ],
+    "key:Escape": [
+      "back"
+    ],
+    "key:Home": [
+      "home"
+    ],
+    "key:Shift": [
+      "shift"
+    ]
+  },
+  "name": "Jeu",
+  "touch": {
+    "double_tap_ms": 300,
+    "long_press_ms": 400,
+    "press_ms": 80,
+    "rules": [
+      {
+        "fingers": 1,
+        "gesture": "swipe_right",
+        "key": [
+          "right"
+        ],
+        "while_held": false
+      },
+      {
+        "fingers": 1,
+        "gesture": "swipe_down",
+        "key": [
+          "down"
+        ],
+        "while_held": false
+      },
+      {
+        "fingers": 1,
+        "gesture": "long_press",
+        "key": [
+          "ok"
+        ],
+        "while_held": true
+      },
+      {
+        "fingers": 2,
+        "gesture": "tap",
+        "key": [
+          "back"
+        ],
+        "while_held": false
+      },
+      {
+        "fingers": 1,
+        "gesture": "swipe_left",
+        "key": [
+          "shift",
+          "left"
+        ],
+        "while_held": false
+      }
+    ],
+    "swipe_distance": 40
+  }
+}
