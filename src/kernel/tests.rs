@@ -206,9 +206,9 @@ fn device_information_comes_from_the_profile_and_the_status() {
     assert_eq!(&serial[..16], emu.device.profile.serial_number.as_bytes());
     assert_eq!(serial[16], 0);
 
-    call(&mut emu, &mut cpu, 2, &[100]);
+    call(&mut emu, &mut cpu, 2, &[112]);
     call(&mut emu, &mut cpu, 1, &[]);
-    assert_eq!(cpu.regs.r[0], 100);
+    assert_eq!(cpu.regs.r[0], 112);
 
     emu.kernel.status.battery_voltage = 3.5;
     call(&mut emu, &mut cpu, 5, &[]);
@@ -272,10 +272,41 @@ fn unknown_svc_stops_in_strict_mode_and_is_counted_otherwise() {
     );
     assert_eq!(emu.kernel.take_stop(), Some(KernelStop::UnknownSvc(0x70)));
 
+    // Sur l'appareil, un appel hors de la table est ignoré : les registres ne changent pas.
     emu.kernel.config.strict_svc = false;
+    cpu.regs.r[0] = 0x1234;
     assert_eq!(call(&mut emu, &mut cpu, 0x70, &[]), SvcAction::Handled);
+    assert_eq!(cpu.regs.r[0], 0x1234);
     assert_eq!(emu.kernel.unknown_svcs, 1);
     assert_eq!(emu.kernel.svc_counts[0x70], 2);
+}
+
+#[test]
+fn empty_table_entries_are_ignored_and_keep_the_registers() {
+    let (mut emu, mut cpu) = setup();
+    for number in [25, 40, 41] {
+        cpu.regs.r[0] = 0xabcd;
+        assert_eq!(
+            call(&mut emu, &mut cpu, number, &[0xabcd]),
+            SvcAction::Handled
+        );
+        assert_eq!(cpu.regs.r[0], 0xabcd, "svc {number}");
+    }
+}
+
+#[test]
+fn the_backlight_moves_in_steps_of_16() {
+    let (mut emu, mut cpu) = setup();
+    call(&mut emu, &mut cpu, 2, &[100]);
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 96);
+    call(&mut emu, &mut cpu, 2, &[255]);
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 240);
+    // Une valeur choisie par l'hôte est lue de la même façon.
+    emu.kernel.status.brightness = 77;
+    call(&mut emu, &mut cpu, 1, &[]);
+    assert_eq!(cpu.regs.r[0], 64);
 }
 
 #[test]

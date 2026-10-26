@@ -115,8 +115,9 @@ impl Kernel {
         }
         match number {
             0 => cpu.regs.r[0] = self.status.clearance_level,
-            1 => cpu.regs.r[0] = u32::from(self.status.brightness),
-            2 => self.status.brightness = r0 as u8,
+            // La luminosité tient sur 4 bits : lue et écrite par pas de 16 (écrire 100 puis relire donne 96).
+            1 => cpu.regs.r[0] = u32::from(self.status.brightness >> 4 << 4),
+            2 => self.status.brightness = (r0 as u8) >> 4 << 4,
             3 => cpu.regs.r[0] = u32::from(self.status.battery_charging),
             4 => cpu.regs.r[0] = u32::from(self.status.battery_level),
             5 => cpu.regs.s[0] = self.status.battery_voltage.to_bits(),
@@ -166,7 +167,9 @@ impl Kernel {
             // Sans effet visible dans l'émulateur : mise à jour des niveaux d'autorisation,
             // circuit breaker, CRC, texte d'événement, état de shift/alpha, LED, mise en veille,
             // USB, appui long. Ils rendent 0.
-            6..=17 | 22 | 25..=28 | 30..=32 | 35..=38 | 40..=44 | 51 | 53..=55 | 58 => {
+            // Entrées vides de la table du noyau : l'appel est ignoré, les registres restent intacts.
+            25 | 40 | 41 => {}
+            6..=17 | 22 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=55 | 58 => {
                 cpu.regs.r[0] = 0;
             }
             SVC_DRAW_STRING => {
@@ -195,10 +198,8 @@ impl Kernel {
             _ if self.config.strict_svc => {
                 return Ok(self.stop_with(KernelStop::UnknownSvc(number)));
             }
-            _ => {
-                self.unknown_svcs += 1;
-                cpu.regs.r[0] = 0;
-            }
+            // Sur l'appareil, un numéro hors de la table est ignoré : rien ne change.
+            _ => self.unknown_svcs += 1,
         }
         Ok(SvcAction::Handled)
     }
