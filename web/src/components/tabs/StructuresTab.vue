@@ -1,13 +1,15 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { Reply } from "@nwasabi/js";
 import { showInMemory, ui } from "../../ui.js";
 import { hex0x } from "../../util.js";
 
 const { t } = useI18n();
-const emulator = inject("emulator");
+const emulator = useEmu();
 const { state, quiet } = emulator;
-const info = ref(null);
+const info = ref<Reply | null>(null);
 const selected = ref("slot_info");
 const filter = ref("");
 let timer = 0;
@@ -31,15 +33,21 @@ watch(
 const SECTIONS = ["slot_info", "slot_header", "kernel_header", "userland_header", "vector_table", "storage", "device_name", "apps", "app"];
 const ADDRESS_KEY = /address|base|start|end|header|entry|stack|draw_string|flash|ram|heap|bss|data$/;
 
+interface Field {
+  name: string;
+  value: any; // JSON hétérogène relu depuis la mémoire
+  kind: "range" | "string" | "address" | "number" | "boolean" | "null";
+}
+
 /** Les champs de la section choisie, à plat : { name, value, kind }. */
-const fields = computed(() => {
+const fields = computed((): Field[] => {
   const data = info.value;
   if (!data) return [];
   const raw = selected.value === "app" ? data.app : data.structures[selected.value];
   if (raw === undefined || raw === null) return [];
   if (selected.value === "device_name") return [{ name: "device_name", value: raw, kind: "string" }];
-  const out = [];
-  const entries = Array.isArray(raw) ? raw.map((v, i) => [String(i), v]) : Object.entries(raw);
+  const out: Field[] = [];
+  const entries: Array<[string, unknown]> = Array.isArray(raw) ? raw.map((v, i): [string, unknown] => [String(i), v]) : Object.entries(raw);
   for (const [name, value] of entries) {
     if (value && typeof value === "object" && "start" in value && "end" in value) out.push({ name, value, kind: "range" });
     else if (value && typeof value === "object" && !Array.isArray(value)) out.push({ name, value: Object.entries(value).map(([k, v]) => `${k}=${typeof v === "number" ? hex0x(v) : v}`).join("  "), kind: "string" });
@@ -56,23 +64,23 @@ const shown = computed(() => {
   return q ? fields.value.filter((f) => f.name.toLowerCase().includes(q) || String(f.value).toLowerCase().includes(q)) : fields.value;
 });
 
-const present = (id) => {
+const present = (id: string) => {
   const d = info.value;
   if (!d) return false;
   if (id === "app") return !!d.app;
   return d.structures[id] !== undefined && d.structures[id] !== null;
 };
-const invalid = (id) => info.value?.structures[id]?.valid === false;
+const invalid = (id: string) => info.value?.structures[id]?.valid === false;
 const appsRows = computed(() => (selected.value === "apps" ? info.value?.structures.apps ?? [] : []));
 
-async function copy(text) {
+async function copy(text: unknown) {
   try {
     await navigator.clipboard.writeText(String(text));
   } catch {
     /* le presse-papiers peut être refusé */
   }
 }
-const textOf = (f) => (f.kind === "range" ? `${hex0x(f.value.start)}-${hex0x(f.value.end)}` : f.kind === "address" ? hex0x(f.value) : String(f.value));
+const textOf = (f: Field) => (f.kind === "range" ? `${hex0x(f.value.start)}-${hex0x(f.value.end)}` : f.kind === "address" ? hex0x(f.value) : String(f.value));
 </script>
 
 <template>
@@ -88,7 +96,7 @@ const textOf = (f) => (f.kind === "range" ? `${hex0x(f.value.start)}-${hex0x(f.v
         :aria-selected="selected === id"
         @click="selected = id"
       >
-        <span class="twist" aria-hidden="true">▸</span>
+        <span class="twist" aria-hidden="true">●</span>
         <span class="mono">{{ t(`structures.sections.${id}`) }}</span>
         <span v-if="invalid(id)" class="chip bad" :title="t('structures.invalid')">!</span>
       </button>
@@ -145,7 +153,8 @@ const textOf = (f) => (f.kind === "range" ? `${hex0x(f.value.start)}-${hex0x(f.v
 .node:hover { background: var(--accent-soft); }
 .node.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); font-weight: 600; }
 .node.missing { opacity: 0.5; }
-.twist { color: var(--muted); font-size: 10px; }
+.twist { color: var(--muted); font-size: 7px; width: 10px; text-align: center; }
+.node.active .twist { color: var(--accent-strong); }
 .chip.bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 .detail { padding: 10px 14px; overflow: auto; min-width: 0; background: var(--surface); }
 header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
