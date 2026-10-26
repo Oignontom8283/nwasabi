@@ -19,9 +19,9 @@ build-server:
 build-cli:
     cargo build --no-default-features --features cli --bin nwasabi-cli
 
-# Compile la bibliothèque en WebAssembly (sans les binaires).
+# Compile la bibliothèque en WebAssembly (sans les binaires). SIMD et copies en bloc : mêmes options que `build.rs`.
 build-wasm:
-    cargo build --lib --profile wasm --no-default-features --features wasm --target {{wasm_target}}
+    RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128,+bulk-memory" cargo build --lib --profile wasm --no-default-features --features wasm --target {{wasm_target}}
 
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm

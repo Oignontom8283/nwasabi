@@ -22,8 +22,10 @@ use region::Region;
 /// L'espace d'adressage de l'appareil émulé.
 pub struct Memory {
     regions: Vec<Region>,
-    /// Indice de la dernière zone utilisée (la plupart des accès se suivent dans la même zone).
+    /// Indices des deux dernières zones utilisées : un programme alterne surtout entre deux zones (sa pile ou son tas
+    /// en RAM, ses constantes en flash), et la plus récente est essayée d'abord.
     last: usize,
+    previous: usize,
     /// Compteur incrémenté à chaque écriture ; sert à dater les modifications.
     tick: u64,
     watches: watch::Watchpoints,
@@ -45,6 +47,7 @@ impl Memory {
         Self {
             regions: Vec::new(),
             last: 0,
+            previous: 0,
             tick: 0,
             watches: watch::Watchpoints::default(),
             code_epoch: 0,
@@ -112,7 +115,16 @@ impl Memory {
         {
             return Some(self.last);
         }
+        if self
+            .regions
+            .get(self.previous)
+            .is_some_and(|r| r.contains(address, len))
+        {
+            std::mem::swap(&mut self.last, &mut self.previous);
+            return Some(self.last);
+        }
         let found = self.regions.iter().position(|r| r.contains(address, len))?;
+        self.previous = self.last;
         self.last = found;
         Some(found)
     }

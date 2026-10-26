@@ -22,7 +22,7 @@ export type PlayerMethod =
 
 /** Ce que la page envoie. */
 export type ToWorker =
-  | { kind: "init"; id: number; wasmUrl: string; canvas: OffscreenCanvas | null; slice: number }
+  | { kind: "init"; id: number; wasmUrl: string; canvas: OffscreenCanvas | null }
   | { kind: "player"; id: number; method: PlayerMethod; args: unknown[] }
   | { kind: "request"; id: number; request: Request; quiet: boolean }
   /** Les fichiers à remettre dans chaque appareil neuf (`.nfs`), ou `null`. */

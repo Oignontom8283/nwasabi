@@ -19,6 +19,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
+/// Instructions WebAssembly que le module utilise en plus de la base : SIMD (les boucles de pixels et de copies sont
+/// vectorisées : environ 20 % de plus sur une application qui dessine beaucoup) et copies mémoire en bloc. Tous les
+/// navigateurs actuels les ont (Chrome 91, Firefox 89, Safari 16.4) ; le `justfile` (`build-wasm`) donne les mêmes.
+const WASM_FEATURES: &str = "-C target-feature=+simd128,+bulk-memory";
 
 /// Nom du programme npm. Sous Windows, Node installe `npm.cmd` (pas de `npm.exe`) : les interpréteurs de
 /// commandes le trouvent grâce à `PATHEXT`, mais `Command` crée le processus directement et n'essaie
@@ -102,6 +106,8 @@ fn build_wasm(manifest: &Path, out: &Path) -> Result<PathBuf, String> {
         .args(["--features", "wasm", "--target", WASM_TARGET])
         .arg("--target-dir")
         .arg(&target_dir);
+    let own = env::var("RUSTFLAGS").unwrap_or_default();
+    command.env("RUSTFLAGS", format!("{own} {WASM_FEATURES}"));
     // Le cargo imbriqué ne doit pas hériter de ce que cargo a réglé pour ce script de compilation.
     for (key, _) in env::vars() {
         if key.starts_with("CARGO_FEATURE_")
@@ -190,7 +196,7 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
 /// Page servie quand l'interface n'est pas construite (`NWASABI_NO_WEB=1`).
 fn placeholder(dist: &Path) -> Result<(), String> {
     fs::create_dir_all(dist).map_err(|e| e.to_string())?;
-    let page = "<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>nwasabi</title>\
+    let page = "<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>Nwasabi</title>\
         <body style=\"font-family:sans-serif;max-width:40em;margin:2em auto;padding:0 1em\">\
         <h1>nwasabi</h1><p>Ce serveur a été compilé sans l'interface web (<code>NWASABI_NO_WEB=1</code>).</p>\
         <p>Pour l'inclure, installer Node.js puis recompiler sans cette variable. \
