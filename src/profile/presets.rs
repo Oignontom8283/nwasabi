@@ -14,6 +14,8 @@ struct ModelFacts {
     payload_length: u32,
     /// Chaîne renvoyée par l'appel système « FCC ID ».
     fcc_id: &'static str,
+    /// Fréquence du processeur en fonctionnement normal (MHz).
+    cpu_mhz: u32,
 }
 
 fn facts(model: Model) -> ModelFacts {
@@ -23,6 +25,7 @@ fn facts(model: Model) -> ModelFacts {
             apps_flash_start: 0x9020_0000,
             payload_length: 1_610_080,
             fcc_id: "2ALWP-N0110",
+            cpu_mhz: 192,
         },
         Model::N0115 => ModelFacts {
             source: "stable_n0115.dfu (Epsilon 26.4.0)",
@@ -30,12 +33,14 @@ fn facts(model: Model) -> ModelFacts {
             payload_length: 1_610_080,
             // Le noyau du N0115 renvoie « NA » (et non « 2ALWP-N0115 »).
             fcc_id: "NA",
+            cpu_mhz: 192,
         },
         Model::N0120 => ModelFacts {
             source: "stable_n0120.dfu (Epsilon 26.4.0)",
             apps_flash_start: 0x9018_0000,
             payload_length: 1_556_440,
             fcc_id: "2ALWP-N0120",
+            cpu_mhz: 540,
         },
     }
 }
@@ -78,6 +83,7 @@ impl FirmwareProfile {
             apps_ram: (sram + 0x118a4, sram + 0x37000),
             process_stack_start: sram + 0x3eff8,
             kernel_stack_start: sram + 0x3f3f8,
+            cpu_mhz: facts.cpu_mhz,
             fcc_id: facts.fcc_id.into(),
             pcb_version: 0,
             serial_number: "0000000000000000".into(),

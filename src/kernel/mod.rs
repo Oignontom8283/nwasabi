@@ -66,8 +66,8 @@ pub enum ClockMode {
 pub struct KernelConfig {
     /// Origine du temps (voir [`ClockMode`]).
     pub clock: ClockMode,
-    /// Cycles du processeur par microseconde : relie les instructions exécutées au temps virtuel
-    /// (216 pour le processeur à 216 MHz du N0110).
+    /// Cycles du processeur par microseconde : relie les instructions exécutées au temps virtuel.
+    /// 0 : la fréquence du modèle (192 MHz sur N0110 et N0115, 540 MHz sur N0120).
     pub cycles_per_us: u32,
     /// Un appel système inconnu arrête l'application. Sinon il renvoie 0 et on continue.
     pub strict_svc: bool,
@@ -81,7 +81,7 @@ impl Default for KernelConfig {
     fn default() -> Self {
         Self {
             clock: ClockMode::Virtual,
-            cycles_per_us: 216,
+            cycles_per_us: 0,
             strict_svc: true,
             stdout_to_screen: true,
             random_seed: 0x1234_5678,
@@ -105,7 +105,12 @@ pub struct DeviceStatus {
     pub compilation_flags: u16,
     pub bootloader_crc: u32,
     pub last_reset_type: u8,
+    /// Fréquence du processeur en MHz (relie les instructions au temps virtuel).
+    pub cpu_mhz: u32,
 }
+
+/// Valeur de `COMPILATION_FLAGS` relevée dans le noyau d'Epsilon 26.4.0 des trois modèles.
+const COMPILATION_FLAGS: u16 = 8;
 
 impl DeviceStatus {
     /// Valeurs plausibles pour un appareil neuf, tirées du profil du firmware.
@@ -120,9 +125,10 @@ impl DeviceStatus {
             pcb_version: profile.pcb_version,
             serial_number: profile.serial_number.clone(),
             fcc_id_address: profile.active().userland_header + FCC_ID_OFFSET,
-            compilation_flags: 0,
+            compilation_flags: COMPILATION_FLAGS,
             bootloader_crc: 0,
             last_reset_type: 0,
+            cpu_mhz: profile.cpu_mhz,
         }
     }
 }
@@ -164,7 +170,10 @@ pub struct Kernel {
 const MAX_STDOUT: usize = 1 << 20;
 
 impl Kernel {
-    pub fn new(config: KernelConfig, status: DeviceStatus) -> Self {
+    pub fn new(mut config: KernelConfig, status: DeviceStatus) -> Self {
+        if config.cycles_per_us == 0 {
+            config.cycles_per_us = status.cpu_mhz;
+        }
         Self {
             display: Display::new(),
             keyboard: Keyboard::new(),

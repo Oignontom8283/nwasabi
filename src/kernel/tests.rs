@@ -76,9 +76,30 @@ fn vblank_aligns_time_on_the_next_frame_and_counts_it() {
 }
 
 #[test]
+fn the_clock_frequency_depends_on_the_model_unless_set() {
+    use crate::profile::{FirmwareProfile, Model};
+    for (model, mhz) in [
+        (Model::N0110, 192),
+        (Model::N0115, 192),
+        (Model::N0120, 540),
+    ] {
+        let emu =
+            Emulator::with_profile(FirmwareProfile::default_for(model), KernelConfig::default())
+                .unwrap();
+        assert_eq!(emu.kernel.config.cycles_per_us, mhz, "{model:?}");
+    }
+    let config = KernelConfig {
+        cycles_per_us: 100,
+        ..KernelConfig::default()
+    };
+    let emu = Emulator::with_profile(FirmwareProfile::default_for(Model::N0120), config).unwrap();
+    assert_eq!(emu.kernel.config.cycles_per_us, 100);
+}
+
+#[test]
 fn time_follows_cycles_and_sleeps() {
     let (mut emu, mut cpu) = setup();
-    cpu.cycles = 216_000 * 5; // 5 ms à 216 cycles par microseconde
+    cpu.cycles = 192_000 * 5; // 5 ms à 192 cycles par microseconde (N0110)
     call(&mut emu, &mut cpu, 48, &[]);
     assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (5, 0));
     call(&mut emu, &mut cpu, 49, &[100]);
@@ -286,7 +307,7 @@ fn setup_host() -> (Emulator, Cpu) {
 #[test]
 fn the_host_clock_ignores_executed_instructions() {
     let (mut emu, mut cpu) = setup_host();
-    cpu.cycles = 216_000_000; // une seconde à 216 MHz, qui ne doit pas compter
+    cpu.cycles = 192_000_000; // une seconde à 192 MHz, qui ne doit pas compter
     call(&mut emu, &mut cpu, 48, &[]);
     assert_eq!((cpu.regs.r[0], cpu.regs.r[1]), (0, 0));
     emu.kernel.advance_time(1_500_000);
