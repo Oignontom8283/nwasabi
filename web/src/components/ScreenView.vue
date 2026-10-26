@@ -1,21 +1,23 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../emulator.js";
 import { inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { screenApi, ui } from "../ui.js";
+import { screenApi, ui, usePick } from "../ui.js";
 import { download, stem } from "../util.js";
 import Icon from "./Icon.vue";
 
 const { t } = useI18n();
-const emulator = inject("emulator");
-const pick = inject("pick");
+const emulator = useEmu();
+const pick = usePick();
 const { state } = emulator;
-const wrap = ref(null);
-const canvas = ref(null);
+const wrap = ref<HTMLElement | null>(null);
+const canvas = ref<HTMLCanvasElement | null>(null);
 const showClose = ref(false);
-let hideTimer = 0;
+const over = ref(false); // un fichier est glissé au-dessus de la zone de dépôt
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 onMounted(() => {
-  emulator.attach(canvas.value, wrap.value);
+  if (canvas.value && wrap.value) emulator.attach(canvas.value, wrap.value);
   document.addEventListener("fullscreenchange", onChange);
   screenApi.toggleFullscreen = toggle;
   screenApi.exitFullscreen = exit;
@@ -41,7 +43,7 @@ async function exit() {
 }
 
 // Un petit bouton « fermer » apparaît quand la souris passe en haut au milieu de l'écran plein.
-function onMove(event) {
+function onMove(event: PointerEvent) {
   if (!ui.fullscreen) return;
   const inZone = event.clientY < 90 && Math.abs(event.clientX - innerWidth / 2) < 160;
   if (inZone) {
@@ -62,13 +64,26 @@ function capture() {
 <template>
   <div ref="wrap" class="screen-wrap" :class="{ full: ui.fullscreen }" @pointermove="onMove">
     <canvas ref="canvas" width="320" height="240" role="img" :aria-label="t('screen.label')" />
-    <div v-if="!state.loaded && !ui.fullscreen" class="drop" :class="{ data: state.needsData }" @click="pick(state.needsData ? 'data' : 'app')">
+    <div
+      v-if="!state.loaded && !ui.fullscreen"
+      class="drop"
+      :class="{ data: state.needsData, over }"
+      role="button"
+      tabindex="0"
+      @click="pick(state.needsData ? 'data' : 'app')"
+      @keydown.enter.prevent="pick(state.needsData ? 'data' : 'app')"
+      @dragenter.prevent="over = true"
+      @dragover.prevent="over = true"
+      @dragleave="(e: DragEvent) => (e.currentTarget as Element).contains(e.relatedTarget as Node | null) || (over = false)"
+      @drop="over = false"
+    >
       <Icon name="upload" :size="44" />
       <strong>{{ state.needsData ? t("screen.dropData") : t("screen.dropApp") }}</strong>
       <span>{{ state.needsData ? t("screen.dropDataSub") : t("screen.dropAppSub") }}</span>
       <button v-if="state.needsData" class="primary" @click.stop="emulator.runWithoutData()">{{ t("screen.runWithout") }}</button>
     </div>
-    <button v-if="ui.fullscreen" class="close" :class="{ shown: showClose }" :aria-label="t('screen.exitFullscreen')" :title="t('screen.exitFullscreen')" @click="exit"><Icon name="close" /> {{ t("screen.exitFullscreen") }}</button>
+    <!-- pointerdown.stop : sinon l'écran capte le pointeur (gestes tactiles) et le clic n'arrive jamais au bouton. -->
+    <button v-if="ui.fullscreen" class="close" :class="{ shown: showClose }" @pointerdown.stop :aria-label="t('screen.exitFullscreen')" :title="t('screen.exitFullscreen')" @click="exit"><Icon name="close" /> {{ t("screen.exitFullscreen") }}</button>
     <p v-if="ui.fullscreen" class="sr-only">{{ t("screen.exitHint") }}</p>
   </div>
 </template>
@@ -87,7 +102,12 @@ canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; 
   position: absolute; inset: 6%; display: grid; place-content: center; justify-items: center; gap: 2.5cqh; text-align: center; color: #c9cdd3;
   border: 2px dashed #5b616b; border-radius: 8px; background: #16181c; cursor: pointer; font-size: clamp(11px, 5.2cqw, 20px);
 }
-.drop:hover { border-color: #8cc152; color: #fff; }
+.drop { transition: border-color 0.12s, background 0.12s; }
+.drop:hover, .drop:focus-visible { border-color: #8cc152; color: #fff; }
+/* Un fichier est au-dessus : traits plus épais et fond teinté, pour montrer qu'on peut le lâcher ici. */
+.drop.over { border-width: 4px; border-color: #8cc152; background: #1f2a17; color: #fff; }
+.drop > * { pointer-events: none; }
+.drop > button { pointer-events: auto; }
 .drop strong { font-weight: 600; }
 .drop span { font-size: 0.8em; color: #8d939c; }
 </style>

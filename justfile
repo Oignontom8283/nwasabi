@@ -56,7 +56,7 @@ build-js: (npm-install ".")
 
 # Compile le module WebAssembly, @nwasabi/js puis l'émulateur (web/) en release dans web/dist, sans le lancer.
 build-emulator: build-wasm build-js
-    @cd web && if [ ! -f dist/index.html ] || [ -n "$(find src index.html vite.config.js package.json ../packages/js/dist ../{{wasm_file}} -newer dist/index.html | head -n 1)" ]; then npm run build; else echo "émulateur à jour (web/dist)"; fi
+    @cd web && if [ ! -f dist/index.html ] || [ -n "$(find src index.html vite.config.ts package.json ../packages/js/dist ../{{wasm_file}} -newer dist/index.html | head -n 1)" ]; then npm run build; else echo "émulateur à jour (web/dist)"; fi
 
 alias build-emu := build-emulator
 
@@ -141,6 +141,10 @@ test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/data.mjs
     node tests/web/locales.mjs
 
+# Vérifie les types TypeScript de l'interface web (web/src, Vue et TypeScript strict).
+typecheck-web: build-js
+    cd web && npm run typecheck
+
 # Recompile les applications de test en C (tests/apps/src → tests/apps/bin). Demande arm-none-eabi-gcc et
 # nwlink (`npx` le télécharge) ; on ne le fait qu'en modifiant les sources, les .nwa sont versionnés.
 build-test-apps:
@@ -151,7 +155,7 @@ update-golden corpus:
     NWASABI_UPDATE_GOLDEN=1 NWASABI_CORPUS={{corpus}} cargo test --test link_corpus --test emulator_corpus
 
 # Séquence RAPIDE avant de proposer un changement : formatage, clippy, tests natifs, WebAssembly. Pour tout vérifier, voir `check-all`.
-ci: fmt-check clippy test build-wasm build-js
+ci: fmt-check clippy test build-wasm build-js typecheck-web
 
 # Contenu : formatage, clippy, compilation de tout (serveur, CLI, WebAssembly), tous les tests Rust (dont les applications
 # de test en C, les vecteurs QEMU et les fichiers de référence), tests WebAssembly sous Node.js, émulateur web, site de
@@ -159,7 +163,7 @@ ci: fmt-check clippy test build-wasm build-js
 # existe, ou le dossier donné (`just check-all chemin/du/corpus`), et sont sinon ignorés sans avertissement ni erreur. Ne recompile pas les applications de test en C
 # (voir `build-test-apps`) et ne publie rien.
 # VÉRIFICATION INTÉGRALE, LONGUE : tout contrôler (qualité, tests, compilations, web, docs, npm). Voir `ci` pour la version rapide.
-check-all corpus="": fmt-check clippy build-all (test-all corpus) (test-wasm corpus) build-emulator build-docs pack-npm
+check-all corpus="": fmt-check clippy typecheck-web build-all (test-all corpus) (test-wasm corpus) build-emulator build-docs pack-npm
     @echo "check-all : tout est vérifié"
 
 # Tests natifs, avec le corpus s'il est donné (sinon local/nwa s'il existe, sinon ces tests sont ignorés en silence).

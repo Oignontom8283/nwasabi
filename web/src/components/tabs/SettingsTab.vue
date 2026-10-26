@@ -1,15 +1,22 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../../emulator.js";
 import { inject, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { confirmDialog } from "../../dialogs.js";
+import { checkPersistent, clearKept, disableKeeping, enableKeeping, keep } from "../../persist.js";
+import { server } from "../../serverLink.js";
+import { ui } from "../../ui.js";
+import { checkedOf, formatBytes, valueOf } from "../../util.js";
+import type { SpeedMode } from "@nwasabi/js";
 
-const { t } = useI18n();
-const emulator = inject("emulator");
+const { t, locale } = useI18n();
+const emulator = useEmu();
 const { state, call, quiet } = emulator;
-const values = reactive({});
+const values = reactive<Record<string, any>>({}); // eslint-disable-line @typescript-eslint/no-explicit-any
 const message = ref("");
 
 const IDENTITY = ["device_name", "fcc_id", "serial_number", "software_version", "expected_userland_version", "commit_hash"];
-const NUMBERS = [
+const NUMBERS: Array<[string, number, number]> = [
   ["pcb_version", 0, 65535], ["security_level", 0, 255], ["clearance_level", 0, 2],
   ["compilation_flags", 0, 65535], ["last_reset_type", 0, 1],
 ];
@@ -22,7 +29,7 @@ function load() {
   });
 }
 
-function set(name, value) {
+function set(name: string, value: unknown) {
   const r = call({ cmd: "settings_set", name, value });
   message.value = r.ok ? "" : `${t(`settings.fields.${name}`)} : ${r.error}`;
   if (r.ok) state.error = "";
@@ -32,7 +39,19 @@ function set(name, value) {
 
 const setBattery = () => set("battery", { level: Number(values.battery_level), voltage: Number(values.battery_voltage), charging: !!values.battery_charging });
 
-onMounted(load);
+async function toggleKeeping(event: Event) {
+  if (checkedOf(event)) await enableKeeping();
+  else disableKeeping();
+}
+
+async function clearStored() {
+  if (await confirmDialog(t("settings.keep.confirmClear"), { danger: true, accept: t("settings.keep.clear"), title: t("settings.keep.clear") })) clearKept();
+}
+
+onMounted(() => {
+  load();
+  checkPersistent();
+});
 watch(() => state.revision, load);
 </script>
 
@@ -41,11 +60,35 @@ watch(() => state.revision, load);
     <p v-if="message" class="error" role="alert">{{ message }}</p>
 
     <section>
+      <h2>{{ t("settings.page") }}</h2>
+      <p class="muted help">{{ t("settings.keep.help") }}</p>
+      <div class="row" :title="t('settings.keep.help')">
+        <label for="keep">{{ t("settings.keep.label") }}</label>
+        <input id="keep" type="checkbox" :checked="keep.enabled" @change="toggleKeeping" />
+      </div>
+      <template v-if="keep.enabled || keep.stored">
+        <p class="muted help">
+          <template v-if="keep.stored">{{ t("settings.keep.stored", { n: keep.stored.files, size: formatBytes(keep.stored.bytes, locale) }, keep.stored.files) }}</template>
+          <template v-else>{{ t("settings.keep.nothing") }}</template>
+          <template v-if="keep.persistent === true"> · {{ t("settings.keep.persistent") }}</template>
+          <template v-else-if="keep.persistent === false"> · {{ t("settings.keep.notPersistent") }}</template>
+        </p>
+        <p v-if="keep.failed" class="error" role="alert">{{ t("settings.keep.failed") }}</p>
+        <div class="row"><span /><span><button :disabled="!keep.stored" @click="clearStored">{{ t("settings.keep.clear") }}</button></span></div>
+      </template>
+      <div v-if="server.active" class="row" :title="t('settings.autoReloadHint')">
+        <label for="auto">{{ t("settings.autoReload") }}</label>
+        <input id="auto" v-model="ui.autoReload" type="checkbox" />
+      </div>
+      <p v-if="server.active" class="muted help">{{ t("settings.autoReloadHint") }}</p>
+    </section>
+
+    <section>
       <h2>{{ t("settings.speed") }}</h2>
       <p class="muted help">{{ t("settings.speedHelp") }}</p>
       <div class="row">
         <label :for="'speed'">{{ t("settings.speedMode") }}</label>
-        <select id="speed" :value="state.speed" @change="(e) => emulator.setSpeed(e.target.value)">
+        <select id="speed" :value="state.speed" @change="(e: Event) => emulator.setSpeed(valueOf(e) as SpeedMode)">
           <option value="model">{{ t("settings.speedModel") }}{{ state.speed === "model" && state.limitMhz ? ` (${state.limitMhz} MHz)` : "" }}</option>
           <option value="custom">{{ t("settings.speedCustom") }}</option>
           <option value="max">{{ t("settings.speedMax") }}</option>
@@ -53,7 +96,7 @@ watch(() => state.revision, load);
       </div>
       <div v-if="state.speed === 'custom'" class="row">
         <label for="mhz">{{ t("settings.speedMhz") }}</label>
-        <input id="mhz" type="number" min="1" max="100000" step="1" :value="state.customMhz" data-keep-keys @change="(e) => emulator.setCustomMhz(Number(e.target.value))" />
+        <input id="mhz" type="number" min="1" max="100000" step="1" :value="state.customMhz" data-keep-keys @change="(e: Event) => emulator.setCustomMhz(Number(valueOf(e)))" />
       </div>
     </section>
 
@@ -109,10 +152,10 @@ watch(() => state.revision, load);
 </template>
 
 <style scoped>
-.settings { display: grid; gap: 14px; }
+.settings { display: grid; gap: 22px; }
 section { display: grid; }
 h2 { padding-bottom: 3px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
-.help { margin: 0 0 4px; font-size: 12px; }
+.help { margin: 0 0 10px; font-size: 12px; }
 .row { display: grid; grid-template-columns: minmax(120px, 42%) 1fr; gap: 10px; align-items: center; min-height: 26px; }
 .row label { color: var(--muted); font-size: 12.5px; }
 .row input:not([type="checkbox"]):not([type="range"]), .row select { width: 100%; font-size: 13px; }

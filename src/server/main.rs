@@ -5,9 +5,10 @@
 //! avec l'application : elle la récupère sur `/__nwasabi/preload`. Avec `--nmk`, le mapping des touches
 //! (vérifié au démarrage) est sur `/__nwasabi/nmk`.
 //!
-//! Le site (construit par `build.rs`) est embarqué dans le binaire par `rust-embed` : le serveur ne lit
-//! jamais le disque pour répondre, il ne sert que ce qui est embarqué et l'application donnée au
-//! démarrage.
+//! Le site (construit par `build.rs`) est embarqué dans le binaire par `rust-embed`. Le seul disque lu
+//! est celui des fichiers donnés au démarrage (`--nwa`, `--data`, `--nmk`, `--nfs`, `--nds`) : relus à
+//! chaque requête, pour que la page puisse les recharger quand ils changent
+//! (`/__nwasabi/version` donne leur empreinte). Aucun chemin de la requête n'est jamais lu.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -81,64 +82,144 @@ struct Options {
     open: bool,
 }
 
-/// L'application donnée avec `--nwa`, servie à la page.
-struct Preload {
-    name: String,
-    model: String,
-    firmware: String,
-    nwa: Vec<u8>,
-    data: Option<Vec<u8>>,
-}
-
-/// Ce que le serveur donne à la page en plus du site.
+/// Les fichiers donnés au démarrage, relus à chaque requête.
 struct Served {
-    preload: Option<Preload>,
-    /// Le fichier `--nmk`, déjà vérifié.
-    nmk: Option<String>,
-    /// Le fichier `--nfs`, déjà vérifié.
-    nfs: Option<String>,
-    /// Le fichier `--nds`, déjà vérifié.
-    nds: Option<String>,
+    nwa: Option<PathBuf>,
+    data: Option<PathBuf>,
+    nmk: Option<PathBuf>,
+    nfs: Option<PathBuf>,
+    nds: Option<PathBuf>,
+    model: &'static str,
+    firmware: &'static str,
 }
 
 type Shared = Arc<Served>;
+
+fn read_text(path: &std::path::Path) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))
+}
+
+fn parse_json(path: &std::path::Path, text: &str) -> Result<nwasabi::json::Value, String> {
+    nwasabi::json::parse(text).map_err(|e| format!("{} : JSON invalide : {e}", path.display()))
+}
+
+/// Le fichier `--nmk`, vérifié.
+fn load_nmk(path: &std::path::Path) -> Result<String, String> {
+    let text = read_text(path)?;
+    nwasabi::keymap::KeyMap::parse(&text).map_err(|e| format!("{} : {e}", path.display()))?;
+    Ok(text)
+}
+
+/// Le fichier `--nfs`, vérifié.
+fn load_nfs(path: &std::path::Path) -> Result<String, String> {
+    let text = read_text(path)?;
+    nwasabi::formats::nfs::parse(&parse_json(path, &text)?)
+        .map_err(|e| format!("{} : {e}", path.display()))?;
+    Ok(text)
+}
+
+/// Le fichier `--nds`, vérifié.
+fn load_nds(path: &std::path::Path) -> Result<String, String> {
+    let text = read_text(path)?;
+    nwasabi::formats::nds::restore(&parse_json(path, &text)?, None)
+        .map_err(|e| format!("{} : {e}", path.display()))?;
+    Ok(text)
+}
+
+/// L'application `--nwa` (et ses données `--data`), telles qu'elles sont sur le disque maintenant.
+fn load_preload(served: &Served) -> Result<Option<Value>, String> {
+    use nwasabi::json::base64_encode;
+    let Some(path) = &served.nwa else {
+        return Ok(None);
+    };
+    let nwa = std::fs::read(path).map_err(|e| format!("{} : {e}", path.display()))?;
+    let data = match &served.data {
+        Some(p) => Some(std::fs::read(p).map_err(|e| format!("{} : {e}", p.display()))?),
+        None => None,
+    };
+    let name = path.file_name().map_or(path.display().to_string(), |n| {
+        n.to_string_lossy().into_owned()
+    });
+    Ok(Some(json!({
+        "name": name,
+        "model": served.model,
+        "firmware": served.firmware,
+        "nwa_base64": base64_encode(&nwa),
+        "data_base64": data.as_deref().map(base64_encode),
+    })))
+}
+
+/// Une erreur de lecture ou de vérification, en JSON (code 422) pour que la page puisse l'afficher.
+fn failure(message: String) -> Response {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(json!({ "error": message })),
+    )
+        .into_response()
+}
 
 async fn health() -> Json<Value> {
     Json(json!({ "ok": true }))
 }
 
-async fn preload(State(served): State<Shared>) -> Json<Value> {
-    use nwasabi::json::base64_encode;
-    Json(match served.preload.as_ref() {
-        Some(p) => json!({
-            "name": p.name,
-            "model": p.model,
-            "firmware": p.firmware,
-            "nwa_base64": base64_encode(&p.nwa),
-            "data_base64": p.data.as_deref().map(base64_encode),
-        }),
-        None => Value::Null,
-    })
+async fn preload(State(served): State<Shared>) -> Response {
+    match load_preload(&served) {
+        Ok(found) => Json(found.unwrap_or(Value::Null)).into_response(),
+        Err(message) => failure(message),
+    }
+}
+
+/// L'empreinte d'un fichier donné (taille et date de modification) : elle change quand il change.
+fn stamp(path: &Option<PathBuf>) -> Value {
+    let Some(path) = path else {
+        return Value::Null;
+    };
+    let text = std::fs::metadata(path).map_or_else(
+        |_| "absent".to_owned(),
+        |meta| {
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_nanos());
+            format!("{}-{modified}", meta.len())
+        },
+    );
+    Value::String(text)
+}
+
+/// Les empreintes de tous les fichiers donnés : la page les compare pour savoir ce qui a changé.
+async fn version(State(served): State<Shared>) -> Json<Value> {
+    Json(json!({
+        "nwa": stamp(&served.nwa),
+        "data": stamp(&served.data),
+        "nmk": stamp(&served.nmk),
+        "nfs": stamp(&served.nfs),
+        "nds": stamp(&served.nds),
+    }))
 }
 
 /// Un fichier donné au démarrage (`--nmk`, `--nfs`, `--nds`), tel quel (404 sans lui).
-fn given(text: &Option<String>) -> Response {
-    match text {
-        Some(text) => ([(header::CONTENT_TYPE, "application/json")], text.clone()).into_response(),
+fn given(path: &Option<PathBuf>, load: fn(&std::path::Path) -> Result<String, String>) -> Response {
+    match path {
+        Some(path) => match load(path) {
+            Ok(text) => ([(header::CONTENT_TYPE, "application/json")], text).into_response(),
+            Err(message) => failure(message),
+        },
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
 async fn nmk(State(served): State<Shared>) -> Response {
-    given(&served.nmk)
+    given(&served.nmk, load_nmk)
 }
 
 async fn nfs(State(served): State<Shared>) -> Response {
-    given(&served.nfs)
+    given(&served.nfs, load_nfs)
 }
 
 async fn nds(State(served): State<Shared>) -> Response {
-    given(&served.nds)
+    given(&served.nds, load_nds)
 }
 
 /// Un fichier du site ; le type MIME (dont `application/wasm`, indispensable pour compiler un
@@ -192,75 +273,36 @@ async fn run(options: Options) -> Result<(), String> {
         FirmwareOpt::V24 => "24",
         FirmwareOpt::V26 => "26.4.0",
     };
-    let nmk_text = match &options.nmk {
-        Some(path) => {
-            let text =
-                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
-            nwasabi::keymap::KeyMap::parse(&text)
-                .map_err(|e| format!("{} : {e}", path.display()))?;
-            Some(text)
-        }
-        None => None,
+    let served = Served {
+        nwa: options.nwa.clone(),
+        data: options.data.clone(),
+        nmk: options.nmk.clone(),
+        nfs: options.nfs.clone(),
+        nds: options.nds.clone(),
+        model,
+        firmware,
     };
-    let nfs_text = match &options.nfs {
-        Some(path) => {
-            let text =
-                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
-            let document = nwasabi::json::parse(&text)
-                .map_err(|e| format!("{} : JSON invalide : {e}", path.display()))?;
-            nwasabi::formats::nfs::parse(&document)
-                .map_err(|e| format!("{} : {e}", path.display()))?;
-            Some(text)
-        }
-        None => None,
-    };
-    let nds_text = match &options.nds {
-        Some(path) => {
-            let text =
-                std::fs::read_to_string(path).map_err(|e| format!("{} : {e}", path.display()))?;
-            let document = nwasabi::json::parse(&text)
-                .map_err(|e| format!("{} : JSON invalide : {e}", path.display()))?;
-            nwasabi::formats::nds::restore(&document, None)
-                .map_err(|e| format!("{} : {e}", path.display()))?;
-            Some(text)
-        }
-        None => None,
-    };
-    let preload_data = match &options.nwa {
-        Some(path) => {
-            let shown = path.display();
-            let nwa = std::fs::read(path).map_err(|e| format!("{shown} : {e}"))?;
-            let data = match &options.data {
-                Some(p) => Some(std::fs::read(p).map_err(|e| format!("{} : {e}", p.display()))?),
-                None => None,
-            };
-            let name = path
-                .file_name()
-                .map_or(shown.to_string(), |n| n.to_string_lossy().into_owned());
-            Some(Preload {
-                name,
-                model: model.to_owned(),
-                firmware: firmware.to_owned(),
-                nwa,
-                data,
-            })
-        }
-        None => None,
-    };
+    // Tout est vérifié une première fois : un fichier invalide arrête le serveur avant qu'il écoute.
+    load_preload(&served)?;
+    if let Some(path) = &served.nmk {
+        load_nmk(path)?;
+    }
+    if let Some(path) = &served.nfs {
+        load_nfs(path)?;
+    }
+    if let Some(path) = &served.nds {
+        load_nds(path)?;
+    }
 
     let app = Router::new()
         .route("/__nwasabi/health", get(health))
         .route("/__nwasabi/preload", get(preload))
+        .route("/__nwasabi/version", get(version))
         .route("/__nwasabi/nmk", get(nmk))
         .route("/__nwasabi/nfs", get(nfs))
         .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
-        .with_state(Arc::new(Served {
-            preload: preload_data,
-            nmk: nmk_text,
-            nfs: nfs_text,
-            nds: nds_text,
-        }));
+        .with_state(Arc::new(served));
 
     let (host, port) = (options.host.as_str(), options.port);
     let listener = tokio::net::TcpListener::bind((host, port))

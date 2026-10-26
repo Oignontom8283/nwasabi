@@ -19,13 +19,13 @@
     "about": "nwasabi — NumWorks app emulator",
     "menu": "Load…",
     "noApp": "No app",
-    "openFiles": "Calculator files (.nfs)…",
+    "openFiles": "Load calculator files (.nfs)…",
     "openFilesHint": "Loads all the files of a .nfs file.",
     "openApp": "Load another application (.nwa)…",
     "openAppHint": "Loads a .nwa file (you can also drop it on the page).",
-    "openData": "External data…",
+    "openData": "Load the external data…",
     "openDataHint": "Loads the application's external data file.",
-    "openKeys": "Key mapping (.nmk)…",
+    "openKeys": "Load a key mapping (.nmk)…",
     "openKeysHint": "Loads a .nmk file, which maps computer keys and touch gestures to calculator keys.",
     "openState": "Load a state (.nds)…",
     "openStateHint": "Resumes a saved emulation (.nds) exactly where it stopped.",
@@ -47,7 +47,14 @@
       "auto": "automatic",
       "light": "light",
       "dark": "dark"
-    }
+    },
+    "load": "Load a .nwa",
+    "large": "Enlarge or shrink the screen within the page",
+    "aboutWindow": "License and terms of use",
+    "repo": "nwasabi on GitHub",
+    "info": "Information about this installation",
+    "reload": "Reload",
+    "reloadHint": "A file given to the server changed on disk: reload it."
   },
   "screen": {
     "dropApp": "Drop a .nwa file here",
@@ -77,7 +84,7 @@
   },
   "mini": {
     "label": "Simulation information",
-    "openPanel": "Open the settings and tools panel",
+    "openPanel": "Open the tools panel: files, memory, structures, keys, settings, trace",
     "hideHint": "Hide this bar",
     "showHint": "Show the info bar",
     "status": "Status",
@@ -101,7 +108,10 @@
     "capture": "Screenshot",
     "captureHint": "Saves the screen as a PNG image.",
     "fullscreen": "Full screen",
-    "fullscreenHint": "Shows only the screen, without the keys. Space or Escape to exit."
+    "fullscreenHint": "Shows only the screen, without the keys. Space or Escape to exit.",
+    "tools": "Tools",
+    "large": "Enlarge",
+    "largeHint": "Enlarges the screen within the page, without the calculator keys. It adapts to the panel open beside it."
   },
   "panel": {
     "label": "Tools panel",
@@ -140,7 +150,7 @@
     "colSize": "Size",
     "list": "Calculator files",
     "empty": "No files",
-    "hint": "Right-click (or Menu key) to rename, download or delete. F2 renames, Delete deletes.",
+    "hint": "Right-click (or Menu key) to rename, copy the size, download or delete. F2 renames, Delete deletes (Shift + Delete: no confirmation). Ctrl + click or Shift + click to select several.",
     "kinds": {
       "python": "Python",
       "system": "System",
@@ -157,7 +167,16 @@
     "modified": "modified",
     "autoImport": "auto-imported",
     "save": "Save",
-    "opaque": "Opaque format: only download is offered. Here are the first bytes."
+    "copySize": "Copy size in bytes",
+    "copyName": "Copy name",
+    "formatText": "Recognized format: text (Python script), edited as text.",
+    "formatSystem": "System file: binary, shown and editable in hexadecimal.",
+    "formatBinary": "Unrecognized format: binary, shown and editable in hexadecimal.",
+    "confirmDeleteMany": "Delete these {n} files? This cannot be undone.",
+    "deleteMany": "Delete {n} files",
+    "clearAll": "Clear everything",
+    "clearAllHint": "Deletes all the calculator's files (after confirmation).",
+    "confirmClear": "Delete all {n} of the calculator's files? This cannot be undone."
   },
   "state": {
     "title": "Emulation state",
@@ -206,7 +225,22 @@
     "real": "Real (as on the calculator)",
     "simulated": "Simulated by the emulator",
     "simulatedWhole": "{name}: the calculator's system does not exist here, the emulator plays its role.",
-    "note": "Real: what the application sees as on a real calculator (its code, RAM, files). Simulated: what the emulator fabricates in place of the system (headers, kernel RAM…). Click an area to view it in hex."
+    "note": "Real: what the application sees as on a real calculator (its code, RAM, files). Simulated: what the emulator fabricates in place of the system (headers, kernel RAM…). Click an area to view it in hex.",
+    "structures": "System structures (click to see details)",
+    "clickHint": "Click to see it in hexadecimal.",
+    "realTag": "real",
+    "simulatedTag": "simulated",
+    "explain": {
+      "system": "Headers and tables the calculator's system leaves in memory; here the emulator makes them up.",
+      "appsflash": "Part of the flash memory reserved for external applications.",
+      "files": "The calculator's storage: scripts and settings.",
+      "app": "The application's code, as loaded in flash memory.",
+      "data": "The application's variables (initialized and uninitialized data).",
+      "heap": "The heap: memory the application requests while running.",
+      "stack": "The stack: local variables and return addresses of functions.",
+      "reserved": "Entirely simulated area: the calculator's system does not exist here.",
+      "region": "An area of the processor's memory map."
+    }
   },
   "hex": {
     "label": "Hex editor",
@@ -308,7 +342,30 @@
     "swipeDistance": "Swipe distance",
     "longPress": "Long press duration",
     "doubleTap": "Double tap delay",
-    "pressMs": "Key hold time"
+    "pressMs": "Key hold time",
+    "keyboardHelp": "Each row binds a computer key to one or more calculator keys, pressed together (for example Shift + arrow). The “+” menu adds a key to the combination.",
+    "touchHelp": "On a touch screen (or with the mouse), a gesture on the calculator's screen presses keys. Each row pairs a gesture, a number of fingers and the keys to press.",
+    "gestureInfo": {
+      "tap": "touch the screen briefly",
+      "double_tap": "two quick touches (delay below)",
+      "long_press": "keep the finger down (duration below)",
+      "swipe_left": "slide the finger to the left (distance below)",
+      "swipe_right": "slide the finger to the right",
+      "swipe_up": "slide the finger up",
+      "swipe_down": "slide the finger down"
+    },
+    "gestureHint": "The movement that triggers the rule.",
+    "fingersHint": "Number of fingers down at the same time for this gesture (1 to 3).",
+    "calcKeysHint": "The calculator keys pressed together when the gesture is recognized.",
+    "heldHint": "For a long press: the key stays down as long as the finger stays down, instead of a brief press.",
+    "thresholdsHelp": "These values tune how sensitive gesture recognition is; they are saved in the .nmk file.",
+    "setting": "Setting",
+    "value": "Value",
+    "meaning": "What it changes",
+    "swipeDistanceInfo": "Minimum distance the finger must travel to count as a swipe rather than a simple touch.",
+    "longPressInfo": "How long the finger must stay down, without moving, to count as a long press.",
+    "doubleTapInfo": "Maximum time between two touches for them to form a double tap.",
+    "pressMsInfo": "How long the key stays down for a brief gesture (tap, swipe, double tap), so the application has time to see it."
   },
   "settings": {
     "speed": "Processor speed",
@@ -359,28 +416,116 @@
       "clearance_level": "0 official, 1 third-party apps installed, 2 third-party userland.",
       "compilation_flags": "Value returned by the compilation_flags system call.",
       "last_reset_type": "0 hardware, 1 software."
+    },
+    "autoReload": "Reload the server's files automatically",
+    "autoReloadHint": "With the nwasabi server: when the application, data, mapping, files or state change on disk, the page reloads them by itself. Otherwise a “Reload” button (or Ctrl + R) appears.",
+    "page": "This page",
+    "keep": {
+      "label": "Keep the files in the browser",
+      "help": "The calculator's files are copied into this browser's data and restored at each launch (the site asks on the first visit); the browser may ask your permission to keep them durably. They are shared by everything that runs on this site, in this browser: remember to erase them on a computer that is not yours.",
+      "stored": "no files kept | 1 file kept ({size}) | {n} files kept ({size})",
+      "nothing": "Nothing is kept yet.",
+      "persistent": "persistent storage granted",
+      "notPersistent": "persistent storage not granted (the browser may erase it when space runs low)",
+      "failed": "Could not save: the browser storage is full or blocked.",
+      "clear": "Erase the kept files",
+      "confirmClear": "Erase the files kept in this browser? The current calculator's files are not touched. This cannot be undone."
     }
   },
   "trace": {
     "cpu": "Processor",
-    "cpuHelp": "Registers at the time of the last read; those that just changed are highlighted.",
+    "cpuHelp": "The processor is an ARM Cortex-M7. Its registers are small 32-bit memories inside the chip, read at regular intervals (those that just changed are highlighted).",
     "instructions": "instructions executed",
     "noDevice": "No device.",
     "flag": {
-      "N": "N: negative result",
-      "Z": "Z: zero result",
-      "C": "C: carry",
-      "V": "V: overflow",
-      "Q": "Q: saturation"
+      "N": "N (negative): the last result is negative, its top bit is 1.",
+      "Z": "Z (zero): the last result is zero, or a comparison found two equal values.",
+      "C": "C (carry): an addition overflowed, or a subtraction did not borrow; used for unsigned comparisons.",
+      "V": "V (overflow): the result does not fit in a signed 32-bit integer.",
+      "Q": "Q (saturation): a saturating instruction reached its limit; the flag stays set until cleared."
     },
     "svc": "System calls",
-    "svcHelp": "The application's calls to the kernel, most frequent first ({frames} frames).",
+    "svcHelp": "The application's calls to the kernel (svc instruction), from most to least frequent ({frames} frames).",
     "svcName": "Call",
     "calls": "Calls",
     "none": "No calls.",
     "stdout": "Standard output",
     "empty": "(empty)",
     "copy": "Copy",
-    "clear": "Clear"
+    "clear": "Clear",
+    "register": "Register",
+    "value": "Value",
+    "role": "Role",
+    "regInfo": {
+      "args": "Arguments and result of a function (r0 to r3); a function may overwrite them freely.",
+      "saved": "Local variables: a function must restore them as it found them.",
+      "r12": "Temporary scratch register (IP), freely overwritten by calls.",
+      "sp": "Stack pointer (r13): top of the stack, where local variables and return addresses live.",
+      "lr": "Link register (r14): where to resume when the current function returns.",
+      "pc": "Program counter (r15): address of the instruction being executed.",
+      "xpsr": "Status register: flags N Z C V Q, the Thumb bit and the current exception number.",
+      "fpscr": "Floating-point control and status: rounding mode and error flags."
+    },
+    "flagsTitle": "Status register flags",
+    "flagsHelp": "Four bits of xpsr sum up the result of the last operation and drive conditional branches; the ones that are set are colored.",
+    "svcInfo": {
+      "1": "Reads the backlight brightness.",
+      "2": "Sets the backlight brightness.",
+      "3": "Tells whether the battery is charging.",
+      "4": "Battery level.",
+      "5": "Battery voltage.",
+      "18": "Reads the pixels of a screen rectangle.",
+      "19": "Draws a rectangle of pixels on the screen.",
+      "20": "Fills a rectangle with a single color.",
+      "21": "Waits for the current frame to end (vertical sync).",
+      "22": "Copies the text associated with an event.",
+      "23": "Waits for and returns the next event (key…).",
+      "24": "Tells whether an event has a defined meaning.",
+      "29": "The device's FCC identifier.",
+      "33": "Removes and returns the queued keyboard state.",
+      "34": "Reads the current state of the keys.",
+      "39": "Circuit board version.",
+      "45": "Random number.",
+      "47": "Copies the serial number.",
+      "48": "Milliseconds since startup.",
+      "49": "Waits for a number of milliseconds.",
+      "50": "Waits for a number of microseconds.",
+      "52": "Tells whether the USB cable is plugged in.",
+      "55": "Repeat count of a held key.",
+      "56": "Firmware compilation options.",
+      "128": "Draws text (a nwasabi addition).",
+      "129": "Grows the heap, the application's dynamic memory.",
+      "130": "Writes text to the standard output.",
+      "137": "Ends the application."
+    }
+  },
+  "about": {
+    "title": "License and terms of use",
+    "license": {
+      "title": "License",
+      "text": "nwasabi is free software, distributed under the GNU Affero General Public License, version 3 (AGPL-3.0), with a linking exception that allows its library to be used in an application without that application inheriting the license. The full license text, the source code and the documentation are in the repository."
+    },
+    "terms": {
+      "title": "Terms of use",
+      "text": "This tool is provided “as is”, without warranty of any kind, express or implied, including quality, fitness for a particular purpose or absence of errors. By using it, you accept that its authors and contributors cannot be held liable for any damage, loss of data or harm of any kind, direct or indirect, arising from its use."
+    },
+    "third": {
+      "title": "Loaded applications and data",
+      "text": "nwasabi is independent of whatever runs inside it: it emulates a calculator and neither knows nor controls the applications loaded into it. Those applications, and their associated files and data, remain the exclusive property of their original authors, who hold their rights. nwasabi claims ownership of none of it and is responsible neither for its content, its behavior, nor compliance with its license: everyone must only use what they have the right to use."
+    },
+    "trademarks": {
+      "title": "Trademarks",
+      "text": "NumWorks and the other product or company names mentioned belong to their respective owners. nwasabi is neither affiliated with NumWorks nor approved or endorsed by that company."
+    },
+    "repo": "GitHub repository: source code, license and documentation"
+  },
+  "info": {
+    "title": "Information"
+  },
+  "keepPrompt": {
+    "title": "Keep your files?",
+    "message": "Should nwasabi keep the calculator's files (your scripts, for example) in this browser, so you find them again on every visit? The browser may ask your permission to keep them durably. They stay on this computer, are shared by everything that runs on this site, and you can erase them or change your mind at any time in the Settings tab.",
+    "accept": "Yes, keep them",
+    "decline": "No thanks"
   }
 }

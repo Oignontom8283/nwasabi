@@ -204,3 +204,51 @@ fn nfs_and_nds_are_served_after_checking() {
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
 }
+
+#[test]
+fn given_files_are_read_again_and_their_stamp_changes_with_them() {
+    let dir = std::env::temp_dir().join(format!("nwasabi-watch-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let nwa = dir.join("demo.nwa");
+    let nfs = dir.join("files.nfs");
+    std::fs::write(&nwa, [1u8, 2, 3]).unwrap();
+    std::fs::write(&nfs, r#"{"nfs":1,"files":[]}"#).unwrap();
+    let server = start(&[
+        "--nwa",
+        nwa.to_str().unwrap(),
+        "--nfs",
+        nfs.to_str().unwrap(),
+    ]);
+
+    let stamps = |server: &Server| {
+        let (code, body) = get(server, "/__nwasabi/version");
+        assert_eq!(code, 200);
+        json::parse(&String::from_utf8(body).unwrap()).unwrap()
+    };
+    let before = stamps(&server);
+    assert!(before.get("nwa").and_then(Value::as_str).is_some());
+    assert_eq!(before.get("nmk"), Some(&Value::Null));
+    assert_eq!(stamps(&server), before, "rien n'a changé : même empreinte");
+
+    // La taille change avec le contenu : l'empreinte aussi, même si l'horloge du disque est grossière.
+    std::fs::write(&nwa, [9u8, 8, 7, 6, 5]).unwrap();
+    let after = stamps(&server);
+    assert_ne!(after.get("nwa"), before.get("nwa"));
+    assert_eq!(after.get("nfs"), before.get("nfs"));
+
+    let (_, body) = get(&server, "/__nwasabi/preload");
+    let v = json::parse(&String::from_utf8(body).unwrap()).unwrap();
+    let bytes = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
+    assert_eq!(
+        bytes,
+        [9, 8, 7, 6, 5],
+        "le fichier est relu à chaque requête"
+    );
+
+    // Un fichier devenu invalide donne une erreur lisible, pas un arrêt du serveur.
+    std::fs::write(&nfs, "pas du json").unwrap();
+    let (code, body) = get(&server, "/__nwasabi/nfs");
+    assert_eq!(code, 422);
+    assert!(String::from_utf8_lossy(&body).contains("JSON invalide"));
+    assert_eq!(get(&server, "/__nwasabi/health").0, 200);
+}

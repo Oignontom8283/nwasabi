@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { screenApi, ui } from "../ui.js";
@@ -6,7 +7,7 @@ import { formatDuration } from "../util.js";
 import Icon from "./Icon.vue";
 
 const { t, n } = useI18n();
-const emulator = inject("emulator");
+const emulator = useEmu();
 const { state } = emulator;
 
 const status = computed(() => {
@@ -30,7 +31,7 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
 
 <template>
   <aside class="mini" :aria-label="t('mini.label')">
-    <button class="gear icon" :title="t('mini.openPanel')" :aria-label="t('mini.openPanel')" @click="ui.panelOpen = true"><Icon name="sliders" :size="18" /></button>
+    <button class="tools" :title="t('mini.openPanel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
     <dl>
       <div :title="t('mini.statusHint')">
         <dt>{{ t("mini.status") }}</dt>
@@ -42,6 +43,7 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
       <div v-if="state.stop?.kind === 'fault'" :title="t('mini.faultHint')" class="fault"><dt>{{ t("mini.fault") }}</dt><dd>{{ state.stop.fault }}</dd></div>
     </dl>
     <button :disabled="!state.loaded" :title="t('mini.captureHint')" @click="screenApi.capture()"><Icon name="camera" /> {{ t("mini.capture") }}</button>
+    <button :aria-pressed="ui.large" :title="t('mini.largeHint')" @click="ui.large = !ui.large"><Icon name="expand" /> {{ t("mini.large") }}</button>
     <button :disabled="!state.loaded" :title="t('mini.fullscreenHint')" @click="screenApi.toggleFullscreen()"><Icon name="maximize" /> {{ t("mini.fullscreen") }}</button>
     <button class="hide" :title="t('mini.hideHint')" :aria-label="t('mini.hideHint')" @click="ui.miniVisible = false"><Icon name="right" /></button>
   </aside>
@@ -52,7 +54,6 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
   position: absolute; right: 12px; top: 12px; width: 168px; display: grid; gap: 6px; padding: 8px; z-index: 10;
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12.5px;
 }
-.gear { justify-self: start; font-size: 16px; }
 dl { margin: 0; display: grid; gap: 6px; }
 dl > div { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; cursor: help; }
 dt { color: var(--muted); font-size: 12px; }

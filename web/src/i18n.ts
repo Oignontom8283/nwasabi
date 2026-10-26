@@ -15,7 +15,7 @@ const CODES = LOCALES.map(([code]) => code);
 const STORAGE_KEY = "nwasabi.lang";
 
 /** Le code de langue pris en charge qui correspond à `tag` (`fr-CA` → `fr`), ou `undefined`. */
-export function matchLocale(tag) {
+export function matchLocale(tag: string | null | undefined): string | undefined {
   const code = String(tag ?? "").toLowerCase().split(/[-_]/)[0];
   return CODES.includes(code) ? code : undefined;
 }
@@ -44,9 +44,9 @@ export const i18n = createI18n({
 document.documentElement.lang = i18n.global.locale.value;
 
 /** Change de langue (et s'en souvient). */
-export function setLocale(code) {
+export function setLocale(code: string): void {
   if (!CODES.includes(code)) return;
-  i18n.global.locale.value = code;
+  i18n.global.locale.value = code as "fr" | "en";
   document.documentElement.lang = code;
   try {
     localStorage.setItem(STORAGE_KEY, code);

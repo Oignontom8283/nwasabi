@@ -1,20 +1,23 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { Reply } from "@nwasabi/js";
 import { choiceDialog } from "../../dialogs.js";
 import { download, formatBytes, hex0x, stem } from "../../util.js";
 import Icon from "../Icon.vue";
 import HexEditor from "../HexEditor.vue";
+import type { HexRegion } from "../HexEditor.vue";
 import MemoryMap from "../MemoryMap.vue";
 
 const { t, locale } = useI18n();
-const emulator = inject("emulator");
+const emulator = useEmu();
 const { state, quiet } = emulator;
 
-const regions = ref([]);
-const structures = ref(null);
-const app = ref(null);
-const usage = ref(null);
+const regions = ref<HexRegion[]>([]);
+const structures = ref<Reply | null>(null);
+const app = ref<Reply | null>(null);
+const usage = ref<Reply | null>(null);
 let timer = 0;
 
 function refresh() {
@@ -35,7 +38,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer));
 watch(() => state.revision, refresh);
 
-const percent = (used, total) => (total > 0 ? Math.max(0, Math.min(100, Math.round((used / total) * 100))) : 0);
+const percent = (used: number, total: number) => (total > 0 ? Math.max(0, Math.min(100, Math.round((used / total) * 100))) : 0);
 const heap = computed(() => {
   const u = usage.value;
   if (!u) return null;
@@ -77,7 +80,7 @@ async function saveState() {
         <h2>{{ t("state.title") }}</h2>
         <p class="muted">{{ t("state.help") }}</p>
       </div>
-      <button class="primary" :disabled="!paused" :title="paused ? t('state.saveHint') : t('common.pauseRequired')" @click="saveState"><Icon name="save" /> {{ t("state.save") }}</button>
+      <button :disabled="!paused" :title="paused ? t('state.saveHint') : t('common.pauseRequired')" @click="saveState"><Icon name="floppy" :size="18" /> {{ t("state.save") }}</button>
     </section>
 
     <section class="card">
@@ -110,9 +113,9 @@ async function saveState() {
 </template>
 
 <style scoped>
-.memory { display: grid; gap: 12px; }
+.memory { display: grid; gap: 20px; }
 .card:first-child { border-top: none; padding-top: 0; }
-.card { border-top: 1px solid var(--line); padding: 10px 0 0; }
+.card { border-top: 1px solid var(--line); padding: 16px 0 0; }
 .state { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .state p { margin: 0; font-size: 12px; }
 .usage { display: grid; gap: 10px; }

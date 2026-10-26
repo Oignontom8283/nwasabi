@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import { useEmu } from "../emulator.js";
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { confirmDialog, promptDialog } from "../dialogs.js";
@@ -6,19 +7,47 @@ import { ui } from "../ui.js";
 import Icon from "./Icon.vue";
 import { hex, hex0x, parseAddress } from "../util.js";
 
-const props = defineProps({ regions: { type: Array, required: true } });
+// Sans autre indication, l'éditeur lit et écrit la mémoire de l'émulateur (modifiable seulement en pause). Avec
+// `read(adresse, longueur)` et `write(adresse, octets)`, il édite autre chose : les octets d'un fichier, par exemple.
+// `version` change quand ces octets ont changé ailleurs.
+export interface HexRegion {
+  name: string;
+  base: number;
+  size: number;
+}
+
+const props = withDefaults(
+  defineProps<{
+    regions: HexRegion[];
+    read?: ((address: number, length: number) => number[] | null) | null;
+    write?: ((address: number, data: number[]) => boolean) | null;
+    editable?: boolean | null;
+    version?: number;
+    height?: number;
+  }>(),
+  { read: null, write: null, editable: null, version: 0, height: 340 },
+);
 const { t } = useI18n();
-const emulator = inject("emulator");
+const emulator = useEmu();
 const { state, quiet, call } = emulator;
 
 const ROW = 20; // hauteur d'une ligne, en pixels
 const COLUMNS = 16;
-const paused = computed(() => !state.running);
+const paused = computed(() => props.editable ?? !state.running);
+
+function fetchBytes(address: number, length: number): { ok: true; bytes: number[] } | { ok: false; error: string } {
+  if (props.read) {
+    const bytes = props.read(address, length);
+    return bytes ? { ok: true, bytes } : { ok: false, error: "" };
+  }
+  const reply = quiet({ cmd: "memory_read", address, length });
+  return reply.ok ? { ok: true, bytes: (reply.hex.match(/../g) ?? []).map((b: string) => parseInt(b, 16)) } : { ok: false, error: String(reply.error ?? "") };
+}
 
 const regionIndex = ref(0);
-const region = computed(() => props.regions[regionIndex.value]);
+const region = computed((): HexRegion | undefined => props.regions[regionIndex.value]);
 const rowCount = computed(() => (region.value ? Math.ceil(region.value.size / COLUMNS) : 0));
-const scroller = ref(null);
+const scroller = ref<HTMLElement | null>(null);
 const scrollTop = ref(0);
 const viewRows = ref(24);
 const group = ref(1);
@@ -26,8 +55,8 @@ const bigEndian = ref(false);
 const gotoText = ref("");
 const findText = ref("");
 const findMessage = ref("");
-const cursor = ref(null); // adresse du curseur
-const anchor = ref(null); // début de la sélection
+const cursor = ref<number | null>(null); // adresse du curseur
+const anchor = ref<number | null>(null); // début de la sélection
 const pending = ref(""); // premier chiffre d'un octet en cours de saisie
 const error = ref("");
 
@@ -36,9 +65,9 @@ const baseAddress = computed(() => (region.value?.base ?? 0) + firstRow.value * 
 
 // ---- lecture --------------------------------------------------------------------------------------
 
-const bytes = ref([]);
-const previous = ref([]);
-const changed = reactive(new Set());
+const bytes = ref<number[]>([]);
+const previous = ref<number[] & { base?: number }>([]);
+const changed = reactive(new Set<number>());
 
 function readWindow() {
   const r = region.value;
@@ -46,21 +75,20 @@ function readWindow() {
   const rows = Math.min(viewRows.value + 1, rowCount.value - firstRow.value);
   const length = Math.max(0, Math.min(rows * COLUMNS, r.base + r.size - baseAddress.value));
   if (length === 0) return void (bytes.value = []);
-  const reply = quiet({ cmd: "memory_read", address: baseAddress.value, length });
+  const reply = fetchBytes(baseAddress.value, length);
   if (!reply.ok) {
     error.value = reply.error;
     bytes.value = [];
     return;
   }
   error.value = "";
-  const next = reply.hex.match(/../g).map((b) => parseInt(b, 16));
+  const next = reply.bytes;
   // Les octets qui ont changé depuis la lecture précédente de la même fenêtre sont mis en évidence.
   changed.clear();
   if (previous.value.length === next.length && previous.value.base === baseAddress.value) {
     next.forEach((b, i) => b !== previous.value[i] && changed.add(baseAddress.value + i));
   }
-  next.base = baseAddress.value;
-  previous.value = next;
+  previous.value = Object.assign(next, { base: baseAddress.value });
   bytes.value = next;
 }
 
@@ -75,7 +103,7 @@ onBeforeUnmount(() => {
   clearInterval(timer);
   removeEventListener("resize", measure);
 });
-watch([baseAddress, regionIndex, () => state.revision], readWindow);
+watch([baseAddress, regionIndex, () => state.revision, () => props.version], readWindow);
 watch(() => props.regions.length, () => {
   if (regionIndex.value >= props.regions.length) regionIndex.value = 0;
   readWindow();
@@ -85,16 +113,16 @@ function measure() {
   if (scroller.value) viewRows.value = Math.ceil(scroller.value.clientHeight / ROW) + 1;
 }
 function onScroll() {
-  scrollTop.value = scroller.value.scrollTop;
+  if (scroller.value) scrollTop.value = scroller.value.scrollTop;
 }
 
 // ---- se déplacer ----------------------------------------------------------------------------------
 
-function regionOf(address) {
+function regionOf(address: number) {
   return props.regions.findIndex((r) => address >= r.base && address < r.base + r.size);
 }
 
-async function goTo(address, select = true) {
+async function goTo(address: number, select = true) {
   const index = regionOf(address);
   if (index < 0) {
     error.value = t("hex.unmapped", { address: hex0x(address) });
@@ -103,8 +131,8 @@ async function goTo(address, select = true) {
   error.value = "";
   regionIndex.value = index;
   await nextTick();
-  const row = Math.floor((address - props.regions[index].base) / COLUMNS);
-  scroller.value.scrollTop = Math.max(0, row * ROW - ROW * 3);
+  const row = Math.floor((address - (props.regions[index]?.base ?? 0)) / COLUMNS);
+  if (scroller.value) scroller.value.scrollTop = Math.max(0, row * ROW - ROW * 3);
   onScroll();
   if (select) {
     cursor.value = anchor.value = address;
@@ -121,7 +149,7 @@ function submitGoto() {
 
 watch(
   () => ui.hexGoto,
-  (request) => request && goTo(request.address),
+  (request) => request && !props.read && goTo(request.address),
   { immediate: true },
 );
 watch(regionIndex, async () => {
@@ -138,24 +166,24 @@ const selection = computed(() => {
   const a = anchor.value ?? cursor.value;
   return { start: Math.min(a, cursor.value), end: Math.max(a, cursor.value) };
 });
-const inSelection = (address) => selection.value && address >= selection.value.start && address <= selection.value.end;
+const inSelection = (address: number) => selection.value && address >= selection.value.start && address <= selection.value.end;
 
 let dragging = false;
-function pointerDown(address, event) {
-  event.currentTarget.closest(".grid").focus({ preventScroll: true });
+function pointerDown(address: number, event: PointerEvent) {
+  (event.currentTarget as Element).closest<HTMLElement>(".grid")?.focus({ preventScroll: true });
   cursor.value = address;
   if (!event.shiftKey) anchor.value = address;
   pending.value = "";
   dragging = true;
 }
-function pointerEnter(address) {
+function pointerEnter(address: number) {
   if (dragging) cursor.value = address;
 }
 const stopDrag = () => (dragging = false);
 onMounted(() => addEventListener("pointerup", stopDrag));
 onBeforeUnmount(() => removeEventListener("pointerup", stopDrag));
 
-function move(delta, extend) {
+function move(delta: number, extend: boolean) {
   const r = region.value;
   if (!r || cursor.value === null) return;
   const next = Math.max(r.base, Math.min(r.base + r.size - 1, cursor.value + delta));
@@ -164,36 +192,41 @@ function move(delta, extend) {
   pending.value = "";
   ensureVisible(next);
 }
-function ensureVisible(address) {
-  const row = Math.floor((address - region.value.base) / COLUMNS);
+function ensureVisible(address: number) {
+  const row = Math.floor((address - (region.value?.base ?? 0)) / COLUMNS);
   const top = row * ROW;
   const el = scroller.value;
+  if (!el) return;
   if (top < el.scrollTop) el.scrollTop = top;
   else if (top + ROW > el.scrollTop + el.clientHeight) el.scrollTop = top + ROW - el.clientHeight;
   onScroll();
 }
 
-function write(address, data) {
+function write(address: number, data: number[]) {
   if (!paused.value) return false;
-  const reply = call({ cmd: "memory_write", address, hex: data.map((b) => hex(b, 2)).join("") });
-  if (!reply.ok) return false;
-  emulator.bump();
+  if (props.write) {
+    if (!props.write(address, data)) return false;
+  } else {
+    const reply = call({ cmd: "memory_write", address, hex: data.map((b: number) => hex(b, 2)).join("") });
+    if (!reply.ok) return false;
+    emulator.bump();
+  }
   readWindow();
   return true;
 }
 
-function keydown(event) {
-  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -COLUMNS, ArrowDown: COLUMNS, PageUp: -COLUMNS * (viewRows.value - 2), PageDown: COLUMNS * (viewRows.value - 2) }[event.key];
+function keydown(event: KeyboardEvent) {
+  const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -COLUMNS, ArrowDown: COLUMNS, PageUp: -COLUMNS * (viewRows.value - 2), PageDown: COLUMNS * (viewRows.value - 2) } as Record<string, number>)[event.key];
   if (step !== undefined) {
     move(step, event.shiftKey);
     return event.preventDefault();
   }
   if (event.key === "Home" && cursor.value !== null) {
-    move(-(cursor.value - region.value.base) % COLUMNS, event.shiftKey);
+    move(-(cursor.value - (region.value?.base ?? 0)) % COLUMNS, event.shiftKey);
     return event.preventDefault();
   }
   if (event.key === "End" && cursor.value !== null) {
-    move(COLUMNS - 1 - ((cursor.value - region.value.base) % COLUMNS), event.shiftKey);
+    move(COLUMNS - 1 - ((cursor.value - (region.value?.base ?? 0)) % COLUMNS), event.shiftKey);
     return event.preventDefault();
   }
   if (event.key === "Escape") {
@@ -223,12 +256,12 @@ function keydown(event) {
   }
 }
 
-async function paste(event) {
+async function paste(event: ClipboardEvent) {
   if (cursor.value === null || !paused.value) return;
   const text = (event.clipboardData?.getData("text") ?? "").replace(/0x/gi, "").replace(/[^0-9a-f]/gi, "");
   if (text.length < 2) return;
   event.preventDefault();
-  const data = text.match(/../g).map((b) => parseInt(b, 16));
+  const data = (text.match(/../g) ?? []).map((b) => parseInt(b, 16));
   if (data.length > 1 && !(await confirmDialog(t("hex.pasteConfirm", { count: data.length, address: hex0x(cursor.value) })))) return;
   write(cursor.value, data);
 }
@@ -238,11 +271,11 @@ async function paste(event) {
 function selectedBytes() {
   const s = selection.value;
   if (!s || s.end - s.start > 1 << 20) return null;
-  const reply = quiet({ cmd: "memory_read", address: s.start, length: s.end - s.start + 1 });
-  return reply.ok ? reply.hex.match(/../g).map((b) => parseInt(b, 16)) : null;
+  const reply = fetchBytes(s.start, s.end - s.start + 1);
+  return reply.ok ? reply.bytes : null;
 }
 
-async function copy(kind) {
+async function copy(kind: "hex" | "ascii") {
   const data = selectedBytes();
   if (!data) return;
   const text = kind === "ascii" ? data.map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : ".")).join("") : data.map((b) => hex(b, 2)).join(" ");
@@ -269,12 +302,12 @@ async function fill() {
 
 // Recherche d'une suite d'octets (« de ad be ef » ou « "texte" ») à partir du curseur, dans la zone courante.
 let searching = false;
-function parsePattern(text) {
+function parsePattern(text: string): number[] | null {
   const t0 = text.trim();
   const quoted = t0.match(/^"(.*)"$/s);
   if (quoted) return Array.from(new TextEncoder().encode(quoted[1]));
   const digits = t0.replace(/0x/gi, "").replace(/[\s,]/g, "");
-  return /^([0-9a-f]{2})+$/i.test(digits) ? digits.match(/../g).map((b) => parseInt(b, 16)) : null;
+  return /^([0-9a-f]{2})+$/i.test(digits) ? (digits.match(/../g) ?? []).map((b) => parseInt(b, 16)) : null;
 }
 
 async function find(direction = 1) {
@@ -293,9 +326,9 @@ async function find(direction = 1) {
     const start = direction > 0 ? at : Math.max(r.base, at - CHUNK + 1);
     const length = Math.min(CHUNK + overlap, r.base + r.size - start);
     if (length <= 0) break;
-    const reply = quiet({ cmd: "memory_read", address: start, length });
+    const reply = fetchBytes(start, length);
     if (!reply.ok) break;
-    const data = reply.hex.match(/../g).map((b) => parseInt(b, 16));
+    const data = reply.bytes;
     const order = direction > 0 ? [...data.keys()] : [...data.keys()].reverse();
     for (const i of order) {
       if (direction > 0 ? start + i < at : start + i > at) continue;
@@ -324,48 +357,48 @@ const rows = computed(() => {
   for (let i = 0; i < data.length; i += COLUMNS) {
     const address = baseAddress.value + i;
     const cells = [];
-    for (let j = 0; j < COLUMNS && i + j < data.length; j++) cells.push({ address: address + j, value: data[i + j] });
+    for (let j = 0; j < COLUMNS && i + j < data.length; j++) cells.push({ address: address + j, value: data[i + j] ?? 0 });
     out.push({ address, cells });
   }
   return out;
 });
-const printable = (b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : "·");
-const gap = (j) => (group.value > 1 && j > 0 && j % group.value === 0 ? "gap" : "");
+const printable = (b: number) => (b >= 32 && b < 127 ? String.fromCharCode(b) : "·");
+const gap = (j: number) => (group.value > 1 && j > 0 && j % group.value === 0 ? "gap" : "");
 
 // Valeurs lues à partir du curseur (inspecteur).
 const inspector = computed(() => {
   if (cursor.value === null) return null;
-  const reply = quiet({ cmd: "memory_read", address: cursor.value, length: Math.min(8, region.value.base + region.value.size - cursor.value) });
+  const reply = fetchBytes(cursor.value, Math.min(8, (region.value?.base ?? 0) + (region.value?.size ?? 0) - cursor.value));
   if (!reply.ok) return null;
-  const data = new Uint8Array(reply.hex.match(/../g).map((b) => parseInt(b, 16)));
+  const data = new Uint8Array(reply.bytes);
   // `state.revision` et `bytes` forcent le recalcul quand la mémoire change.
   void state.revision;
   void bytes.value;
   const view = new DataView(data.buffer);
   const le = !bigEndian.value;
-  const has = (n) => data.length >= n;
+  const has = (n: number) => data.length >= n;
   return {
     u8: data[0], i8: view.getInt8(0),
     u16: has(2) ? view.getUint16(0, le) : null, i16: has(2) ? view.getInt16(0, le) : null,
     u32: has(4) ? view.getUint32(0, le) : null, i32: has(4) ? view.getInt32(0, le) : null,
     f32: has(4) ? view.getFloat32(0, le) : null, f64: has(8) ? view.getFloat64(0, le) : null,
-    bin: data[0].toString(2).padStart(8, "0"),
-    ascii: printable(data[0]),
+    bin: (data[0] ?? 0).toString(2).padStart(8, "0"),
+    ascii: printable(data[0] ?? 0),
   };
 });
-const num = (v) => (v === null || v === undefined ? "—" : String(v));
+const num = (v: unknown) => (v === null || v === undefined ? "—" : String(v));
 </script>
 
 <template>
   <section class="hex" :aria-label="t('hex.label')">
     <div class="toolbar" role="toolbar" :aria-label="t('hex.toolbar')">
-      <label class="field">{{ t("hex.region") }}
+      <label v-if="regions.length > 1" class="field">{{ t("hex.region") }}
         <select v-model="regionIndex">
           <option v-for="(r, i) in regions" :key="r.name" :value="i">{{ r.name }} · {{ hex0x(r.base) }}</option>
         </select>
       </label>
       <label class="field">{{ t("hex.goto") }}
-        <input v-model="gotoText" class="mono" placeholder="0x20000000" data-keep-keys @keydown.enter="submitGoto" />
+        <input v-model="gotoText" class="mono" :placeholder="read ? '0x0' : '0x20000000'" data-keep-keys @keydown.enter="submitGoto" />
       </label>
       <label class="field">{{ t("hex.find") }}
         <span class="find">
@@ -395,7 +428,7 @@ const num = (v) => (v === null || v === undefined ? "—" : String(v));
         <span class="cells"><span v-for="j in COLUMNS" :key="j" :class="gap(j - 1)">{{ hex(j - 1, 2) }}</span></span>
         <span class="ascii">ASCII</span>
       </div>
-      <div ref="scroller" class="scroller" @scroll.passive="onScroll">
+      <div ref="scroller" class="scroller" :style="{ height: height + 'px' }" @scroll.passive="onScroll">
         <div class="spacer-v" :style="{ height: rowCount * ROW + 'px' }">
           <div
             class="grid mono"
@@ -418,7 +451,7 @@ const num = (v) => (v === null || v === undefined ? "—" : String(v));
                   :class="['cell', gap(j), { sel: inSelection(cell.address), cur: cell.address === cursor, chg: changed.has(cell.address), zero: cell.value === 0 }]"
                   @pointerdown.prevent="pointerDown(cell.address, $event)"
                   @pointerenter="pointerEnter(cell.address)"
-                >{{ cell.address === cursor && pending ? pending + "_" : hex(cell.value, 2) }}</span>
+                >{{ cell.address === cursor && pending ? pending + "_" : hex(cell.value ?? 0, 2) }}</span>
               </span>
               <span class="ascii">
                 <span
@@ -448,16 +481,16 @@ const num = (v) => (v === null || v === undefined ? "—" : String(v));
 </template>
 
 <style scoped>
-.hex { display: grid; gap: 8px; }
+.hex { display: grid; gap: 14px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 .find { display: flex; gap: 4px; }
 .find input { width: 14em; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .spacer { flex: 1; }
 .banner { margin: 0; padding: 4px 8px; background: color-mix(in srgb, var(--warn) 16%, transparent); border-radius: 6px; font-size: 12px; }
 .viewer { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
 .head { display: flex; gap: 14px; padding: 4px 10px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--surface); }
-.scroller { height: 340px; overflow: auto; position: relative; }
+.scroller { overflow: auto; position: relative; }
 .spacer-v { position: relative; }
 .grid { position: absolute; left: 0; right: 0; top: 0; outline: none; padding: 0 10px; }
 .grid:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
