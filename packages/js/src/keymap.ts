@@ -1,5 +1,5 @@
 // Mapping des entrées (clavier de l'ordinateur, gestes tactiles) vers les touches de la calculatrice.
-// Le format (fichiers `.nmk`) est décrit dans `docs/nmk.md` ; la lecture reproduit celle du cœur Rust
+// Le format (fichiers `.nmk`) est décrit dans `docs/format/nmk.md` ; la lecture reproduit celle du cœur Rust
 // (`src/keymap/`) et les deux sont testés avec les mêmes fichiers (`tests/nmk/`).
 
 import { KEYS } from "./keys.js";

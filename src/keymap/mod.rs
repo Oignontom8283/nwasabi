@@ -1,5 +1,5 @@
 //! Fichiers de mapping NMK : du clavier de l'ordinateur et des gestes tactiles vers les touches de la
-//! calculatrice. Le format est décrit dans `docs/nmk.md`.
+//! calculatrice. Le format est décrit dans `docs/format/nmk.md`.
 //!
 //! Ce module lit et valide un fichier et répond à « quelle touche de la calculatrice pour cette touche
 //! de l'ordinateur ? ». La reconnaissance des gestes elle-même se fait dans `@nwasabi/js`, au plus près
