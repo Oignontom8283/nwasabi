@@ -41,3 +41,6 @@ packages/wasm/nwasabi.wasm
 
 # Caches de Python (outils de tools/)
 __pycache__/
+
+# Fichiers intermédiaires des applications de test
+/tests/apps/build/
