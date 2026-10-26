@@ -33,7 +33,7 @@ touché que quelques pages de RAM donne quelques ko, pas les 256 Kio de la SRAM.
     "commit_hash": "a58aaa0", "security_level": 0, "active_slot": "a",
     "fcc_id": "…", "pcb_version": 0, "serial_number": "…", "device_name": "", "exam_mode": false
   },
-  "app": { "name": "Keys", "nwa_base64": "…", "data_base64": "…" },
+  "app": { "name": "Keys", "file_name": "keys.nwa", "nwa_base64": "…", "data_base64": "…" },
   "memory": {
     "pages": [ { "address": 537124864, "base64": "…" } ],
     "access": [ { "region": "ram", "runs": [ { "line": 120, "base64": "…" } ] } ]
@@ -49,6 +49,7 @@ touché que quelques pages de RAM donne quelques ko, pas les 256 Kio de la SRAM.
 
 ## Détails
 
+- **`app`** : `name` est le nom que l'application déclare ; `file_name` (facultatif, ajouté par les hôtes qui le connaissent, comme l'émulateur web) est le nom du fichier `.nwa` d'origine ; il n'est pas lu par le cœur.
 - **`memory.pages`** : `address` est un multiple de 4096 ; `base64` couvre une ou plusieurs pages
   consécutives. L'« appareil neuf » de référence est construit comme à la restauration : modèle,
   firmware, réglages de `device`, puis le `.nwa` de la partie `app` **si elle est présente**.

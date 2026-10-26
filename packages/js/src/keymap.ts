@@ -266,6 +266,99 @@ export class KeyMap {
     return (code ? this.keyboard.get(code) : undefined) ?? this.keyboard.get(`key:${key}`);
   }
 
+  // ---- modification (les mappings sont immuables : chaque changement en rend un nouveau) ----------------
+
+  private derive(patch: {
+    name?: string | null;
+    keyboard?: Map<string, KeyName[]>;
+    settings?: Partial<TouchSettings>;
+    rules?: readonly TouchRule[];
+  }): KeyMap {
+    return new KeyMap(
+      patch.name === undefined ? this.name : patch.name,
+      patch.keyboard ?? new Map(this.keyboard),
+      { ...this.settings, ...patch.settings },
+      patch.rules ?? this.rules,
+    );
+  }
+
+  /** Donne un nom au mapping (`null` : sans nom). */
+  withName(name: string | null): KeyMap {
+    return this.derive({ name });
+  }
+
+  /** Lie une touche de l'ordinateur (`KeyW`, `key:e`) à des touches de la calculatrice ; `null` retire la liaison. */
+  withBinding(host: string, chord: readonly KeyName[] | null): KeyMap {
+    checkHostKey(host, host);
+    const keyboard = new Map(this.keyboard);
+    if (chord === null || chord.length === 0) keyboard.delete(host);
+    else keyboard.set(host, parseChord([...chord], host) as KeyName[]);
+    return this.derive({ keyboard });
+  }
+
+  /** Remplace (ou ajoute) la règle de ce geste avec ce nombre de doigts ; `keys` à `null` la retire. */
+  withRule(rule: { gesture: GestureName; fingers?: number; keys: readonly KeyName[] | null; whileHeld?: boolean }): KeyMap {
+    const fingers = rule.fingers ?? 1;
+    const rules = this.rules.filter((r) => !(r.gesture === rule.gesture && r.fingers === fingers));
+    if (rule.keys && rule.keys.length > 0) {
+      const whileHeld = rule.whileHeld ?? false;
+      parseRule(
+        { gesture: rule.gesture, fingers, key: [...rule.keys], while_held: whileHeld },
+        `rule ${rule.gesture}`,
+      );
+      rules.push({ gesture: rule.gesture, fingers, keys: [...rule.keys], whileHeld });
+    }
+    return this.derive({ rules });
+  }
+
+  /** Change des réglages tactiles (distances et durées), avec les mêmes limites que dans un fichier. */
+  withSettings(patch: Partial<TouchSettings>): KeyMap {
+    for (const [field, property, min, max] of SETTINGS) {
+      const n = patch[property];
+      if (n !== undefined && (!isCount(n) || n < min || n > max)) {
+        throw new NmkError(`touch.${field}`, `un entier de ${min} à ${max} est attendu`);
+      }
+    }
+    return this.derive({ settings: patch });
+  }
+
+  /** Ce qui appuie sur cette touche de la calculatrice : touches de l'ordinateur et gestes. */
+  sourcesOf(key: KeyName): { keyboard: string[]; rules: TouchRule[] } {
+    return {
+      keyboard: this.entries()
+        .filter(([, chord]) => chord.includes(key))
+        .map(([id]) => id),
+      rules: this.rules.filter((r) => r.keys.includes(key)),
+    };
+  }
+
+  /**
+   * Le mapping sous la forme d'un fichier NMK, autonome (`"extends": "none"`) : il se recharge à l'identique
+   * quel que soit le mapping par défaut de la version de nwasabi qui le lit.
+   */
+  toNmk(): object {
+    const keyboard: Record<string, string | string[]> = {};
+    for (const [id, chord] of this.entries()) keyboard[id] = chord.length === 1 ? chord[0]! : [...chord];
+    return {
+      nmk: NMK_VERSION,
+      ...(this.name ? { name: this.name } : {}),
+      extends: "none",
+      keyboard,
+      touch: {
+        swipe_distance: this.settings.swipeDistance,
+        long_press_ms: this.settings.longPressMs,
+        double_tap_ms: this.settings.doubleTapMs,
+        press_ms: this.settings.pressMs,
+        rules: this.rules.map((r) => ({
+          gesture: r.gesture,
+          fingers: r.fingers,
+          key: r.keys.length === 1 ? r.keys[0] : [...r.keys],
+          ...(r.whileHeld ? { while_held: true } : {}),
+        })),
+      },
+    };
+  }
+
   /** Les liaisons du clavier, triées par identifiant. */
   entries(): [string, readonly KeyName[]][] {
     return [...this.keyboard.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
@@ -304,7 +397,7 @@ const DEFAULT_SETTINGS: TouchSettings = {
 // Copie de `src/keymap/default.nmk` (un test vérifie qu'elles sont identiques).
 export const DEFAULT_NMK = {
   "nmk": 1,
-  "name": "Défaut",
+  "name": "Default",
   "extends": "none",
   "keyboard": {
     "key:ArrowUp": "up",

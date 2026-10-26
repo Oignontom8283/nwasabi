@@ -8,7 +8,7 @@
 // dessine l'écran. Elle gère aussi les touches (un appui plus court qu'une image est prolongé) et la
 // reprise des applications qui attendent une touche.
 
-import { Nwasabi, toBase64, SCREEN_HEIGHT, SCREEN_WIDTH } from "./nwasabi.js";
+import { Nwasabi, fromBase64, toBase64, SCREEN_HEIGHT, SCREEN_WIDTH } from "./nwasabi.js";
 import type { Reply, Request, RgbaTarget, WasmSource } from "./nwasabi.js";
 import type { KeyName } from "./keys.js";
 import { InputMapper } from "./input.js";
@@ -58,6 +58,8 @@ export interface PlayerState {
   timeMs: number;
   /** Nom du mapping des touches en vigueur (`null` : sans nom, ou celui par défaut). */
   keymapName: string | null;
+  /** L'application demande des données externes qu'on ne lui a pas données (elle n'est pas lancée). */
+  needsData: boolean;
   /** Augmente quand les vues dérivées (fichiers, mémoire…) doivent se rafraîchir. */
   revision: number;
 }
@@ -192,6 +194,7 @@ export class Player {
       stdout: "",
       timeMs: 0,
       keymapName: null,
+      needsData: false,
       revision: 0,
     };
   }
@@ -359,11 +362,16 @@ export class Player {
       nwa_base64: toBase64(this.nwa),
     };
     if (this.data) request.data_base64 = toBase64(this.data);
-    let reply = this.call(request);
+    state.needsData = false;
+    const reply = this.call(request);
     if (!reply.ok && !this.data && /données externes|external/i.test(reply.error ?? "")) {
-      // L'application réclame des données externes : un jeu vide permet de la lancer quand même.
+      // L'application réclame des données externes : on les attend (voir `runWithoutData` pour s'en passer).
       state.error = "";
-      reply = this.call({ ...request, data_base64: "" });
+      state.needsData = true;
+      state.loaded = false;
+      this.draw();
+      this.bump();
+      return false;
     }
     state.loaded = reply.ok;
     this.readSpeed(reply);
@@ -371,6 +379,74 @@ export class Player {
     this.bump();
     if (reply.ok) this.start();
     return reply.ok;
+  }
+
+  /** Les parties que l'on peut enregistrer d'un état (voir `dump`). */
+  static readonly DUMP_PARTS = ["app", "memory", "fs", "state"] as const;
+
+  /**
+   * Enregistre l'état de l'appareil (document `.nds`, voir `docs/format/nds.md`). L'émulation doit être en pause :
+   * l'état est pris entre deux instructions. Rend `null` (et `state.error`) sinon, ou si le module refuse.
+   */
+  dump(parts: readonly string[] = Player.DUMP_PARTS): unknown | null {
+    if (!this.state.loaded) return null;
+    if (this.state.running) {
+      this.state.error = "pause requise pour enregistrer l'état";
+      return null;
+    }
+    const reply = this.call({ cmd: "dump", parts: [...parts] });
+    if (!reply.ok) return null;
+    // Le nom du fichier est celui que connaît l'hôte, pas le cœur : on l'ajoute (champ informatif).
+    const document = reply.nds as { app?: { file_name?: string } };
+    if (document.app && this.state.appName) document.app.file_name = this.state.appName;
+    return document;
+  }
+
+  /**
+   * Remplace l'appareil par l'état d'un document `.nds`. L'émulation reste **en pause** : c'est à l'appelant de la
+   * reprendre (`start()`). Rend `false` (et `state.error`) si le document est refusé : l'appareil n'est alors pas touché.
+   */
+  restore(document: unknown): boolean {
+    this.stop();
+    const reply = this.call({ cmd: "restore", nds: document });
+    if (!reply.ok) return false;
+    const state = this.state;
+    const doc = document as {
+      app?: { nwa_base64?: string; data_base64?: string; name?: string; file_name?: string };
+    };
+    if (doc.app?.nwa_base64) {
+      this.nwa = fromBase64(doc.app.nwa_base64);
+      this.data = doc.app.data_base64 !== undefined ? fromBase64(doc.app.data_base64) : null;
+    }
+    const app = reply.app as { name?: string } | undefined;
+    if (doc.app?.file_name || app?.name) state.appName = doc.app?.file_name ?? app?.name ?? state.appName;
+    state.model = String(reply.model).toLowerCase() as Model;
+    state.firmware = reply.firmware as Firmware;
+    if (reply.speed) state.speed = reply.speed as SpeedMode;
+    if (typeof reply.mhz === "number") state.customMhz = reply.mhz;
+    this.readSpeed(reply);
+    state.error = "";
+    state.loaded = true;
+    state.stop = null;
+    state.frames = (reply.frames as number | undefined) ?? 0;
+    const info = this.call({ cmd: "time" });
+    state.timeMs = info.ok ? (info.time_us as number) / 1000 : 0;
+    const out = this.call({ cmd: "stdout" });
+    state.stdout = (out.text as string | undefined) ?? "";
+    this.pressed.clear();
+    this.sampled.clear();
+    this.deferred.clear();
+    this.input.releaseAll();
+    this.draw();
+    this.emitFrame();
+    this.bump();
+    return true;
+  }
+
+  /** Lance l'application qui réclame des données externes avec un jeu vide. */
+  runWithoutData(): boolean {
+    if (!this.nwa) return false;
+    return this.load(this.nwa, this.state.appName, new Uint8Array());
   }
 
   /** Change le modèle (et le firmware) ; relance l'application chargée, s'il y en a une. */

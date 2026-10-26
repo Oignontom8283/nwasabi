@@ -282,6 +282,47 @@ check("annuler un geste en cours relâche l'appui long", () => {
   assert.deepEqual(log, ["+ok", "-ok"]);
 });
 
+// --- modification et export ----------------------------------------------------------------------
+check("withBinding, withRule et withName rendent de nouveaux mappings sans toucher l'ancien", () => {
+  const base = KeyMap.default();
+  const edited = base.withBinding("KeyW", ["up"]).withRule({ gesture: "tap", keys: ["ok"] }).withName("édité");
+  assert.deepEqual(edited.resolve("KeyW", "w"), ["up"]);
+  assert.equal(base.resolve("KeyW", "w"), undefined);
+  assert.equal(edited.name, "édité");
+  assert.ok(edited.rules.some((r) => r.gesture === "tap"));
+  assert.ok(!base.rules.some((r) => r.gesture === "tap"));
+});
+
+check("retirer une liaison ou une règle", () => {
+  const edited = KeyMap.default().withBinding("key:e", null).withRule({ gesture: "swipe_up", keys: null });
+  assert.equal(edited.resolve("", "e"), undefined);
+  assert.ok(!edited.rules.some((r) => r.gesture === "swipe_up"));
+});
+
+check("les modifications refusent ce qu'un fichier refuserait", () => {
+  assert.throws(() => KeyMap.default().withBinding("char:w", ["up"]), NmkError);
+  assert.throws(() => KeyMap.default().withBinding("KeyW", ["haut"]), NmkError);
+  assert.throws(() => KeyMap.default().withSettings({ pressMs: 1 }), NmkError);
+  assert.throws(() => KeyMap.default().withRule({ gesture: "tap", keys: ["ok"], whileHeld: true }), NmkError);
+});
+
+check("toNmk donne un fichier autonome qui se relit à l'identique", () => {
+  for (const map of [KeyMap.default(), wasd, KeyMap.default().withBinding("KeyZ", ["ok", "back"])]) {
+    const file = JSON.parse(JSON.stringify(map.toNmk()));
+    assert.equal(file.extends, "none");
+    const again = KeyMap.parse(file);
+    assert.deepEqual(JSON.parse(JSON.stringify(again)), JSON.parse(JSON.stringify(map)));
+  }
+});
+
+check("sourcesOf donne les touches de l'ordinateur et les gestes d'une touche de la calculatrice", () => {
+  const map = wasd;
+  const up = map.sourcesOf("up");
+  assert.ok(up.keyboard.includes("KeyW") && up.keyboard.includes("key:ArrowUp"));
+  assert.deepEqual(map.sourcesOf("xnt"), { keyboard: [], rules: [] });
+  assert.ok(map.sourcesOf("back").rules.some((r) => r.gesture === "tap" && r.fingers === 2));
+});
+
 if (failures) {
   console.log(`${failures} échec(s)`);
   process.exit(1);
