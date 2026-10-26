@@ -1,5 +1,6 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount } from "vue";
+import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { PANEL_MIN, PANEL_ROOM, panelPixels, TABS, ui } from "../ui.js";
 import Icon from "./Icon.vue";
@@ -11,8 +12,8 @@ import StructuresTab from "./tabs/StructuresTab.vue";
 import TraceTab from "./tabs/TraceTab.vue";
 
 const { t } = useI18n();
-const COMPONENTS = { files: FilesTab, memory: MemoryTab, structures: StructuresTab, keys: KeysTab, settings: SettingsTab, trace: TraceTab };
-const ICONS = { files: "folder", memory: "chip", structures: "layers", keys: "keyboard", settings: "sliders", trace: "activity" };
+const COMPONENTS: Record<string, Component> = { files: FilesTab, memory: MemoryTab, structures: StructuresTab, keys: KeysTab, settings: SettingsTab, trace: TraceTab };
+const ICONS: Record<string, string> = { files: "folder", memory: "chip", structures: "layers", keys: "keyboard", settings: "sliders", trace: "activity" };
 
 const width = computed(() => panelPixels());
 
@@ -21,11 +22,11 @@ const width = computed(() => panelPixels());
 let dragging = false;
 let wanted = 0;
 let frame = 0;
-function startDrag(event) {
+function startDrag(event: PointerEvent) {
   dragging = true;
-  event.currentTarget.setPointerCapture(event.pointerId);
+  (event.currentTarget as Element).setPointerCapture(event.pointerId);
 }
-function drag(event) {
+function drag(event: PointerEvent) {
   if (!dragging) return;
   wanted = ui.winWidth - event.clientX;
   frame ||= requestAnimationFrame(() => {
@@ -36,7 +37,7 @@ function drag(event) {
 function endDrag() {
   dragging = false;
 }
-function resizeKey(event) {
+function resizeKey(event: KeyboardEvent) {
   const step = event.shiftKey ? 80 : 24;
   if (event.key === "ArrowLeft") ui.panelWidth = Math.min(width.value + step, ui.winWidth - PANEL_ROOM);
   else if (event.key === "ArrowRight") ui.panelWidth = Math.max(width.value - step, PANEL_MIN);
@@ -47,11 +48,11 @@ function resizeKey(event) {
 }
 onBeforeUnmount(() => cancelAnimationFrame(frame));
 
-function tabKey(event) {
+function tabKey(event: KeyboardEvent) {
   const i = TABS.indexOf(ui.tab);
-  const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[event.key];
+  const to = ({ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 } as Record<string, number>)[event.key];
   if (to === undefined) return;
-  ui.tab = TABS[(to + TABS.length) % TABS.length];
+  ui.tab = TABS[(to + TABS.length) % TABS.length] ?? "files";
   event.preventDefault();
   document.getElementById(`tab-${ui.tab}`)?.focus();
 }
@@ -87,7 +88,7 @@ function tabKey(event) {
           :tabindex="ui.tab === id ? 0 : -1"
           @click="ui.tab = id"
         >
-          <Icon :name="ICONS[id]" /> {{ t(`tabs.${id}`) }}
+          <Icon :name="ICONS[id] ?? 'file'" /> {{ t(`tabs.${id}`) }}
         </button>
       </div>
       <button class="collapse icon" :title="t('panel.collapse')" :aria-label="t('panel.collapse')" @click="ui.panelOpen = false"><Icon name="right" /></button>
