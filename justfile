@@ -128,7 +128,7 @@ test:
 test-corpus corpus:
     NWASABI_CORPUS={{corpus}} cargo test --all-features
 
-# Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm local/nwa`).
+# Teste le module WebAssembly sous Node.js (corpus facultatif : `just test-wasm chemin/du/corpus`).
 test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/parity.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/player.mjs
@@ -149,7 +149,7 @@ ci: fmt-check clippy test build-wasm build-js
 
 # Contenu : formatage, clippy, compilation de tout (serveur, CLI, WebAssembly), tous les tests Rust (dont les applications
 # de test en C, les vecteurs QEMU et les fichiers de référence), tests WebAssembly sous Node.js, émulateur web, site de
-# documentation et contenu des paquets npm. Corpus facultatif de .nwa de tiers : `just check-all local/nwa` (il active
+# documentation et contenu des paquets npm. Corpus facultatif de .nwa de tiers : `just check-all chemin/du/corpus` (il active
 # aussi les tests de parité et de référence qui en dépendent). Ne recompile pas les applications de test en C
 # (voir `build-test-apps`) et ne publie rien.
 # VÉRIFICATION INTÉGRALE, LONGUE : tout contrôler (qualité, tests, compilations, web, docs, npm). Voir `ci` pour la version rapide.
@@ -167,9 +167,8 @@ test-all corpus="":
 clean:
     cargo clean
 
-    find . -maxdepth 5 \
-        \( -type d -name "local" -prune \) -o \
-        \( -type d \( -name "node_modules" -o -name "dist" -o -name "__pycache__" \) \
-        -prune -exec rm -rf -- {} + \)
+    rm -rf node_modules web/node_modules docs/node_modules
+    rm -rf web/dist packages/js/dist packages/wasm/dist docs/.vitepress/dist docs/public/emulator
+    rm -rf tests/apps/build
 
     rm -rf ./example/nwasabi.wasm ./example/js
