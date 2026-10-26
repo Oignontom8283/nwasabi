@@ -53,11 +53,10 @@ function onMove(event: PointerEvent) {
   }
 }
 
-// La capture est faite par le site : le cœur ne fournit que les pixels, le navigateur les encode.
-function capture() {
-  canvas.value?.toBlob((blob) => {
-    if (blob) download(`${stem(state.appName || "nwasabi")}.png`, blob);
-  }, "image/png");
+// L'écran est dessiné par le Worker de l'émulation : c'est lui qui encode l'image, la page ne fait que l'enregistrer.
+async function capture() {
+  const blob = await emulator.capture();
+  if (blob) download(`${stem(state.appName || "nwasabi")}.png`, blob);
 }
 </script>
 

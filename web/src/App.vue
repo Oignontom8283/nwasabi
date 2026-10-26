@@ -34,14 +34,14 @@ function fail(message: string) {
   state.error = message;
 }
 
-function loadApp(bytes: Uint8Array, name: string) {
+async function loadApp(bytes: Uint8Array, name: string) {
   lastApp = { bytes, name };
-  emulator.load(bytes, name, dataBytes);
+  await emulator.load(bytes, name, dataBytes);
 }
 
-function loadData(bytes: Uint8Array, name: string) {
+async function loadData(bytes: Uint8Array, name: string) {
   dataBytes = bytes;
-  if (lastApp) emulator.load(lastApp.bytes, lastApp.name, dataBytes);
+  if (lastApp) await emulator.load(lastApp.bytes, lastApp.name, dataBytes);
 }
 
 function loadKeymapText(text: string, source: string): boolean {
@@ -64,10 +64,10 @@ function parseJson(text: string, source: string): unknown {
   }
 }
 
-function loadStateText(text: string, source: string): boolean {
+async function loadStateText(text: string, source: string): Promise<boolean> {
   const document = parseJson(text, source);
   if (!document) return false;
-  const ok = emulator.restore(document) ?? false;
+  const ok = (await emulator.restore(document)) ?? false;
   if (ok) {
     lastApp = null; // le dump porte son application ; « Relancer » la reprend du lecteur
     state.error = "";
@@ -75,10 +75,10 @@ function loadStateText(text: string, source: string): boolean {
   return ok;
 }
 
-function loadFilesText(text: string, source: string): boolean {
+async function loadFilesText(text: string, source: string): Promise<boolean> {
   const document = parseJson(text, source);
   if (!document) return false;
-  const reply = emulator.call({ cmd: "fs_import", nfs: document, replace: true });
+  const reply = await emulator.call({ cmd: "fs_import", nfs: document, replace: true });
   if (reply.ok) {
     state.error = "";
     emulator.bump();
@@ -123,10 +123,10 @@ function describe(error: unknown): string {
 async function loadFromAddress() {
   const params = launchParams();
   try {
-    if (params.data) loadData(new Uint8Array(await (await fetchFile(params.data)).arrayBuffer()), fileNameOf(params.data));
-    if (params.nds) loadStateText(await (await fetchFile(params.nds)).text(), params.nds);
-    else if (params.nwa) loadApp(new Uint8Array(await (await fetchFile(params.nwa)).arrayBuffer()), fileNameOf(params.nwa));
-    if (params.nfs) loadFilesText(await (await fetchFile(params.nfs)).text(), params.nfs);
+    if (params.data) await loadData(new Uint8Array(await (await fetchFile(params.data)).arrayBuffer()), fileNameOf(params.data));
+    if (params.nds) await loadStateText(await (await fetchFile(params.nds)).text(), params.nds);
+    else if (params.nwa) await loadApp(new Uint8Array(await (await fetchFile(params.nwa)).arrayBuffer()), fileNameOf(params.nwa));
+    if (params.nfs) await loadFilesText(await (await fetchFile(params.nfs)).text(), params.nfs);
     if (params.nmk) loadKeymapText(await (await fetchFile(params.nmk)).text(), params.nmk);
   } catch (error) {
     fail(describe(error));
@@ -142,12 +142,10 @@ async function serverApp(initial: boolean) {
   const preload = got ? await got.reply.json() : null;
   if (!preload) return;
   if (initial) {
-    state.model = preload.model;
-    state.firmware = preload.firmware ?? state.firmware;
-    emulator.call({ cmd: "new", model: preload.model });
+    await emulator.changeModel(preload.model, preload.firmware ?? state.firmware);
   }
   dataBytes = preload.data_base64 ? decode(preload.data_base64) : null;
-  loadApp(decode(preload.nwa_base64), preload.name);
+  await loadApp(decode(preload.nwa_base64), preload.name);
 }
 
 /** Une partie de ce que le serveur donne : l'application, le mapping `.nmk`, les fichiers `.nfs` ou l'état `.nds`. */
@@ -158,8 +156,8 @@ async function serverPart(part: Part) {
   if ("error" in got) return fail(got.error);
   const text = await got.reply.text();
   const source = t("errors.fromServer");
-  if (part === "nds") loadStateText(text, source);
-  else if (part === "nfs") loadFilesText(text, source);
+  if (part === "nds") await loadStateText(text, source);
+  else if (part === "nfs") await loadFilesText(text, source);
   else loadKeymapText(text, source);
 }
 

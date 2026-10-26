@@ -85,3 +85,23 @@ export const valueOf = (event: Event): string => (event.target as HTMLInputEleme
 
 /** L'état coché de la case qui a émis l'événement. */
 export const checkedOf = (event: Event): boolean => (event.target as HTMLInputElement).checked;
+
+/**
+ * Relève périodiquement (`task` est asynchrone : elle parle au Worker) sans jamais empiler deux relevés : si le précédent
+ * n'est pas fini, on saute ce tour. Rend la fonction qui arrête.
+ */
+export function poll(task: () => Promise<void> | void, ms: number): () => void {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      await task();
+    } finally {
+      busy = false;
+    }
+  };
+  void run();
+  const timer = setInterval(run, ms);
+  return () => clearInterval(timer);
+}
