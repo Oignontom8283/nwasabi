@@ -137,6 +137,9 @@ test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/node.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/speed.mjs
     node tests/wasm/keymap.mjs
+    node tests/wasm/state.mjs
+    NWASABI_CORPUS={{corpus}} node tests/wasm/data.mjs
+    node tests/web/locales.mjs
 
 # Recompile les applications de test en C (tests/apps/src → tests/apps/bin). Demande arm-none-eabi-gcc et
 # nwlink (`npx` le télécharge) ; on ne le fait qu'en modifiant les sources, les .nwa sont versionnés.
