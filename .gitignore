@@ -28,6 +28,8 @@ local/
 **/node_modules/
 **/dist/
 **/cache/
+**/build/
+**/__pycache__/
 
 # Interface web : dépendances et site construit à la main (build.rs construit le sien dans target/).
 example/js
@@ -38,9 +40,3 @@ docs/public/emulator
 
 # Paquets npm : le module .wasm n'est copié que pour publier.
 packages/wasm/nwasabi.wasm
-
-# Caches de Python (outils de tools/)
-__pycache__/
-
-# Fichiers intermédiaires des applications de test
-/tests/apps/build/
