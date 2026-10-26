@@ -52,6 +52,8 @@ canvas {
   border: 2px solid var(--line);
   border-radius: 6px;
   display: block;
+  /* les balayages sur l'écran sont des gestes pour la calculatrice, pas un défilement de la page */
+  touch-action: none;
 }
 .status { margin: 6px 0 0; color: var(--muted); }
 .capture { margin-left: 8px; padding: 1px 8px; font-size: 12px; }

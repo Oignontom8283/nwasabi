@@ -7,6 +7,17 @@ balayage vers la droite pour la flèche droite, un appui long ou deux doigts pou
 C'est du JSON, extension `.nmk`. Il est chargé par l'émulateur web (`?nmk=…`), par le serveur
 `nwasabi` (`--nmk`) et par l'outil `nwasabi-cli` (`--nmk`), et il est utilisable depuis `@nwasabi/js`.
 
+## Charger un mapping
+
+| Où | Comment |
+|---|---|
+| Émulateur web | `…/emulator/?nmk=https://exemple.org/jeu.nmk` : l'adresse peut être relative ou absolue ; un autre site doit autoriser la lecture (CORS), comme pour `?nwa=`. L'onglet « Touches » montre le mapping en vigueur et permet d'ouvrir un fichier ou de revenir au défaut. |
+| Serveur `nwasabi` | `nwasabi --nwa jeu.nwa --nmk jeu.nmk` : le fichier est vérifié au démarrage (le serveur refuse de démarrer s'il est invalide) puis donné à la page. |
+| `nwasabi-cli` | `nwasabi-cli run jeu.nwa --nmk jeu.nmk --press KeyW` : `--press` accepte alors une touche de l'ordinateur (`KeyW`, `key:e`). `nwasabi-cli keys --nmk jeu.nmk` affiche le mapping complet, `--json` pour une sortie lisible par un programme. |
+| `@nwasabi/js` | `player.setKeyMap(KeyMap.parse(texte))` ; voir le README du paquet. |
+
+Un fichier invalide est refusé avec l'endroit de l'erreur (`touch.rules[0].while_held : réservé à long_press`).
+
 ## Exemple
 
 ```json

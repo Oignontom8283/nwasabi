@@ -26,7 +26,7 @@ function bind(name) {
     <div v-for="(row, i) in KEY_ROWS" :key="i" class="row">
       <button v-for="[name, label] in row" :key="name" class="k" v-bind="bind(name)">{{ label }}</button>
     </div>
-    <p class="muted hint">Clavier : flèches, Entrée = OK, Échap = back, chiffres, Maj = shift, Ctrl = alpha.</p>
+    <p class="muted hint">Clavier et gestes sur l'écran : voir l'onglet « Touches ».</p>
   </div>
 </template>
 

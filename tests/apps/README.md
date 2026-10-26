@@ -9,6 +9,7 @@ Elles sont lancées par `tests/emulator_apps.rs`.
 |---|---|
 | `src/integer.c` | division, multiplications longues, champs de bits, rotations, `rev`, `clz`, table de branchement |
 | `src/float.c` | simple précision : `vadd`, `vmul`, `vdiv`, `vsqrt`, `vfma`, conversions, comparaisons non ordonnées |
+| `src/keys.c` | colore l'écran selon les touches enfoncées (flèches, OK) : sert aux essais de bout en bout du mapping des touches |
 | `src/exclusive_flash.c` | `ldrex` en flash : accepté |
 | `src/exclusive_ram.c` | `ldrex` sur la pile : BusFault, comme sur la calculatrice |
 

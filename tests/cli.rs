@@ -320,3 +320,31 @@ fn press_accepts_a_host_key_through_the_mapping() {
     let without = cli(&["run", &app, "--press", "KeyQ"]);
     assert_eq!(without.status.code(), Some(1));
 }
+
+/// Empreinte de l'écran de `keys.nwa` après quelques images, avec les arguments donnés en plus.
+fn keys_screen(extra: &[&str]) -> String {
+    let app = format!("{}/tests/apps/bin/keys.nwa", env!("CARGO_MANIFEST_DIR"));
+    let mut args = vec!["run", &app, "--frames", "4", "--json"];
+    args.extend_from_slice(extra);
+    let out = cli(&args);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v = json::parse(stdout(&out).trim()).unwrap();
+    v["screen_crc32"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn a_mapped_host_key_reaches_the_application() {
+    let nmk = nmk_fixture("wasd");
+    let idle = keys_screen(&[]);
+    let up = keys_screen(&["--press", "up"]);
+    assert_ne!(idle, up, "la touche haut change l'écran");
+    // Position W du clavier → haut, avec le mapping de jeu.
+    assert_eq!(keys_screen(&["--nmk", &nmk, "--press", "KeyW"]), up);
+    assert_ne!(keys_screen(&["--nmk", &nmk, "--press", "KeyA"]), up);
+    // Une combinaison (shift + alpha) n'est aucune des touches de l'application : écran noir comme au repos.
+    assert_eq!(keys_screen(&["--nmk", &nmk, "--press", "KeyQ"]), idle);
+}
