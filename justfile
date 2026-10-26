@@ -140,6 +140,7 @@ test-wasm corpus="": build-wasm build-js
     node tests/wasm/state.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/data.mjs
     node tests/web/locales.mjs
+    node tests/web/scan.mjs
 
 # Vérifie les types TypeScript de l'interface web (web/src, Vue et TypeScript strict).
 typecheck-web: build-js
