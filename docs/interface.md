@@ -74,16 +74,35 @@ Exemple : `NWASABI_INFO_FILE=infos.md cargo build --release --features serve`. S
     pour en choisir plusieurs ; Suppr supprime après confirmation, Maj + Suppr sans), éditeur de scripts Python, éditeur
     hexadécimal pour les fichiers dont le format n'est pas reconnu, « Tout effacer », import et export `.nfs` ;
   - **Mémoire** : enregistrement de l'état (`.nds`, avec cases à cocher), utilisation du tas et de la pile, carte de la
-    mémoire (contenu, réel ou simulé, infobulle qui suit la souris, repères qui renvoient aux structures) et éditeur hexadécimal ;
+    mémoire (contenu, réel ou simulé, infobulle qui suit la souris, repères qui renvoient aux structures), éditeur
+    hexadécimal (on tape des chiffres dans la colonne hexadécimale, des caractères dans la colonne ASCII) et recherche de
+    valeurs en mémoire ;
   - **Structures** : les structures du firmware relues depuis la mémoire ;
   - **Touches** : le mapping, modifiable depuis la calculatrice ou les tableaux, avec import et export `.nmk`, et les seuils
     de reconnaissance des gestes ;
   - **Réglages** : conserver les fichiers de la calculatrice dans le navigateur (voir ci-dessous), rechargement
     automatique des fichiers du serveur, vitesse du processeur, identité et matériel de l'appareil ;
   - **Trace** : registres du processeur (avec leur rôle) et drapeaux, appels système, sortie standard.
-- Enregistrer l'état, exporter les fichiers et modifier la mémoire exigent la **pause**.
+- Enregistrer l'état et exporter les fichiers exigent la **pause**. La mémoire, elle, s'affiche en temps réel et se modifie en
+  direct, application lancée ou non.
 - Les confirmations et saisies s'ouvrent dans des fenêtres flottantes, déplaçables et redimensionnables, comme la fenêtre
   « Licence et conditions d'utilisation ».
+
+## Recherche de valeurs en mémoire
+
+Sous l'éditeur hexadécimal, l'onglet Mémoire cherche les adresses de la RAM de l'application qui contiennent une valeur :
+
+1. choisir le type de donnée (entier de 8, 16 ou 32 bits, signé ou non, ou flottant de 32 ou 64 bits), saisir la valeur
+   affichée par l'application, puis lancer la première recherche ;
+2. après un changement de cette valeur dans l'application, saisir la nouvelle valeur et lancer la recherche suivante : seules
+   les adresses qui ont suivi le changement sont conservées. L'opération se répète jusqu'à isoler quelques adresses ;
+3. si la valeur n'est pas connue, la première recherche peut retenir toutes les adresses (« valeur initiale inconnue ») ;
+   les suivantes comparent alors à la recherche précédente (modifiée, inchangée, augmentée, diminuée). Les comparaisons
+   « supérieure à », « inférieure à » et « comprise entre » sont aussi disponibles ;
+4. une adresse retenue s'ajoute à la liste (bouton « + » ou double-clic). Sa valeur y est relue en continu ; saisir une
+   valeur puis valider avec Entrée l'écrit en mémoire dans le format du type, et « Maintenir » la réécrit en continu.
+
+La recherche s'utilise application lancée ou en pause ; elle est réinitialisée au chargement d'une autre application.
 
 ## Conserver les fichiers dans le navigateur
 

@@ -270,7 +270,8 @@
     "foundAt": "Found at {address}",
     "copyFailed": "The browser refused to copy.",
     "pasteConfirm": "Write {count} bytes starting at {address}?",
-    "help": "Click or use arrows to move, Shift to select, type two hex digits to change a byte (while paused), Ctrl+C to copy, Ctrl+V to paste bytes. Orange bytes have just changed."
+    "help": "Memory is shown in real time and can be edited live, whether the application is running or paused. Click or arrows to move, Shift to select. In the hex column, two digits change a byte; in the ASCII column, each typed character replaces the byte under the cursor. Ctrl+C copies, Ctrl+V pastes bytes. Orange bytes just changed.",
+    "badChar": "“{char}” does not fit in one byte: only characters with code 0 to 255 can be written."
   },
   "structures": {
     "tree": "Memory structures",
@@ -528,5 +529,73 @@
     "message": "Should Nwasabi keep the calculator's files (your scripts, for example) in this browser, so you find them again on every visit? The browser may ask your permission to keep them durably. They stay on this computer, are shared by everything that runs on this site, and you can erase them or change your mind at any time in the Settings tab.",
     "accept": "Yes, keep them",
     "decline": "No thanks"
+  },
+  "scan": {
+    "title": "Memory value search",
+    "help": "This search finds the memory addresses that hold a given value. The first search keeps every matching address; each next search keeps, among them, only those whose new value satisfies the chosen comparison (exact value, changed, increased…). Repeating it after each change of the value in the application isolates the address that holds it. The retained addresses can be added to the list to be read continuously, modified or held at a value.",
+    "noApp": "Load an application to search its memory.",
+    "type": "Data type",
+    "zone": "Memory range",
+    "compare": "Comparison",
+    "value": "Value",
+    "aligned": "Addresses aligned to the type size only (faster, and almost always what you want)",
+    "zoneRam": "Application RAM",
+    "zoneAll": "All readable areas",
+    "types": {
+      "u8": "Unsigned integer, 8 bits (0 to 255)",
+      "i8": "Signed integer, 8 bits",
+      "u16": "Unsigned integer, 16 bits (0 to 65,535)",
+      "i16": "Signed integer, 16 bits",
+      "u32": "Unsigned integer, 32 bits",
+      "i32": "Signed integer, 32 bits",
+      "f32": "Float, 32 bits",
+      "f64": "Float, 64 bits"
+    },
+    "shortTypes": {
+      "u8": "u8",
+      "i8": "i8",
+      "u16": "u16",
+      "i16": "i16",
+      "u32": "u32",
+      "i32": "i32",
+      "f32": "f32",
+      "f64": "f64"
+    },
+    "compares": {
+      "exact": "Exact value",
+      "greater": "Greater than",
+      "less": "Less than",
+      "between": "Between",
+      "changed": "Changed",
+      "unchanged": "Unchanged",
+      "increased": "Increased",
+      "decreased": "Decreased",
+      "unknown": "Unknown initial value"
+    },
+    "first": "First search",
+    "next": "Next search",
+    "reset": "Reset",
+    "scanning": "Searching…",
+    "results": "no results | 1 result | {n} results",
+    "none": "No address matches.",
+    "showing": "The first {n} results are shown: narrow the search.",
+    "truncated": "Too many results: the search stopped at {n} addresses.",
+    "colAddress": "Address",
+    "colValue": "Value",
+    "colPrevious": "Previous",
+    "colDescription": "Description",
+    "colType": "Type",
+    "colFrozen": "Hold",
+    "goto": "Show in the hex editor",
+    "add": "Add to the list (or double-click)",
+    "remove": "Remove from the list",
+    "unnamed": "Unnamed",
+    "listTitle": "Address list",
+    "listHelp": "Values are read continuously. Typing a value and pressing Enter writes it to memory, in the format of the address's type; “Hold” keeps writing the value so that it stays unchanged.",
+    "listEmpty": "The list is empty: add addresses from the results.",
+    "badValue": "“{text}” is not a valid value for this type ({type}).",
+    "writeFailed": "Could not write at {address}.",
+    "min": "Minimum value",
+    "max": "Maximum value"
   }
 }

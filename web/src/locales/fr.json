@@ -270,7 +270,8 @@
     "foundAt": "Trouvé à {address}",
     "copyFailed": "Copie refusée par le navigateur.",
     "pasteConfirm": "Écrire {count} octets à partir de {address} ?",
-    "help": "Clic ou flèches pour se déplacer, Maj pour sélectionner, deux chiffres hexadécimaux pour modifier un octet (en pause), Ctrl+C pour copier, Ctrl+V pour coller des octets. Les octets en orange viennent de changer."
+    "help": "La mémoire s'affiche en temps réel et se modifie en direct, application lancée ou en pause. Clic ou flèches pour se déplacer, Maj pour sélectionner. Dans la colonne hexadécimale, deux chiffres modifient un octet ; dans la colonne ASCII, chaque caractère tapé remplace l'octet sous le curseur. Ctrl+C copie, Ctrl+V colle des octets. Les octets en orange viennent de changer.",
+    "badChar": "« {char} » ne tient pas sur un octet : seuls les caractères de code 0 à 255 s'écrivent."
   },
   "structures": {
     "tree": "Structures de la mémoire",
@@ -528,5 +529,73 @@
     "message": "Voulez-vous que Nwasabi conserve les fichiers de la calculatrice (vos scripts, par exemple) dans ce navigateur, pour les retrouver à chaque visite ? Le navigateur peut vous demander l'autorisation de les garder durablement. Ils restent sur cet ordinateur, sont partagés par tout ce qui tourne sur ce site, et vous pouvez les effacer ou changer d'avis à tout moment dans l'onglet Réglages.",
     "accept": "Oui, les conserver",
     "decline": "Non merci"
+  },
+  "scan": {
+    "title": "Recherche de valeurs en mémoire",
+    "help": "Cette recherche repère les adresses de la mémoire qui contiennent une valeur donnée. La première recherche retient toutes les adresses qui conviennent ; chaque recherche suivante ne garde, parmi elles, que celles dont la nouvelle valeur satisfait la comparaison choisie (valeur exacte, modifiée, augmentée…). En répétant l'opération après chaque changement de la valeur dans l'application, on isole l'adresse qui la contient. Les adresses retenues peuvent être ajoutées à la liste pour être lues en continu, modifiées ou maintenues à une valeur.",
+    "noApp": "Chargez une application pour chercher dans sa mémoire.",
+    "type": "Type de donnée",
+    "zone": "Plage de mémoire",
+    "compare": "Comparaison",
+    "value": "Valeur",
+    "aligned": "Adresses alignées sur la taille du type uniquement (plus rapide, et c'est presque toujours ce que l'on cherche)",
+    "zoneRam": "RAM de l'application",
+    "zoneAll": "Toutes les zones lisibles",
+    "types": {
+      "u8": "Entier non signé, 8 bits (0 à 255)",
+      "i8": "Entier signé, 8 bits",
+      "u16": "Entier non signé, 16 bits (0 à 65 535)",
+      "i16": "Entier signé, 16 bits",
+      "u32": "Entier non signé, 32 bits",
+      "i32": "Entier signé, 32 bits",
+      "f32": "Flottant, 32 bits",
+      "f64": "Flottant, 64 bits"
+    },
+    "shortTypes": {
+      "u8": "u8",
+      "i8": "i8",
+      "u16": "u16",
+      "i16": "i16",
+      "u32": "u32",
+      "i32": "i32",
+      "f32": "f32",
+      "f64": "f64"
+    },
+    "compares": {
+      "exact": "Valeur exacte",
+      "greater": "Supérieure à",
+      "less": "Inférieure à",
+      "between": "Comprise entre",
+      "changed": "Modifiée",
+      "unchanged": "Inchangée",
+      "increased": "Augmentée",
+      "decreased": "Diminuée",
+      "unknown": "Valeur initiale inconnue"
+    },
+    "first": "Première recherche",
+    "next": "Recherche suivante",
+    "reset": "Réinitialiser",
+    "scanning": "Recherche en cours…",
+    "results": "aucun résultat | 1 résultat | {n} résultats",
+    "none": "Aucune adresse ne convient.",
+    "showing": "Les {n} premiers résultats sont affichés : affinez la recherche.",
+    "truncated": "Trop de résultats : la recherche s'est arrêtée à {n} adresses.",
+    "colAddress": "Adresse",
+    "colValue": "Valeur",
+    "colPrevious": "Précédente",
+    "colDescription": "Description",
+    "colType": "Type",
+    "colFrozen": "Maintenir",
+    "goto": "Afficher dans l'éditeur hexadécimal",
+    "add": "Ajouter à la liste (ou double-clic)",
+    "remove": "Retirer de la liste",
+    "unnamed": "Sans nom",
+    "listTitle": "Liste des adresses",
+    "listHelp": "Les valeurs sont relues en continu. Saisir une valeur puis valider avec Entrée l'écrit en mémoire, dans le format du type de l'adresse ; « Maintenir » réécrit la valeur en continu pour qu'elle reste inchangée.",
+    "listEmpty": "Aucune adresse dans la liste : ajoutez-en depuis les résultats.",
+    "badValue": "« {text} » n'est pas une valeur valable pour ce type ({type}).",
+    "writeFailed": "Écriture impossible à {address}.",
+    "min": "Valeur minimale",
+    "max": "Valeur maximale"
   }
 }
