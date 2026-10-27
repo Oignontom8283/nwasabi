@@ -340,6 +340,43 @@ fn functions_have_names_and_the_call_stack_is_rebuilt_from_the_stack() {
 }
 
 #[test]
+fn the_profile_counts_where_the_time_goes() {
+    let nwa = include_bytes!("apps/bin/integer.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    assert!(error(&mut s, r#"{"cmd":"profile","action":"nope"}"#).contains("action inconnue"));
+    // Une boucle infinie en RAM (`b .`) : tous les relevés tombent sur elle.
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"fee7"}"#,
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"pc","value":"0x20020000"}"#,
+    );
+    ok(&mut s, r#"{"cmd":"profile","action":"start"}"#);
+    ok(&mut s, r#"{"cmd":"run","instructions":100000}"#);
+    let report = ok(&mut s, r#"{"cmd":"profile","action":"stop"}"#);
+    let total = report.get("total").and_then(Value::as_i64).unwrap();
+    assert!(total >= 100_000 / 600, "{total} relevés");
+    let addresses = report.get("addresses").and_then(Value::as_array).unwrap();
+    assert_eq!(addresses.len(), 1, "{report}");
+    assert_eq!(
+        addresses[0].get("address").and_then(Value::as_i64),
+        Some(0x2002_0000)
+    );
+    let functions = report.get("functions").and_then(Value::as_array).unwrap();
+    assert_eq!(functions.len(), 1, "{report}");
+    // Arrêté : plus rien n'est relevé.
+    let after = ok(&mut s, r#"{"cmd":"profile","action":"get"}"#);
+    assert_eq!(after.get("running"), Some(&Value::Bool(false)));
+    assert_eq!(after.get("total").and_then(Value::as_i64), Some(0));
+}
+
+#[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);

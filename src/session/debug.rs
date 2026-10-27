@@ -17,6 +17,54 @@ pub fn symbol_text(emu: &Emulator, address: u32) -> Option<String> {
     })
 }
 
+/// Le profil d'exécution, regroupé par fonction (les adresses sans nom sont regroupées par bloc de 256 octets) et par
+/// adresse : les plus fréquentes d'abord.
+pub fn profile_report(emu: &Emulator, samples: &[(u32, u64)], top: usize) -> Value {
+    use std::collections::HashMap;
+    let total: u64 = samples.iter().map(|(_, n)| n).sum();
+    let mut by_function: HashMap<(String, u32), u64> = HashMap::new();
+    for &(address, count) in samples {
+        let key = match emu.symbol_at(address) {
+            Some((name, start, _)) => (name.to_owned(), start),
+            None => (String::new(), address & !0xff),
+        };
+        *by_function.entry(key).or_insert(0) += count;
+    }
+    let mut functions: Vec<_> = by_function.into_iter().collect();
+    functions.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.1.cmp(&b.0.1)));
+    let mut addresses = samples.to_vec();
+    addresses.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    Value::object()
+        .with("total", total)
+        .with(
+            "functions",
+            functions
+                .iter()
+                .take(top)
+                .map(|((name, start), n)| {
+                    Value::object()
+                        .with("name", name.as_str())
+                        .with("start", *start)
+                        .with("samples", *n)
+                })
+                .collect::<Vec<_>>(),
+        )
+        .with(
+            "addresses",
+            addresses
+                .iter()
+                .take(top)
+                .map(|&(a, n)| {
+                    let mut row = Value::object().with("address", a).with("samples", n);
+                    if let Some(text) = symbol_text(emu, a) {
+                        row.set("symbol", Value::from(text));
+                    }
+                    row
+                })
+                .collect::<Vec<_>>(),
+        )
+}
+
 /// L'instruction d'appel qui précède `ret` (adresse de retour, bit 0 retiré) : sa taille, et la cible d'un `bl`.
 fn call_before(emu: &mut Emulator, ret: u32) -> Option<(u32, Option<u32>)> {
     let mut half = |a: u32| {

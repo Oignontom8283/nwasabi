@@ -6,6 +6,7 @@
 //! s'est arrêtée. Le cœur ne dort jamais et ne lit aucune horloge : c'est à l'hôte de faire
 //! passer le temps ([`Kernel::advance_time`]).
 
+use std::collections::HashMap;
 use std::fmt;
 
 use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
@@ -40,6 +41,9 @@ pub enum Fault {
     /// Appel système inconnu du noyau simulé.
     UnknownSvc(u8),
 }
+
+/// Nombre d'instructions entre deux relevés du profil d'exécution (environ).
+const PROFILE_SLICE: u64 = 509;
 
 /// Pourquoi [`Emulator::run`] a rendu la main.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +125,9 @@ pub struct Emulator {
     breakpoints: Vec<u32>,
     /// Le point d'arrêt où l'on vient de s'arrêter : l'instruction qui s'y trouve s'exécute au prochain `run`.
     resume_from: Option<u32>,
+    /// Échantillons du profil d'exécution : `None` tant qu'il n'est pas lancé, sinon le nombre de fois où chaque
+    /// adresse était celle de l'instruction en cours à l'arrêt d'une tranche.
+    profile: Option<HashMap<u32, u64>>,
 }
 
 /// Le fichier `.nwa` installé et ses données externes, tels que donnés.
@@ -152,6 +159,7 @@ impl Emulator {
             source: None,
             breakpoints: Vec::new(),
             resume_from: None,
+            profile: None,
         })
     }
 
@@ -267,6 +275,24 @@ impl Emulator {
         &self.breakpoints
     }
 
+    /// Lance (ou relance, en repartant de zéro) le profil d'exécution : l'adresse de l'instruction en cours est relevée toutes
+    /// les quelques centaines d'instructions, ce qui ne coûte presque rien.
+    pub fn start_profile(&mut self) {
+        self.profile = Some(HashMap::new());
+    }
+
+    /// Arrête le profil et rend les relevés (adresse, nombre), ou rien s'il n'était pas lancé.
+    pub fn stop_profile(&mut self) -> Option<Vec<(u32, u64)>> {
+        self.profile.take().map(|m| m.into_iter().collect())
+    }
+
+    /// Les relevés du profil en cours (adresse, nombre), ou `None` s'il n'est pas lancé.
+    pub fn profile_samples(&self) -> Option<Vec<(u32, u64)>> {
+        self.profile
+            .as_ref()
+            .map(|m| m.iter().map(|(&a, &n)| (a, n)).collect())
+    }
+
     /// Exécute une seule instruction, même si un point d'arrêt y est posé.
     pub fn step(&mut self) -> RunStop {
         self.resume_from = Some(self.cpu.regs.pc);
@@ -288,7 +314,15 @@ impl Emulator {
         let mut stop = Stop::Budget;
         let mut left = max_instructions;
         while left > 0 {
-            let chunk = if stepwise { 1 } else { left };
+            // Avec le profil lancé, on exécute par tranches de longueur variable (un nombre premier plus ou moins
+            // quelques unités : une longueur fixe retomberait toujours au même endroit d'une boucle).
+            let chunk = if stepwise {
+                1
+            } else if self.profile.is_some() {
+                left.min(PROFILE_SLICE + (self.cpu.cycles >> 3) % 31)
+            } else {
+                left
+            };
             if stepwise {
                 let pc = self.cpu.regs.pc;
                 // Le point d'arrêt où l'on s'est arrêté ne s'applique pas deux fois de suite à la même instruction.
@@ -302,6 +336,11 @@ impl Emulator {
                 .cpu
                 .run(&mut self.device.memory, &mut self.kernel, chunk);
             left -= chunk;
+            if stop == Stop::Budget
+                && let Some(samples) = &mut self.profile
+            {
+                *samples.entry(self.cpu.regs.pc & !1).or_insert(0) += 1;
+            }
             if let Some(hit) = self.device.memory.take_watch_stop() {
                 return RunStop::Watchpoint(hit);
             }
