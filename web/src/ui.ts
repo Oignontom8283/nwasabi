@@ -43,10 +43,15 @@ watch(
   },
 );
 
+/** Écran étroit (téléphone, tablette en hauteur) : le panneau recouvre la calculatrice au lieu de se mettre à côté. */
+export const NARROW = 760;
+export const isNarrow = () => ui.winWidth < NARROW;
+
 export const PANEL_MIN = 340;
 export const PANEL_ROOM = 280; // largeur laissée à la calculatrice
 /** Largeur du grand panneau en pixels, ramenée à la taille de la fenêtre. */
 export function panelPixels() {
+  if (isNarrow()) return ui.winWidth;
   const wanted = ui.panelWidth || Math.round(ui.winWidth / 2);
   return Math.max(PANEL_MIN, Math.min(wanted, ui.winWidth - PANEL_ROOM));
 }

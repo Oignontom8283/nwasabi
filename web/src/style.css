@@ -153,3 +153,6 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* Pas de zoom au double toucher sur les boutons et les touches. */
+button, [data-calc-key] { touch-action: manipulation; }

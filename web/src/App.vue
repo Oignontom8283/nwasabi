@@ -18,7 +18,7 @@ import { FetchError, fetchFile, fileNameOf, launchParams } from "./launch.js";
 import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
-import { applyTheme, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
+import { applyTheme, isNarrow, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
@@ -273,7 +273,7 @@ onBeforeUnmount(() => {
   emulator.stop();
 });
 
-const stageStyle = computed(() => ({ right: ui.panelOpen ? `${panelPixels()}px` : "0px" }));
+const stageStyle = computed(() => ({ right: ui.panelOpen && !isNarrow() ? `${panelPixels()}px` : "0px" }));
 
 const palette = ref(false);
 const commands = computed((): Command[] => {
@@ -329,6 +329,7 @@ provide("pick", pick);
         <div class="fit"><CalculatorSvg mode="play" /></div>
       </div>
       <SidePanel v-if="ui.panelOpen" />
+      <button v-else-if="isNarrow()" class="tools-fab" :title="t('mini.openPanel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
       <MiniBar v-else-if="ui.miniVisible" />
       <button v-else class="peek icon" :title="t('mini.showHint')" :aria-label="t('mini.showHint')" @click="ui.miniVisible = true"><Icon name="left" /></button>
     </main>
@@ -352,6 +353,7 @@ provide("pick", pick);
 /* La calculatrice est centrée dans la zone qui reste : toute la largeur quand le grand panneau est fermé. */
 .stage { position: absolute; left: 0; top: 0; bottom: 0; padding: 10px; }
 .fit { width: 100%; height: 100%; container-type: size; display: grid; place-items: center; }
+.tools-fab { position: absolute; right: 12px; bottom: 12px; z-index: 10; box-shadow: var(--shadow); }
 .peek { position: absolute; right: 0; top: 14px; border-radius: 8px 0 0 8px; z-index: 10; }
 .notice { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50; padding: 6px 14px; border-radius: 8px; background: var(--text); color: var(--surface); box-shadow: var(--shadow); font-size: 13px; }
 .toast {

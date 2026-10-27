@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount } from "vue";
 import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
-import { PANEL_MIN, PANEL_ROOM, panelPixels, TABS, ui } from "../ui.js";
+import { isNarrow, PANEL_MIN, PANEL_ROOM, panelPixels, TABS, ui } from "../ui.js";
 import Icon from "./Icon.vue";
 import DebugTab from "./tabs/DebugTab.vue";
 import FilesTab from "./tabs/FilesTab.vue";
@@ -62,6 +62,7 @@ function tabKey(event: KeyboardEvent) {
 <template>
   <section class="side" :style="{ width: width + 'px' }" :aria-label="t('panel.label')">
     <div
+      v-if="!isNarrow()"
       class="grip"
       role="separator"
       aria-orientation="vertical"
@@ -113,6 +114,7 @@ function tabKey(event: KeyboardEvent) {
 .tab:hover { color: var(--text); }
 .tab.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: inset 0 2px 0 var(--accent); }
 .collapse { margin-bottom: 4px; }
+@media (max-width: 759px) { .tab { padding: 8px 12px; } .body { padding: 10px; } }
 .body { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; }
 .body:focus { outline: none; }
 </style>
