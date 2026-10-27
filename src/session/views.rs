@@ -259,6 +259,7 @@ pub fn stop(stop: &RunStop) -> Value {
             .with("write", h.write)
             .with("value", h.value)
             .with("pc", h.pc),
+        RunStop::Breakpoint { pc } => kind("breakpoint").with("pc", *pc),
         RunStop::Fault(f) => {
             let mut v = kind("fault");
             if let Value::Object(entries) = fault(f) {

@@ -173,6 +173,118 @@ fn memory_can_be_read_written_and_followed() {
 }
 
 #[test]
+fn code_in_memory_is_disassembled_with_the_instructions_before() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    // push {r4, lr} ; movs r0, #5 ; bl +0 (32 bits) ; bx lr
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"10b50520 00f000f8 7047"}"#
+            .replace(' ', "")
+            .as_str(),
+    );
+    let reply = ok(
+        &mut s,
+        r#"{"cmd":"disasm","address":"0x20020004","count":2,"before":2}"#,
+    );
+    let lines = reply.get("lines").and_then(Value::as_array).unwrap();
+    let text: Vec<String> = lines
+        .iter()
+        .map(|l| {
+            format!(
+                "{:x} {} {}",
+                l.get("address").and_then(Value::as_i64).unwrap(),
+                l.get("mnemonic").and_then(Value::as_str).unwrap(),
+                l.get("operands").and_then(Value::as_str).unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        text,
+        [
+            "20020000 push {r4, lr}",
+            "20020002 movs r0, #5",
+            "20020004 bl 0x20020008",
+            "20020008 bx lr",
+        ]
+    );
+    assert_eq!(lines[2].get("size").and_then(Value::as_i64), Some(4));
+    assert_eq!(
+        lines[2].get("target").and_then(Value::as_i64),
+        Some(0x2002_0008)
+    );
+}
+
+fn stop_pc(reply: &Value) -> (String, i64) {
+    let stop = reply.get("stop").unwrap();
+    (
+        stop.get("kind")
+            .and_then(Value::as_str)
+            .unwrap()
+            .to_string(),
+        stop.get("pc").and_then(Value::as_i64).unwrap_or(-1),
+    )
+}
+
+fn pc(s: &mut Session) -> i64 {
+    ok(s, r#"{"cmd":"cpu"}"#)
+        .get("pc")
+        .and_then(Value::as_i64)
+        .unwrap()
+}
+
+#[test]
+fn breakpoints_stop_before_the_instruction_and_steps_move_one_instruction() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    let entry = pc(&mut s);
+    ok(&mut s, &format!(r#"{{"cmd":"break","address":{entry}}}"#));
+    let breaks = ok(&mut s, r#"{"cmd":"breaks"}"#);
+    assert_eq!(
+        breaks
+            .get("breakpoints")
+            .and_then(Value::as_array)
+            .unwrap()
+            .len(),
+        1
+    );
+    // On s'arrête avant même la première instruction ; relancer la fait exécuter (pas de nouvel arrêt au même endroit).
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_eq!(stop_pc(&ran), ("breakpoint".to_string(), entry));
+    assert_eq!(pc(&mut s), entry);
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_ne!(stop_pc(&ran).0, "breakpoint", "{ran}");
+    assert_ne!(pc(&mut s), entry);
+    // Un pas exécute exactement une instruction, même sur un point d'arrêt.
+    ok(&mut s, r#"{"cmd":"launch"}"#);
+    assert_eq!(pc(&mut s), entry);
+    let stepped = ok(&mut s, r#"{"cmd":"step"}"#);
+    assert_eq!(stepped.get("instructions").and_then(Value::as_i64), Some(1));
+    assert_ne!(pc(&mut s), entry);
+    // Retirer le point d'arrêt.
+    let removed = ok(&mut s, &format!(r#"{{"cmd":"unbreak","address":{entry}}}"#));
+    assert_eq!(removed.get("removed"), Some(&Value::Bool(true)));
+    // Registres modifiables.
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"r3","value":"0xdeadbeef"}"#,
+    );
+    let cpu = ok(&mut s, r#"{"cmd":"cpu"}"#);
+    assert_eq!(
+        cpu.get("r").and_then(Value::as_array).unwrap()[3].as_i64(),
+        Some(0xdead_beef)
+    );
+    assert!(
+        error(&mut s, r#"{"cmd":"cpu_set","register":"r99","value":1}"#)
+            .contains("registre inconnu")
+    );
+}
+
+#[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);

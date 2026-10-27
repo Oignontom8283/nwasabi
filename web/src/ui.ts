@@ -4,7 +4,7 @@ import { inject, reactive, watch } from "vue";
 import { remember } from "./util.js";
 
 export type Theme = "auto" | "light" | "dark";
-export const TABS = ["files", "memory", "structures", "keys", "settings", "trace"];
+export const TABS = ["files", "memory", "structures", "keys", "settings", "debug", "trace"];
 
 export const ui = reactive({
   /** Grand panneau latéral déployé ? */
