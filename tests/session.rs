@@ -284,6 +284,61 @@ fn breakpoints_stop_before_the_instruction_and_steps_move_one_instruction() {
     );
 }
 
+fn address_of(s: &mut Session, name: &str) -> i64 {
+    let found = ok(s, &format!(r#"{{"cmd":"symbols","query":"{name}"}}"#));
+    found.get("symbols").and_then(Value::as_array).unwrap()[0]
+        .get("address")
+        .and_then(Value::as_i64)
+        .unwrap()
+}
+
+#[test]
+fn functions_have_names_and_the_call_stack_is_rebuilt_from_the_stack() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    let main = address_of(&mut s, "main");
+    let scan = address_of(&mut s, "eadk_keyboard_scan");
+    let named = ok(
+        &mut s,
+        &format!(r#"{{"cmd":"symbol","address":{}}}"#, main + 6),
+    );
+    assert_eq!(named.get("name").and_then(Value::as_str), Some("main"));
+    assert_eq!(named.get("offset").and_then(Value::as_i64), Some(6));
+    // On s'arrête dans la fonction appelée par `main` : la pile d'appels remonte à `main`.
+    ok(&mut s, &format!(r#"{{"cmd":"break","address":{scan}}}"#));
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000000}"#);
+    assert_eq!(stop_pc(&ran), ("breakpoint".to_string(), scan));
+    let trace = ok(&mut s, r#"{"cmd":"backtrace"}"#);
+    let frames = trace.get("frames").and_then(Value::as_array).unwrap();
+    assert_eq!(
+        frames[0].get("symbol").and_then(Value::as_str),
+        Some("eadk_keyboard_scan")
+    );
+    assert!(
+        frames[1..].iter().any(|f| f
+            .get("symbol")
+            .and_then(Value::as_str)
+            .is_some_and(|n| n.starts_with("main"))),
+        "{trace}"
+    );
+    // Le désassemblage nomme les cibles et étiquette le début des fonctions.
+    let code = ok(
+        &mut s,
+        &format!(r#"{{"cmd":"disasm","address":{main},"count":40}}"#),
+    );
+    let rows = code.get("lines").and_then(Value::as_array).unwrap();
+    assert_eq!(rows[0].get("label").and_then(Value::as_str), Some("main"));
+    assert!(
+        rows.iter()
+            .any(|r| r.get("target_symbol").and_then(Value::as_str) == Some("eadk_keyboard_scan")),
+        "{code}"
+    );
+}
+
 #[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();

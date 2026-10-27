@@ -10,8 +10,9 @@ use std::fmt;
 
 use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
 use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
+use crate::elf::SymbolKind;
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
-use crate::link::{LinkError, LinkOptions, LinkedApp, link};
+use crate::link::{LinkError, LinkOptions, LinkedApp, Origin, link};
 use crate::memory::{WatchHit, access};
 use crate::profile::{FirmwareProfile, Model};
 use crate::settings::Settings;
@@ -227,6 +228,23 @@ impl Emulator {
     /// reste figé tant que l'hôte n'en fait pas passer (simulation en pause).
     pub fn time_us(&self) -> u64 {
         self.kernel.micros(self.cpu.cycles)
+    }
+
+    /// La fonction qui contient `address` (nom, début, décalage), d'après les symboles de l'application et du runtime.
+    pub fn symbol_at(&self, address: u32) -> Option<(&str, u32, u32)> {
+        let address = address & !1;
+        let mut best: Option<(&str, u32)> = None;
+        for symbol in &self.app.as_ref()?.symbols {
+            if symbol.kind != SymbolKind::Func || symbol.origin == Origin::ExternalData {
+                continue;
+            }
+            let start = symbol.address & !1;
+            let inside = address >= start && (address < start + symbol.size || symbol.size == 0);
+            if inside && best.is_none_or(|(_, s)| start >= s) {
+                best = Some((symbol.name.as_str(), start));
+            }
+        }
+        best.map(|(name, start)| (name, start, address - start))
     }
 
     /// Pose un point d'arrêt : `run` s'interrompt avant d'exécuter l'instruction à cette adresse.

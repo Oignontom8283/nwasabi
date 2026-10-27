@@ -14,12 +14,14 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
+mod debug;
 mod views;
 
 use crate::checksum;
+use crate::elf::SymbolKind;
 use crate::emulator::{Emulator, RunStop};
 use crate::formats::{nds, nfs};
 use crate::inspect::read_structures;
@@ -216,6 +218,9 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "backtrace",
+                    "symbol",
+                    "symbols",
                     "step",
                     "break",
                     "unbreak",
@@ -248,6 +253,50 @@ impl Session {
             }
             "run" => self.run(req),
             "key" => self.key(req),
+            "backtrace" => {
+                let max = req
+                    .get("max")
+                    .and_then(Value::as_u32)
+                    .unwrap_or(32)
+                    .min(256) as usize;
+                Ok(debug::backtrace(self.emu()?, max))
+            }
+            "symbols" => {
+                let query = req
+                    .get("query")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+                let emu = self.emu()?;
+                let found = emu
+                    .app()
+                    .map(|a| a.symbols.as_slice())
+                    .unwrap_or_default()
+                    .iter()
+                    .filter(|s| {
+                        s.kind == SymbolKind::Func && s.name.to_lowercase().contains(&query)
+                    })
+                    .take(500)
+                    .map(|s| {
+                        Value::object()
+                            .with("name", s.name.as_str())
+                            .with("address", s.address & !1)
+                            .with("size", s.size)
+                    })
+                    .collect::<Vec<_>>();
+                Ok(Value::object().with("symbols", found))
+            }
+            "symbol" => {
+                let address = number(req, "address")?;
+                let emu = self.emu()?;
+                match emu.symbol_at(address) {
+                    Some((name, start, offset)) => Ok(Value::object()
+                        .with("name", name)
+                        .with("start", start)
+                        .with("offset", offset)),
+                    None => Ok(Value::object()),
+                }
+            }
             "step" => {
                 let emu = self.emu()?;
                 if emu.app().is_none() {
@@ -462,6 +511,7 @@ impl Session {
                     }
                 }
                 let from = index.saturating_sub(before);
+                let emu = &*self.emu()?;
                 let rows = lines
                     .iter()
                     .skip(from)
@@ -480,6 +530,14 @@ impl Session {
                             .with("operands", l.operands.as_str());
                         if let Some(target) = l.target {
                             row.set("target", Value::from(target));
+                            if let Some(text) = debug::symbol_text(emu, target) {
+                                row.set("target_symbol", Value::from(text));
+                            }
+                        }
+                        if let Some((name, start, _)) = emu.symbol_at(l.address)
+                            && start == l.address
+                        {
+                            row.set("label", Value::from(name));
                         }
                         row
                     })
