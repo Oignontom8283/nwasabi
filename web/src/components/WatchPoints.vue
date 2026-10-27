@@ -7,8 +7,10 @@ import { useEmu } from "../emulator.js";
 import { showInMemory } from "../ui.js";
 import { hex0x, parseAddress, poll, valueOf, checkedOf } from "../util.js";
 import { addWatch, clearHits, drainHits, refreshWatches, removeWatch, watching } from "../watchStore.js";
+import { setStop } from "../pointsStore.js";
 import type { WatchKind } from "../watchStore.js";
 import Icon from "./Icon.vue";
+import AddressLink from "./AddressLink.vue";
 
 const { t } = useI18n();
 const emulator = useEmu();
@@ -43,6 +45,7 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
 
 <template>
   <div class="watch">
+    <h3>{{ t("watch.new") }}</h3>
     <form class="form" @submit.prevent="add">
       <label>{{ t("watch.address") }}<input :value="address" class="mono" placeholder="0x20020000" data-keep-keys @input="address = valueOf($event)" /></label>
       <label>{{ t("watch.length") }}<input :value="length" class="mono short" data-keep-keys @input="length = valueOf($event)" /></label>
@@ -61,22 +64,28 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
       {{ t("watch.stopped", { pc: hex0x(Number(state.stop.pc)), address: hex0x(Number(state.stop.address)) }) }}
     </p>
 
+    <h3>{{ t("watch.posed") }}</h3>
     <ul v-if="watching.list.length" class="list">
-      <li v-for="w in watching.list" :key="w.id">
-        <button class="link mono" :title="t('scan.goto')" @click="showInMemory(w.address)">{{ hex0x(w.address) }}</button>
-        <span class="muted mono">+{{ w.length }}</span>
+      <li class="cols head" aria-hidden="true">
+        <span>{{ t("points.colWhere") }}</span><span>{{ t("points.colSize") }}</span><span>{{ t("watch.kind") }}</span>
+        <span class="center" :title="t('points.colStopHint')">{{ t("points.colStop") }}</span><span />
+      </li>
+      <li v-for="w in watching.list" :key="w.id" class="cols">
+        <AddressLink :address="w.address" :length="w.length" />
+        <span class="mono">{{ w.length }}</span>
         <span>{{ t(`watch.kinds.${w.kind}`) }}</span>
-        <span v-if="w.stop" class="chip">{{ t("watch.stop") }}</span>
+        <span class="center"><input type="checkbox" :checked="w.stop" :title="t('watch.stopHint')" :aria-label="t('watch.stop')" @change="setStop(emulator, w, ($event.target as HTMLInputElement).checked)" /></span>
         <button class="flat icon" :title="t('watch.remove')" :aria-label="t('watch.remove')" @click="removeWatch(emulator, w.id)"><Icon name="trash" :size="14" /></button>
       </li>
     </ul>
     <p v-else class="muted">{{ t("watch.none") }}</p>
 
+    <h3 v-if="watching.list.length">{{ t("watch.accesses") }}</h3>
     <div v-if="watching.list.length" class="gh">
       <div class="gh-head cols" aria-hidden="true"><span>{{ t("watch.colInstruction") }}</span><span>{{ t("watch.colAccess") }}</span><span>{{ t("watch.colValue") }}</span><span>{{ t("watch.colCount") }}</span></div>
       <div class="gh-rows">
         <div v-for="row in watching.rows" :key="row.key" class="gh-row cols">
-          <button class="link mono" :title="t('watch.gotoInstruction')" @click="showInMemory(row.pc)">{{ hex0x(row.pc) }}</button>
+          <AddressLink :address="row.pc" view="code" />
           <span class="mono">{{ KIND_LETTER[row.write ? "write" : "read"] }}{{ row.width * 8 }} {{ hex0x(row.address) }}</span>
           <span class="mono">{{ hex0x(row.value, row.width * 2) }}</span>
           <span class="mono">{{ row.count }}</span>
@@ -90,15 +99,17 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
 
 <style scoped>
 .watch { display: grid; gap: 10px; }
-.form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .form label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
 .form label.check { display: flex; align-items: center; gap: 4px; color: inherit; }
 .form input.mono { width: 9.5em; }
 .form input.short { width: 4.5em; }
-.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.list li { display: flex; align-items: center; gap: 8px; }
-.list li .icon { margin-left: auto; }
-.chip { font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.list li.cols { display: grid; grid-template-columns: minmax(9em, 1.6fr) 5em minmax(5em, 1.2fr) 8em 2em; gap: 12px; align-items: center; padding: 4px 10px; }
+.list li.cols:nth-child(even) { background: var(--surface-2); }
+.list li.head { white-space: nowrap; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.center { text-align: center; justify-self: center; }
 .stopped { margin: 0; padding: 6px 8px; border-radius: 6px; background: var(--accent-soft); font-size: 12.5px; }
 .cols { grid-template-columns: 100px 1.3fr 1fr 60px; }
 .link { border: none; background: none; padding: 0; text-align: left; color: var(--accent-strong); cursor: pointer; }

@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
 a.link { display: inline-flex; align-items: center; border-radius: 6px; padding: 3px 6px; color: var(--text); border: 1px solid transparent; }
 a.link:hover { background-image: linear-gradient(var(--hover), var(--hover)); }
 /* Sans application, le texte « Aucune application » cède la place au seul bouton quand la barre est étroite. */
-@media (max-width: 1560px) { .center.idle { transform: none; } .center.idle .name { display: none; } .center.idle .load { position: static; transform: none; margin: 0 0 0 12px; } }
+@media (max-width: 1560px) { .center:not(.idle) { position: static; transform: none; margin-left: 12px; max-width: 220px; } .center.idle { transform: none; } .center.idle .name { display: none; } .center.idle .load { position: static; transform: none; margin: 0 0 0 12px; } }
 @media (max-width: 1330px) { .center { display: none; } }
 @media (max-width: 700px) { .brand span { display: none; } }
 </style>

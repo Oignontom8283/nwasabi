@@ -13,7 +13,6 @@ import MemoryMap from "../MemoryMap.vue";
 import MemoryScanner from "../MemoryScanner.vue";
 import SnapshotCard from "../SnapshotCard.vue";
 import BookmarksCard from "../BookmarksCard.vue";
-import WatchPoints from "../WatchPoints.vue";
 
 const { t, locale } = useI18n();
 const emulator = useEmu();
@@ -141,12 +140,7 @@ async function saveState() {
       <MemoryScanner :regions="regions" />
     </section>
 
-    <section class="card">
-      <h2>{{ t("watch.title") }}</h2>
-      <p class="muted help">{{ t("watch.help") }}</p>
-      <WatchPoints />
-    </section>
-  </div>
+ </div>
 </template>
 
 <style scoped>

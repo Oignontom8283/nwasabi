@@ -4,6 +4,7 @@ import { inject, reactive, watch } from "vue";
 import { remember } from "./util.js";
 
 export type Theme = "auto" | "light" | "dark";
+export type DebugView = "code" | "watch" | "profile" | "calls";
 export const TABS = ["files", "memory", "structures", "keys", "settings", "debug", "trace"];
 
 export const ui = reactive({
@@ -28,6 +29,8 @@ export const ui = reactive({
   winWidth: innerWidth,
   /** Demande de l'onglet Mémoire : adresse à montrer dans l'éditeur hexadécimal. */
   hexGoto: null as { address: number; seq: number } | null,
+  /** Outil montré dans l'onglet Débogage. */
+  debugView: remember.get<DebugView>("nwasabi.debugView", "code"),
   /** Demande de l'onglet Débogueur : adresse à montrer dans le code. */
   debugGoto: null as { address: number; seq: number } | null,
   /** Demande de l'onglet Structures : section à montrer. */
@@ -61,6 +64,7 @@ watch(() => ui.miniVisible, (v) => remember.set("nwasabi.miniVisible", v));
 watch(() => ui.autoReload, (v) => remember.set("nwasabi.autoReload", v));
 watch(() => ui.backlight, (v) => remember.set("nwasabi.backlight", v));
 watch(() => ui.large, (v) => remember.set("nwasabi.large", v));
+watch(() => ui.debugView, (v) => remember.set("nwasabi.debugView", v));
 watch(() => ui.tab, (v) => remember.set("nwasabi.tab", v));
 watch(
   () => ui.theme,
@@ -86,6 +90,7 @@ export function showInMemory(address: number): void {
 /** Va à l'onglet Débogueur, à cette adresse. */
 export function showInDebugger(address: number): void {
   ui.debugGoto = { address, seq: Date.now() };
+  ui.debugView = "code";
   ui.tab = "debug";
   ui.panelOpen = true;
 }

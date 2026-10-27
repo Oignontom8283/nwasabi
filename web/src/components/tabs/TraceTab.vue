@@ -4,8 +4,6 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { hex0x, poll } from "../../util.js";
-import ProfileCard from "../ProfileCard.vue";
-import SvcLogCard from "../SvcLogCard.vue";
 import { NAMES } from "../../svcNames.js";
 
 const { t, te, n } = useI18n();
@@ -93,16 +91,6 @@ async function copyOutput() {
         </ul>
       </template>
       <p v-else class="muted">{{ t("trace.noDevice") }}</p>
-    </section>
-
-    <section class="card">
-      <h2>{{ t("profile.title") }}</h2>
-      <ProfileCard />
-    </section>
-
-    <section class="card">
-      <h2>{{ t("svclog.title") }}</h2>
-      <SvcLogCard />
     </section>
 
     <section class="card">
