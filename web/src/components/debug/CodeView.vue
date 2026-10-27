@@ -52,8 +52,46 @@ let stopPolling = () => {};
 
 const paused = computed(() => state.loaded && !state.running);
 
+// ---- remonter le temps ------------------------------------------------------------------------------
+interface HistoryStatus {
+  recording: boolean;
+  checkpoints?: number;
+  oldest?: number;
+  newest?: number;
+  current?: number;
+  interval?: number;
+  bytes?: number;
+}
+const history = ref<HistoryStatus>({ recording: false });
+
+async function refreshHistory() {
+  const r = await quiet({ cmd: "history" });
+  if (r.ok) assignIfChanged(history, r as unknown as HistoryStatus);
+}
+
+async function toggleHistory() {
+  await quiet({ cmd: "history", action: history.value.recording ? "stop" : "start" });
+  await refreshHistory();
+}
+
+/** Après un déplacement dans le temps : écran, vues et code se mettent à jour. */
+async function moved(reply: { ok: boolean; error?: string; stop?: { kind?: string } }) {
+  message.value = reply.ok ? "" : String(reply.error);
+  if (reply.ok && reply.stop?.kind === "history_start") message.value = t("debug.history.atStart");
+  viewAt.value = null;
+  await emulator.draw();
+  emulator.bump();
+  await refresh();
+}
+const stepBack = async () => moved(await quiet({ cmd: "step_back" }));
+const reverseContinue = async () => moved(await quiet({ cmd: "reverse_continue" }));
+const gotoCycle = async (cycles: number) => moved(await quiet({ cmd: "history_goto", cycles }));
+const megaBytes = computed(() => ((history.value.bytes ?? 0) / 1048576).toFixed(1));
+const reach = computed(() => Math.max(0, (history.value.current ?? 0) - (history.value.oldest ?? 0)));
+
 async function refresh() {
   if (!state.loaded) return;
+  void refreshHistory();
   const c = await quiet({ cmd: "cpu" });
   if (!c.ok) return;
   const next: Cpu = { r: c.r as number[], sp: c.sp as number, lr: c.lr as number, pc: c.pc as number, xpsr: c.xpsr as number };
@@ -214,6 +252,29 @@ const flags = computed(() => {
       </div>
       <p v-if="message" class="error" role="alert">{{ message }}</p>
 
+      <section class="time">
+        <label class="record" :title="t('debug.history.hint')">
+          <input type="checkbox" :checked="history.recording" @change="toggleHistory" /> {{ t("debug.history.record") }}
+        </label>
+        <template v-if="history.recording">
+          <button :disabled="!paused" :title="t('debug.history.backHint')" @click="stepBack"><Icon name="left" :size="14" /> {{ t("debug.history.back") }}</button>
+          <button :disabled="!paused" :title="t('debug.history.reverseHint')" @click="reverseContinue"><Icon name="left" :size="14" /><Icon name="left" :size="14" /> {{ t("debug.history.reverse") }}</button>
+          <input
+            class="slider"
+            type="range"
+            :min="history.oldest ?? 0"
+            :max="history.newest ?? 0"
+            :value="history.current ?? 0"
+            :disabled="!paused || (history.newest ?? 0) <= (history.oldest ?? 0)"
+            :aria-label="t('debug.history.slider')"
+            :title="t('debug.history.slider')"
+            @change="(e: Event) => gotoCycle(Number((e.target as HTMLInputElement).value))"
+          />
+          <span class="muted small stats">{{ t("debug.history.stats", { n: new Intl.NumberFormat().format(reach), mb: megaBytes }) }}</span>
+        </template>
+        <p v-else class="muted small">{{ t("debug.history.help") }}</p>
+      </section>
+
       <div class="code mono" role="table" :aria-label="t('debug.code')">
         <div class="head muted" role="row" aria-hidden="true"><span class="c-dot" /><span class="c-addr">{{ t("debug.colAddress") }}</span><span class="c-bytes">{{ t("debug.colBytes") }}</span><span>{{ t("debug.colInstruction") }}</span></div>
         <template v-for="line in lines" :key="line.address">
@@ -330,6 +391,11 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .ops { color: var(--syn-num); flex: 1; }
 .label { padding: 3px 8px 0 28px; color: var(--accent-strong); font-weight: 600; }
 .pad { padding: 10px; margin: 0; }
+.time { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.time .record { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.time .slider { flex: 1 1 8em; min-width: 6em; }
+.time p { margin: 0; flex: 1 1 100%; }
+.stats { white-space: nowrap; }
 .legend { margin: 0; font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 section { display: grid; gap: 4px; }
 h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }

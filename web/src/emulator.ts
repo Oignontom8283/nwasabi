@@ -144,6 +144,8 @@ export function useEmulator() {
     start: () => player("start"),
     stop: () => player("stop"),
     bump: () => player("bump"),
+    /** Redessine l'écran de l'appareil (après une remontée dans le temps, par exemple). */
+    draw: () => player("draw"),
     dump: (parts: readonly string[]) => player<unknown>("dump", parts),
     restore: (document: unknown) => player<boolean>("restore", document),
     /** Remplace l'état d'un champ qui n'est que de la page (le Worker n'y touche pas). */

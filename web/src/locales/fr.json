@@ -104,6 +104,18 @@
       "fault": "Arrêtée sur une faute",
       "exited": "Application terminée (code {code})"
     },
+    "history": {
+      "record": "Enregistrer pour remonter le temps",
+      "hint": "Garde des points de reprise réguliers : vous pourrez revenir en arrière, instruction par instruction.",
+      "help": "Une fois enregistré, l'historique permet de reculer d'une instruction, de remonter jusqu'au point d'arrêt précédent, ou de revenir à un instant précis. Modifier la mémoire ou les registres à la main le remet à zéro.",
+      "back": "Pas arrière",
+      "backHint": "Revient une instruction en arrière.",
+      "reverse": "Reprendre en arrière",
+      "reverseHint": "Remonte jusqu'au point d'arrêt ou d'observation précédent.",
+      "slider": "Revenir à un instant de l'historique",
+      "stats": "{n} instructions d'historique, {mb} Mo",
+      "atStart": "Début de l'historique atteint : on ne peut pas remonter plus loin."
+    },
     "hereHint": "Fonction de l'instruction en cours",
     "controls": "Commandes d'exécution",
     "pause": "Pause",
