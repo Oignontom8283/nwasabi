@@ -2,6 +2,7 @@
 name = "nwasabi"
 version = "0.1.0"
 edition = "2024"
+default-run = "nwasabi"
 description = "Cœur d'émulation des applications externes (.nwa) des calculatrices NumWorks"
 license = "AGPL-3.0-only"
 # Le paquet publié ne contient que ce qui sert à compiler : le code (`src/`), le script de

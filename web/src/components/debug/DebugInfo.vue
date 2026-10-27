@@ -1,10 +1,13 @@
 <script setup lang="ts">
 // Fenêtre « i » du débogage : à quoi servent les outils, ce qu'ils ne font pas, et le lien vers la documentation complète.
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { server } from "../../serverLink.js";
 import FloatingWindow from "../FloatingWindow.vue";
 
 const emit = defineEmits<{ close: [] }>();
-const VIEWS = ["code", "points", "watch", "console", "profile", "calls", "gdb"];
+// La vue GDB n'existe que servie par Nwasabi.
+const VIEWS = computed(() => (server.active ? ["code", "points", "watch", "console", "profile", "calls", "gdb"] : ["code", "points", "watch", "console", "profile", "calls"]));
 const { t } = useI18n();
 
 // Sur le site de la documentation, l'émulateur est à `/emulator/` et la page est à côté ; sinon, la page du dépôt.

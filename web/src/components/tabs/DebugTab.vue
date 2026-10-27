@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // L'onglet Débogage : tous les outils pour comprendre ce que fait une application, sous une même barre de navigation.
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ui } from "../../ui.js";
 import type { DebugView } from "../../ui.js";
 import { gdb } from "../../gdbBridge.js";
+import { server } from "../../serverLink.js";
 import GdbView from "../debug/GdbView.vue";
 import CodeView from "../debug/CodeView.vue";
 import ConsoleView from "../debug/ConsoleView.vue";
@@ -15,7 +16,12 @@ import SvcLogCard from "../SvcLogCard.vue";
 import WatchPoints from "../WatchPoints.vue";
 
 const { t } = useI18n();
-const VIEWS: DebugView[] = ["code", "points", "watch", "console", "profile", "calls", "gdb"];
+// La vue GDB passe par le serveur Nwasabi : sur une page hébergée ailleurs (site statique), elle n'est pas proposée.
+const VIEWS = computed<DebugView[]>(() => {
+  const views: DebugView[] = ["code", "points", "watch", "console", "profile", "calls"];
+  return server.active ? [...views, "gdb"] : views;
+});
+const view = computed(() => (VIEWS.value.includes(ui.debugView) ? ui.debugView : "code"));
 const info = ref(false);
 </script>
 
@@ -23,7 +29,7 @@ const info = ref(false);
   <div class="debug">
     <header>
       <div class="views" role="tablist" :aria-label="t('debug.views.label')">
-        <button v-for="v in VIEWS" :key="v" role="tab" class="view" :class="{ active: ui.debugView === v }" :aria-selected="ui.debugView === v" @click="ui.debugView = v">
+        <button v-for="v in VIEWS" :key="v" role="tab" class="view" :class="{ active: view === v }" :aria-selected="view === v" @click="ui.debugView = v">
           {{ t(`debug.views.${v}`) }}
         </button>
       </div>
@@ -31,14 +37,14 @@ const info = ref(false);
     </header>
 
     <p v-if="gdb.enabled && gdb.clients > 0" class="banner" role="status">{{ t("gdb.driven") }}</p>
-    <p v-if="['code', 'points', 'watch', 'console'].includes(ui.debugView)" class="intro muted">{{ t(`debug.intro.${ui.debugView}`) }}</p>
+    <p v-if="['code', 'points', 'watch', 'console'].includes(view)" class="intro muted">{{ t(`debug.intro.${view}`) }}</p>
 
-    <CodeView v-if="ui.debugView === 'code'" />
-    <PointsView v-else-if="ui.debugView === 'points'" />
-    <WatchPoints v-else-if="ui.debugView === 'watch'" />
-    <ConsoleView v-else-if="ui.debugView === 'console'" />
-    <ProfileCard v-else-if="ui.debugView === 'profile'" />
-    <SvcLogCard v-else-if="ui.debugView === 'calls'" />
+    <CodeView v-if="view === 'code'" />
+    <PointsView v-else-if="view === 'points'" />
+    <WatchPoints v-else-if="view === 'watch'" />
+    <ConsoleView v-else-if="view === 'console'" />
+    <ProfileCard v-else-if="view === 'profile'" />
+    <SvcLogCard v-else-if="view === 'calls'" />
     <GdbView v-else />
 
     <DebugInfo v-if="info" @close="info = false" />

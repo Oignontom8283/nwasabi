@@ -24,6 +24,17 @@ Les trois premières se servent du même cœur ; ce qu'elles font se pilote par 
 
 Une application peut aussi s'ouvrir par l'adresse : `…/emulator/?nwa=https://exemple.org/jeu.nwa`.
 
+## Installer le serveur
+
+```sh
+cargo install nwasabi      # installe la commande `nwasabi` (le serveur, avec l'émulateur)
+nwasabi --nwa jeu.nwa
+cargo install nwasabi --features cli   # ajoute `nwasabi-cli`
+```
+
+La compilation construit l'interface web : Node.js (avec npm) et la cible `wasm32-unknown-unknown` de Rust sont nécessaires
+(`NWASABI_NO_WEB=1` les évite, au prix d'une page vide à la place de l'émulateur).
+
 ## Compiler le projet
 
 Il faut Rust (édition 2024) et, pour l'interface web, Node.js. Les recettes `just` font le reste :
