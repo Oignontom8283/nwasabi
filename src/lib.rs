@@ -24,6 +24,7 @@ pub mod keymap;
 pub mod link;
 pub mod memory;
 pub mod profile;
+pub mod scb;
 pub mod session;
 pub mod settings;
 pub mod storage;

@@ -237,12 +237,31 @@
     "breakpoint": "L'application a exécuté une instruction d'arrêt (bkpt #{imm}).",
     "unknownSvc": "L'application a fait l'appel système {number}, que le noyau simulé ne connaît pas.",
     "waitForInterrupt": "L'application attend une interruption que rien ne peut déclencher.",
+    "faultRegisters": "Registres de faute du processeur",
     "instruction": "Instruction fautive",
     "in": "Dans {where}",
     "registers": "Registres",
     "note": "L'application est arrêtée : vous pouvez examiner la mémoire et les registres, ou la relancer.",
     "debug": "Ouvrir dans le débogueur",
     "restart": "Relancer"
+  },
+  "faultregs": {
+    "none": "Aucun registre de faute levé.",
+    "bfar": "Adresse de l'accès mémoire qui a échoué (lecture ou écriture).",
+    "mmfar": "Adresse de l'accès interdit.",
+    "bits": {
+      "iaccviol": "Le processeur a voulu exécuter du code dans une zone où c'est interdit.",
+      "daccviol": "Accès de données interdit à cette adresse (par exemple écrire dans la flash).",
+      "mmarvalid": "MMFAR contient l'adresse de l'accès interdit.",
+      "ibuserr": "Le code à exécuter n'a pas pu être lu : aucune mémoire à cette adresse.",
+      "preciserr": "Accès de données à une adresse où il n'y a pas de mémoire ; l'instruction fautive est connue exactement.",
+      "bfarvalid": "BFAR contient l'adresse de l'accès fautif.",
+      "undefinstr": "Instruction indéfinie ou non gérée.",
+      "invstate": "Saut vers une adresse paire : un Cortex-M n'exécute que du Thumb.",
+      "unaligned": "Accès non aligné avec une instruction qui l'interdit.",
+      "forced": "La faute a été escaladée en HardFault, faute de gestionnaire dédié.",
+      "bkpt": "Instruction bkpt exécutée."
+    }
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",

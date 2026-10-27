@@ -424,6 +424,60 @@ fn system_calls_are_logged_with_their_arguments_on_demand() {
     assert!(error(&mut s, r#"{"cmd":"svc_log","action":"nope"}"#).contains("action inconnue"));
 }
 
+fn word(s: &mut Session, address: u32) -> u32 {
+    let reply = ok(
+        s,
+        &format!(r#"{{"cmd":"memory_read","address":{address},"length":4}}"#),
+    );
+    let hex = reply.get("hex").and_then(Value::as_str).unwrap();
+    let bytes = json::hex_decode(hex).unwrap();
+    u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+}
+
+#[test]
+fn a_fault_fills_the_fault_registers_like_the_processor_would() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    // Au départ : l'identifiant d'un Cortex-M7 et aucune faute.
+    assert_eq!(word(&mut s, 0xe000_ed00), 0x411f_c270);
+    assert_eq!(word(&mut s, 0xe000_ed28), 0);
+    // ldr r1, [r0] avec r0 = 0x10 (hors de toute mémoire), exécuté depuis la RAM.
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"0168"}"#,
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"pc","value":"0x20020000"}"#,
+    );
+    ok(&mut s, r#"{"cmd":"cpu_set","register":"r0","value":16}"#);
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":10}"#);
+    assert_eq!(stop_pc(&ran), ("fault".to_string(), 0x2002_0000), "{ran}");
+    // BusFault précise (PRECISERR, BFARVALID), escaladée en HardFault (FORCED), adresse dans BFAR.
+    assert_eq!(word(&mut s, 0xe000_ed28), (1 << 9) | (1 << 15));
+    assert_eq!(word(&mut s, 0xe000_ed38), 0x10);
+    assert_eq!(word(&mut s, 0xe000_ed2c), 1 << 30);
+    assert_eq!(word(&mut s, 0xe000_ed04) & 0x1ff, 3);
+    // L'application ne peut pas les écrire (lecture seule), et la relance les efface.
+    ok(&mut s, r#"{"cmd":"launch"}"#);
+    assert_eq!(word(&mut s, 0xe000_ed28), 0);
+    // Aller exécuter du code là où il n'y a rien : erreur de bus à la lecture de l'instruction (IBUSERR).
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"pc","value":"0x1000"}"#,
+    );
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":10}"#);
+    assert_eq!(stop_pc(&ran), ("fault".to_string(), 0x1000), "{ran}");
+    assert_eq!(word(&mut s, 0xe000_ed28), 1 << 8);
+    ok(&mut s, r#"{"cmd":"launch"}"#);
+    assert_eq!(word(&mut s, 0xe000_ed28), 0);
+    assert_eq!(word(&mut s, 0xe000_ed00), 0x411f_c270);
+}
+
 #[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();

@@ -223,6 +223,7 @@ impl Emulator {
         let profile = &self.device.profile;
         let exit_stub = profile.active().userland_header + EXIT_STUB_OFFSET;
         self.device.memory.clear_access();
+        let _ = crate::scb::reset(&mut self.device.memory);
         self.kernel.reset_waits();
         self.cpu = Cpu::new();
         self.cpu.regs.sp = profile.process_stack_start;
@@ -303,7 +304,7 @@ impl Emulator {
     }
 
     /// Exécute au plus `max_instructions` instructions de l'application. Une faute retient l'adresse de l'instruction fautive
-    /// (`last_fault_pc`).
+    /// (`last_fault_pc`) et remplit les registres de faute du processeur simulé (voir [`crate::scb`]).
     pub fn run(&mut self, max_instructions: u64) -> RunStop {
         let stop = self.run_inner(max_instructions);
         if let RunStop::Fault(fault) = &stop {
@@ -312,6 +313,7 @@ impl Emulator {
                 Fault::Unimplemented { pc, .. } | Fault::UsageFault { pc, .. } => *pc,
                 _ => self.cpu.regs.pc,
             };
+            crate::scb::record(&mut self.device.memory, fault, self.last_fault_pc);
         }
         stop
     }
