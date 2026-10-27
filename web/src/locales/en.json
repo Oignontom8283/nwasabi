@@ -237,12 +237,31 @@
     "breakpoint": "The application ran a break instruction (bkpt #{imm}).",
     "unknownSvc": "The application made system call {number}, which the simulated kernel does not know.",
     "waitForInterrupt": "The application waits for an interrupt that nothing can trigger.",
+    "faultRegisters": "Processor fault registers",
     "instruction": "Faulting instruction",
     "in": "In {where}",
     "registers": "Registers",
     "note": "The application is stopped: you can examine its memory and registers, or restart it.",
     "debug": "Open in the debugger",
     "restart": "Restart"
+  },
+  "faultregs": {
+    "none": "No fault register is set.",
+    "bfar": "Address of the memory access that failed (read or write).",
+    "mmfar": "Address of the forbidden access.",
+    "bits": {
+      "iaccviol": "The processor tried to run code in an area where that is forbidden.",
+      "daccviol": "Data access forbidden at this address (for example writing to flash).",
+      "mmarvalid": "MMFAR holds the address of the forbidden access.",
+      "ibuserr": "The code to run could not be read: there is no memory at this address.",
+      "preciserr": "Data access to an address with no memory; the faulting instruction is known exactly.",
+      "bfarvalid": "BFAR holds the address of the faulting access.",
+      "undefinstr": "Undefined or unhandled instruction.",
+      "invstate": "Jump to an even address: a Cortex-M only runs Thumb.",
+      "unaligned": "Unaligned access with an instruction that forbids it.",
+      "forced": "The fault was escalated to a HardFault, for lack of a dedicated handler.",
+      "bkpt": "A bkpt instruction was executed."
+    }
   },
   "screen": {
     "copied": "Screen copied to the clipboard",

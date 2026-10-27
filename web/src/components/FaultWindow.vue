@@ -6,6 +6,8 @@ import { useI18n } from "vue-i18n";
 import { useEmu } from "../emulator.js";
 import { showInDebugger } from "../ui.js";
 import { hex, hex0x } from "../util.js";
+import AddressLink from "./AddressLink.vue";
+import FaultRegisters from "./FaultRegisters.vue";
 import FloatingWindow from "./FloatingWindow.vue";
 
 const emit = defineEmits<{ close: [] }>();
@@ -73,14 +75,14 @@ async function restart() {
 </script>
 
 <template>
-  <FloatingWindow :width="460" :title="t('fault.title')" :resizable="false" @close="emit('close')">
+  <FloatingWindow :width="500" :title="t('fault.title')" :resizable="false" @close="emit('close')">
     <div class="fault">
       <p class="what"><strong>{{ title }}</strong></p>
       <p class="detail">{{ detail }}</p>
       <section v-if="line" class="instr">
         <h3>{{ t("fault.instruction") }}</h3>
         <p class="mono code">
-          <span class="addr">{{ hex(line.address) }}</span> <span class="muted">{{ line.hex }}</span>
+          <AddressLink :address="line.address" view="code" /> <span class="muted">{{ line.hex }}</span>
           <strong> {{ line.mnemonic }}</strong> {{ line.operands }}
         </p>
         <p v-if="where" class="muted small">{{ t("fault.in", { where }) }}</p>
@@ -90,6 +92,10 @@ async function restart() {
         <div class="regs mono">
           <span v-for="[name, value] in regs" :key="name"><span class="muted">{{ name }}</span> {{ hex(value) }}</span>
         </div>
+      </section>
+      <section>
+        <h3>{{ t("fault.faultRegisters") }}</h3>
+        <FaultRegisters />
       </section>
       <p class="muted small">{{ t("fault.note") }}</p>
       <div class="actions">
