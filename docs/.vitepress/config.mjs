@@ -44,6 +44,7 @@ export default defineConfig({
     nav: [
       { text: "Émulateur", link: "/emulator/", target: "_self" },
       { text: "Interface", link: "/interface" },
+      { text: "Débogage", link: "/debug/" },
       { text: "Formats de fichiers", link: "/format/" },
     ],
     socialLinks: [{ icon: "github", link: "https://github.com/Oignontom8283/nwasabi" }],

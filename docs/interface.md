@@ -52,6 +52,35 @@ fichiers du dépôt, avec des variables d'environnement lues à la compilation :
 
 Exemple : `NWASABI_INFO_FILE=infos.md cargo build --release --features serve`. Sans texte, le bouton n'apparaît pas.
 
+## Commandes et raccourcis
+
+**Ctrl + K** ouvre la palette de commandes : on tape quelques lettres d'une action (charger, pause, capture, onglets…) et Entrée la
+lance.
+
+| Raccourci | Action |
+|---|---|
+| Ctrl + K | palette de commandes |
+| Ctrl + S, Ctrl + O | sauvegarde rapide de l'état dans le navigateur, et chargement |
+| Ctrl + R | recharge les fichiers du serveur qui ont changé (sans changement, la page se recharge comme d'habitude) |
+| Ctrl + Espace, Ctrl + . | pause ou reprise, avancer d'une image |
+| Ctrl + Maj + Espace | relance l'application |
+| Ctrl + E, Ctrl + Maj + E, Ctrl + G | capture de l'écran, copie de l'écran, enregistrement GIF |
+| Ctrl + Entrée, Ctrl + B, Ctrl + J | plein écran, écran large, ouvrir ou fermer le panneau |
+| ? | liste de tous les raccourcis |
+| F5, F10, F11, Maj + F11 | reprendre ou pause, pas par-dessus, pas, sortir (onglet [Débogage](./debug/)) |
+
+Dans la barre latérale, le bouton « Image » avance d'une image en pause, « Copier » met l'écran dans le presse-papiers et « GIF »
+enregistre l'écran en image animée jusqu'au prochain clic. Le menu du haut garde les dernières applications ouvertes (si la
+conservation des fichiers est acceptée). Chaque application peut avoir ses propres touches : dans l'onglet Touches, « Retenir pour
+cette application » les associe à son nom. Dans les Réglages, « Effet de rétroéclairage » assombrit l'écran quand la luminosité
+baisse.
+
+## Installer l'émulateur
+
+L'émulateur est une application web installable : le navigateur propose de l'installer (icône dans la barre d'adresse), et une fois
+visité il fonctionne **hors ligne**. Sur téléphone ou tablette en hauteur, la calculatrice prend toute la largeur et le panneau
+d'outils la recouvre.
+
 ## Conserver les fichiers dans le navigateur
 
 À la première visite, le site demande s'il peut conserver les fichiers de la calculatrice dans ce navigateur ; la réponse se
