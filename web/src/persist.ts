@@ -5,6 +5,7 @@
 
 import { reactive } from "vue";
 import type { Emulator } from "./emulator.js";
+import { clearRecent } from "./recent.js";
 import { poll, remember } from "./util.js";
 
 /** Un document `.nfs` : seul ce que ce module lit est décrit. */
@@ -84,6 +85,7 @@ export function disableKeeping() {
 /** Efface les fichiers conservés (pas ceux de l'appareil en cours). */
 export async function clearKept() {
   remember.remove(KEY);
+  void clearRecent();
   keep.stored = null;
   offerKept();
   // Ce qui est dans l'appareil en cours n'est pas recopié tout de suite : seule une modification le fera.

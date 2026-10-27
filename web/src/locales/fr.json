@@ -8,6 +8,7 @@
     "pauseRequired": "Mettez la simulation en pause pour faire cela."
   },
   "errors": {
+    "recent": "L'application « {name} » n'est plus conservée dans le navigateur.",
     "fetchNetwork": "{url} : téléchargement impossible (réseau, ou le site n'autorise pas la lecture : CORS).",
     "fetchHttp": "{url} : réponse HTTP {status}.",
     "fromServer": "du serveur",
@@ -27,6 +28,8 @@
     "openDataHint": "Charge les données externes de l'application (par exemple un fichier lu par l'application).",
     "openKeys": "Charger un mapping de touches (.nmk)…",
     "openKeysHint": "Charge un fichier .nmk : il lie les touches du clavier et les gestes tactiles aux touches de la calculatrice.",
+    "recent": "Récentes",
+    "recentHint": "Ouverte le {when}",
     "openState": "Charger un état (.nds)…",
     "openStateHint": "Reprend une émulation enregistrée (.nds), exactement là où elle s'était arrêtée.",
     "model": "Modèle",
@@ -457,7 +460,7 @@
     "page": "Cette page",
     "keep": {
       "label": "Conserver les fichiers dans le navigateur",
-      "help": "Les fichiers de la calculatrice sont copiés dans les données de ce navigateur et remis à chaque lancement (le site pose la question à la première visite) ; le navigateur peut demander votre autorisation de les garder durablement. Ils sont partagés par tout ce qui tourne sur ce site, dans ce navigateur : pensez à les effacer sur un ordinateur qui n'est pas le vôtre.",
+      "help": "Les fichiers de la calculatrice et les dernières applications ouvertes sont copiés dans les données de ce navigateur ; les fichiers sont remis à chaque lancement (le site pose la question à la première visite) ; le navigateur peut demander votre autorisation de les garder durablement. Ils sont partagés par tout ce qui tourne sur ce site, dans ce navigateur : pensez à les effacer sur un ordinateur qui n'est pas le vôtre.",
       "stored": "aucun fichier conservé | 1 fichier conservé ({size}) | {n} fichiers conservés ({size})",
       "nothing": "Rien n'est encore conservé.",
       "persistent": "stockage persistant accordé",

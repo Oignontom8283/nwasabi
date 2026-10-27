@@ -8,10 +8,11 @@ import { ui } from "../ui.js";
 import type { PickKind, Theme } from "../ui.js";
 import { valueOf } from "../util.js";
 import type { Firmware, Model } from "@nwasabi/js";
+import { recent } from "../recent.js";
 import Icon from "./Icon.vue";
 import Logo from "./Logo.vue";
 
-const emit = defineEmits<{ pick: [which: PickKind]; about: []; info: [] }>();
+const emit = defineEmits<{ pick: [which: PickKind]; recent: [name: string]; about: []; info: [] }>();
 const hasInfo = __NWASABI_INFO__ !== "";
 const { t, locale } = useI18n();
 const emulator = useEmu();
@@ -33,6 +34,10 @@ const ITEMS: Array<[PickKind, string, boolean]> = [
   ["files", "top.openFiles", false],
   ["state", "top.openState", false],
 ];
+function openRecent(name: string) {
+  open.value = false;
+  emit("recent", name);
+}
 function pick(which: PickKind) {
   open.value = false;
   emit("pick", which);
@@ -59,6 +64,12 @@ onBeforeUnmount(() => {
         <li v-for="[id, key, primary] in ITEMS" :key="id" role="none">
           <button role="menuitem" :class="{ primary }" :title="t(`${key}Hint`)" @click="pick(id)">{{ t(key) }}</button>
         </li>
+        <template v-if="recent.items.length">
+          <li class="sub" role="presentation">{{ t("top.recent") }}</li>
+          <li v-for="item in recent.items" :key="item.name" role="none">
+            <button role="menuitem" class="mono" :title="t('top.recentHint', { when: new Date(item.at).toLocaleString(locale) })" @click="openRecent(item.name)">{{ item.name }}</button>
+          </li>
+        </template>
       </ul>
     </div>
 
@@ -103,6 +114,7 @@ onBeforeUnmount(() => {
 .menu-wrap { position: relative; }
 .burger { border: none; background: transparent; padding: 4px; border-radius: 6px; color: var(--text); }
 .menu { position: absolute; top: calc(100% + 6px); left: 0; list-style: none; margin: 0; padding: 6px; min-width: 260px; display: grid; gap: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.menu .sub { margin: 6px 10px 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .menu button { width: 100%; justify-content: flex-start; padding: 6px 10px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; letter-spacing: 0.01em; color: var(--text); text-decoration: none; margin-right: 18px; }
 /* Le nom reste exactement au centre de la barre ; le bouton de chargement se pose à sa droite sans le décaler. */

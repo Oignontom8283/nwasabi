@@ -13,10 +13,11 @@ import TopBar from "./components/TopBar.vue";
 import { confirmDialog } from "./dialogs.js";
 import { useEmulator } from "./emulator.js";
 import { FetchError, fetchFile, fileNameOf, launchParams } from "./launch.js";
-import { attachPersistence, disableKeeping, enableKeeping, needsAnswer } from "./persist.js";
+import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
 import { applyTheme, notice, panelPixels, screenApi, ui } from "./ui.js";
+import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
 import type { PickKind } from "./ui.js";
 import { readBytes } from "./util.js";
@@ -38,6 +39,13 @@ function fail(message: string) {
 async function loadApp(bytes: Uint8Array, name: string) {
   lastApp = { bytes, name };
   await emulator.load(bytes, name, dataBytes);
+  if (keep.enabled) void rememberApp(name, bytes);
+}
+
+async function openRecent(name: string) {
+  const bytes = await recentBytes(name);
+  if (bytes) await loadApp(bytes, name);
+  else fail(t("errors.recent", { name }));
 }
 
 async function loadData(bytes: Uint8Array, name: string) {
@@ -219,6 +227,7 @@ onMounted(async () => {
   await emulator.init();
   attachPersistence(emulator);
   void refreshQuick();
+  void refreshRecent();
   // Les champs de saisie, listes, éditeurs et touches de la calculatrice gardent le clavier pour eux.
   detachKeyboard = emulator.attachKeyboard(window, (e) =>
     !!(e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable], dialog, [data-calc-key], [data-keep-keys]"),
@@ -258,7 +267,7 @@ provide("pick", pick);
 
 <template>
   <div class="app" @dragover.prevent @drop.prevent="onDrop">
-    <TopBar @pick="pick" @about="about = !about" @info="info = !info" />
+    <TopBar @pick="pick" @recent="openRecent" @about="about = !about" @info="info = !info" />
     <input ref="input_app" type="file" accept=".nwa" hidden @change="choose('app')($event)" />
     <input ref="input_data" type="file" hidden @change="choose('data')($event)" />
     <input ref="input_keys" type="file" accept=".nmk,application/json" hidden @change="choose('keys')($event)" />

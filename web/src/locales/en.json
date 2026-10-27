@@ -8,6 +8,7 @@
     "pauseRequired": "Pause the simulation to do this."
   },
   "errors": {
+    "recent": "The application “{name}” is no longer stored in the browser.",
     "fetchNetwork": "{url}: download failed (network error, or the site does not allow reading it: CORS).",
     "fetchHttp": "{url}: HTTP status {status}.",
     "fromServer": "from the server",
@@ -27,6 +28,8 @@
     "openDataHint": "Loads the application's external data file.",
     "openKeys": "Load a key mapping (.nmk)…",
     "openKeysHint": "Loads a .nmk file, which maps computer keys and touch gestures to calculator keys.",
+    "recent": "Recent",
+    "recentHint": "Opened {when}",
     "openState": "Load a state (.nds)…",
     "openStateHint": "Resumes a saved emulation (.nds) exactly where it stopped.",
     "model": "Model",
@@ -457,7 +460,7 @@
     "page": "This page",
     "keep": {
       "label": "Keep the files in the browser",
-      "help": "The calculator's files are copied into this browser's data and restored at each launch (the site asks on the first visit); the browser may ask your permission to keep them durably. They are shared by everything that runs on this site, in this browser: remember to erase them on a computer that is not yours.",
+      "help": "The calculator's files and the last applications you opened are copied into this browser's data; the files are restored at each launch (the site asks on the first visit); the browser may ask your permission to keep them durably. They are shared by everything that runs on this site, in this browser: remember to erase them on a computer that is not yours.",
       "stored": "no files kept | 1 file kept ({size}) | {n} files kept ({size})",
       "nothing": "Nothing is kept yet.",
       "persistent": "persistent storage granted",
