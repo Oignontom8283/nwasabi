@@ -14,7 +14,7 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod views;
@@ -216,6 +216,7 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "disasm",
                     "watch_list",
                     "watch_hits",
                     "svc_stats",
@@ -364,6 +365,61 @@ impl Session {
                 let id = crate::memory::WatchId(number(req, "id")?);
                 let removed = self.emu()?.device.memory.unwatch(id);
                 Ok(Value::object().with("removed", removed))
+            }
+            "disasm" => {
+                let address = number(req, "address")? & !1;
+                let count = req
+                    .get("count")
+                    .and_then(Value::as_u32)
+                    .unwrap_or(16)
+                    .clamp(1, 256) as usize;
+                let before = req
+                    .get("before")
+                    .and_then(Value::as_u32)
+                    .unwrap_or(0)
+                    .min(32) as usize;
+                let memory = &mut self.emu()?.device.memory;
+                let mut read = |a: u32| {
+                    let bytes = memory.read_bytes(a, 2).ok()?;
+                    Some(u16::from_le_bytes([bytes[0], bytes[1]]))
+                };
+                // Les instructions Thumb ont 2 ou 4 octets : pour montrer ce qui précède, on part de plus loin et l'on
+                // garde le plus long départ dont la lecture tombe exactement sur `address`.
+                let mut lines = Vec::new();
+                let mut index = 0;
+                for back in (0..=2 * before).rev() {
+                    let start = address.wrapping_sub(2 * back as u32);
+                    let attempt = crate::cpu::disassemble(&mut read, start, back + count);
+                    if let Some(at) = attempt.iter().position(|l| l.address == address) {
+                        index = at;
+                        lines = attempt;
+                        break;
+                    }
+                }
+                let from = index.saturating_sub(before);
+                let rows = lines
+                    .iter()
+                    .skip(from)
+                    .take(before.min(index) + count)
+                    .map(|l| {
+                        let hex = if l.size == 4 {
+                            format!("{:04x} {:04x}", l.halfwords[0], l.halfwords[1])
+                        } else {
+                            format!("{:04x}", l.halfwords[0])
+                        };
+                        let mut row = Value::object()
+                            .with("address", l.address)
+                            .with("size", u32::from(l.size))
+                            .with("hex", hex.as_str())
+                            .with("mnemonic", l.mnemonic.as_str())
+                            .with("operands", l.operands.as_str());
+                        if let Some(target) = l.target {
+                            row.set("target", Value::from(target));
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                Ok(Value::object().with("lines", rows))
             }
             "watch_list" => {
                 let list = self.emu()?.device.memory.watch_list();

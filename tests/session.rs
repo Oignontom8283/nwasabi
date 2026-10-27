@@ -173,6 +173,49 @@ fn memory_can_be_read_written_and_followed() {
 }
 
 #[test]
+fn code_in_memory_is_disassembled_with_the_instructions_before() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    // push {r4, lr} ; movs r0, #5 ; bl +0 (32 bits) ; bx lr
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"10b50520 00f000f8 7047"}"#
+            .replace(' ', "")
+            .as_str(),
+    );
+    let reply = ok(
+        &mut s,
+        r#"{"cmd":"disasm","address":"0x20020004","count":2,"before":2}"#,
+    );
+    let lines = reply.get("lines").and_then(Value::as_array).unwrap();
+    let text: Vec<String> = lines
+        .iter()
+        .map(|l| {
+            format!(
+                "{:x} {} {}",
+                l.get("address").and_then(Value::as_i64).unwrap(),
+                l.get("mnemonic").and_then(Value::as_str).unwrap(),
+                l.get("operands").and_then(Value::as_str).unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        text,
+        [
+            "20020000 push {r4, lr}",
+            "20020002 movs r0, #5",
+            "20020004 bl 0x20020008",
+            "20020008 bx lr",
+        ]
+    );
+    assert_eq!(lines[2].get("size").and_then(Value::as_i64), Some(4));
+    assert_eq!(
+        lines[2].get("target").and_then(Value::as_i64),
+        Some(0x2002_0008)
+    );
+}
+
+#[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);
