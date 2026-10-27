@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import FloatingWindow from "../FloatingWindow.vue";
 
 const emit = defineEmits<{ close: [] }>();
-const VIEWS = ["code", "points", "watch", "console", "profile", "calls"];
+const VIEWS = ["code", "points", "watch", "console", "profile", "calls", "gdb"];
 const { t } = useI18n();
 
 // Sur le site de la documentation, l'émulateur est à `/emulator/` et la page est à côté ; sinon, la page du dépôt.

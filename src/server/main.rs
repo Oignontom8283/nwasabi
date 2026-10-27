@@ -16,7 +16,7 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::{Parser, ValueEnum};
 use rust_embed::RustEmbed;
@@ -80,15 +80,20 @@ struct Options {
     /// Ouvre la page dans le navigateur
     #[arg(long)]
     open: bool,
-    /// Port d'un serveur GDB : un débogueur (GDB, LLDB, VS Code…) s'y branche pour déboguer l'application `--nwa`. C'est une
-    /// émulation à part de celle de la page : elle repart de zéro à chaque connexion, avec le fichier tel qu'il est sur le disque
-    #[arg(long, value_name = "PORT", requires = "nwa")]
+    /// Port d'un serveur GDB : un débogueur (GDB, LLDB, VS Code…) s'y branche pour déboguer l'émulation de la page, la même que
+    /// celle qu'on voit et qu'on commande. Il faut aussi activer « Débogueur GDB » dans l'onglet Débogage de la page (désactivé
+    /// par défaut). Sans cette option, rien n'écoute
+    #[arg(long, value_name = "PORT")]
     gdb: Option<u16>,
+    /// Comme `--gdb`, mais sans page : le débogueur pilote une émulation à part de l'application `--nwa`, qui repart de zéro à
+    /// chaque connexion avec le fichier tel qu'il est sur le disque
+    #[arg(long, value_name = "PORT", requires = "nwa", conflicts_with = "gdb")]
+    gdb_headless: Option<u16>,
 }
 
 /// Une session neuve, avec l'application `--nwa` telle qu'elle est sur le disque maintenant.
 fn gdb_session(served: &Served) -> Result<nwasabi::session::Session, String> {
-    let nwa = served.nwa.as_ref().ok_or("--gdb demande --nwa")?;
+    let nwa = served.nwa.as_ref().ok_or("--gdb-headless demande --nwa")?;
     let bytes = std::fs::read(nwa).map_err(|e| format!("{} : {e}", nwa.display()))?;
     let mut request = json!({
         "cmd": "load",
@@ -109,7 +114,19 @@ fn gdb_session(served: &Served) -> Result<nwasabi::session::Session, String> {
     }
 }
 
-/// Le serveur GDB : un débogueur à la fois, chacun sur une émulation neuve de l'application.
+/// Le serveur GDB de la page : un débogueur à la fois, sur l'appareil de la page (voir `nwasabi::gdb::Bridge`).
+fn serve_gdb_page(bridge: &Arc<nwasabi::gdb::Bridge>, listener: std::net::TcpListener) {
+    for stream in listener.incoming().flatten() {
+        bridge.client_connected();
+        let mut device = nwasabi::gdb::PageDebuggee(Arc::clone(bridge));
+        if let Err(e) = nwasabi::gdb::serve_connection(&mut device, stream) {
+            eprintln!("GDB : connexion interrompue : {e}");
+        }
+        bridge.client_gone();
+    }
+}
+
+/// Le serveur GDB sans page : un débogueur à la fois, chacun sur une émulation neuve de l'application.
 fn serve_gdb(served: Arc<Served>, listener: std::net::TcpListener) {
     for stream in listener.incoming().flatten() {
         match gdb_session(&served) {
@@ -132,6 +149,8 @@ struct Served {
     nds: Option<PathBuf>,
     model: &'static str,
     firmware: &'static str,
+    /// Le pont vers la page, quand `--gdb` est donné, et le port sur lequel les débogueurs se connectent.
+    bridge: Option<(Arc<nwasabi::gdb::Bridge>, u16)>,
 }
 
 type Shared = Arc<Served>;
@@ -201,6 +220,53 @@ fn failure(message: String) -> Response {
 
 async fn health() -> Json<Value> {
     Json(json!({ "ok": true }))
+}
+
+/// Ce que la page sait du serveur GDB : s'il y en a un, son port, si elle est branchée dessus et combien de débogueurs sont là.
+async fn gdb_status(State(served): State<Shared>) -> Json<Value> {
+    match &served.bridge {
+        Some((bridge, port)) => Json(
+            json!({ "enabled": true, "port": port, "attached": bridge.attached(), "clients": bridge.clients() }),
+        ),
+        None => Json(json!({ "enabled": false })),
+    }
+}
+
+/// La page attend la prochaine commande d'un débogueur (au plus 20 secondes ; sans commande, 204).
+async fn gdb_next(State(served): State<Shared>) -> Response {
+    let Some((bridge, _)) = served.bridge.clone() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let found = tokio::task::spawn_blocking(move || {
+        bridge.next_request(std::time::Duration::from_secs(20))
+    })
+    .await
+    .ok()
+    .flatten();
+    match found {
+        Some((id, request)) => Json(json!({ "id": id, "request": request })).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+/// La page rend la réponse à une commande : `{ "id": …, "reply": "…" }`.
+async fn gdb_answer(State(served): State<Shared>, Json(body): Json<Value>) -> StatusCode {
+    let Some((bridge, _)) = &served.bridge else {
+        return StatusCode::NOT_FOUND;
+    };
+    let (Some(id), Some(reply)) = (body["id"].as_u64(), body["reply"].as_str()) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    bridge.answer(id, reply.to_owned());
+    StatusCode::NO_CONTENT
+}
+
+/// La page n'accepte plus de débogueur.
+async fn gdb_detach(State(served): State<Shared>) -> StatusCode {
+    if let Some((bridge, _)) = &served.bridge {
+        bridge.detach();
+    }
+    StatusCode::NO_CONTENT
 }
 
 async fn preload(State(served): State<Shared>) -> Response {
@@ -322,6 +388,7 @@ async fn run(options: Options) -> Result<(), String> {
         nds: options.nds.clone(),
         model,
         firmware,
+        bridge: None,
     };
     // Tout est vérifié une première fois : un fichier invalide arrête le serveur avant qu'il écoute.
     load_preload(&served)?;
@@ -335,8 +402,25 @@ async fn run(options: Options) -> Result<(), String> {
         load_nds(path)?;
     }
 
-    let served = Arc::new(served);
+    let mut served = served;
+    // `--gdb` : les débogueurs se branchent sur l'émulation de la page, par un pont (la page vient chercher leurs commandes).
+    let mut bridge_listener = None;
     if let Some(gdb_port) = options.gdb {
+        let listener = std::net::TcpListener::bind((options.host.as_str(), gdb_port))
+            .map_err(|e| format!("GDB {}:{gdb_port} : {e}", options.host))?;
+        let address = listener.local_addr().map_err(|e| e.to_string())?;
+        println!(
+            "GDB : {address} (target remote {address}) ; à activer dans l'onglet Débogage de la page"
+        );
+        served.bridge = Some((nwasabi::gdb::Bridge::new(), address.port()));
+        bridge_listener = Some(listener);
+    }
+    let served = Arc::new(served);
+    if let (Some(listener), Some((bridge, _))) = (bridge_listener, served.bridge.clone()) {
+        std::thread::spawn(move || serve_gdb_page(&bridge, listener));
+    }
+    // `--gdb-headless` : une émulation à part, sans page.
+    if let Some(gdb_port) = options.gdb_headless {
         gdb_session(&served)?; // le fichier doit être valide avant d'écouter
         let listener = std::net::TcpListener::bind((options.host.as_str(), gdb_port))
             .map_err(|e| format!("GDB {}:{gdb_port} : {e}", options.host))?;
@@ -348,6 +432,10 @@ async fn run(options: Options) -> Result<(), String> {
 
     let app = Router::new()
         .route("/__nwasabi/health", get(health))
+        .route("/__nwasabi/gdb", get(gdb_status))
+        .route("/__nwasabi/gdb/next", get(gdb_next))
+        .route("/__nwasabi/gdb/answer", post(gdb_answer))
+        .route("/__nwasabi/gdb/detach", post(gdb_detach))
         .route("/__nwasabi/preload", get(preload))
         .route("/__nwasabi/version", get(version))
         .route("/__nwasabi/nmk", get(nmk))

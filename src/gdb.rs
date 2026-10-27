@@ -1,4 +1,5 @@
-//! Serveur GDB : un débogueur (GDB, LLDB, VS Code…) se branche par TCP comme sur une sonde ST-Link et pilote une [`Session`].
+//! Serveur GDB : un débogueur (GDB, LLDB, VS Code…) se branche par TCP comme sur une sonde ST-Link et pilote un appareil émulé, par les
+//! commandes JSON de la session : soit une [`Session`] du même processus, soit celle de la page web, par un [`Bridge`].
 //!
 //! Le protocole est le « GDB Remote Serial Protocol » : des paquets `$données#somme`. Le sous-ensemble géré suffit pour poser des
 //! points d'arrêt et d'observation, avancer pas à pas, lire et écrire registres et mémoire, et reprendre ou interrompre l'exécution.
@@ -6,10 +7,11 @@
 //! Tout passe par les commandes JSON de la session (`run`, `step`, `break`, `watch`, `cpu`, `memory_read`…) : le débogueur voit
 //! exactement ce que voit l'interface web, sans second chemin d'exécution à maintenir.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::json::{self, Value, ValueExt};
 use crate::session::Session;
@@ -82,10 +84,22 @@ fn word_hex(value: u32) -> String {
 /// Un point d'observation posé par le débogueur : (sorte `Z2`/`Z3`/`Z4`, adresse, longueur) → identifiant du cœur.
 type WatchKey = (u8, u32, u32);
 
-/// Un client GDB connecté à une session.
+/// Ce que pilote le serveur GDB : quelque chose qui répond à des commandes JSON de session, une ligne par commande.
+pub trait Debuggee {
+    /// Exécute une commande (une ligne JSON) et rend la réponse (une ligne JSON).
+    fn exchange(&mut self, request: &str) -> String;
+}
+
+impl Debuggee for Session {
+    fn exchange(&mut self, request: &str) -> String {
+        self.handle_line(request)
+    }
+}
+
+/// Un client GDB connecté à un appareil émulé.
 struct Client<'a> {
     stream: TcpStream,
-    session: &'a mut Session,
+    session: &'a mut dyn Debuggee,
     watches: HashMap<WatchKey, u32>,
     /// Octets lus du réseau, pas encore formant un paquet.
     pending: Vec<u8>,
@@ -96,7 +110,7 @@ struct Client<'a> {
 impl Client<'_> {
     /// Exécute une commande de la session et rend sa réponse.
     fn ask(&mut self, request: &str) -> Value {
-        json::parse(&self.session.handle_line(request)).unwrap_or_else(|_| Value::object())
+        json::parse(&self.session.exchange(request)).unwrap_or_else(|_| Value::object())
     }
 
     fn ok(reply: &Value) -> bool {
@@ -513,14 +527,14 @@ impl Client<'_> {
 }
 
 /// Sert un débogueur sur `stream` jusqu'à sa déconnexion. La session garde son état (points d'arrêt compris) entre deux connexions.
-pub fn serve_connection(session: &mut Session, stream: TcpStream) -> io::Result<()> {
+pub fn serve_connection(session: &mut dyn Debuggee, stream: TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
     // Le débogueur peut remonter le temps (reverse-step, reverse-continue) : l'historique tourne pendant la connexion.
     let recording = session
-        .handle_line(r#"{"cmd":"history"}"#)
+        .exchange(r#"{"cmd":"history"}"#)
         .contains(r#""recording":true"#);
     if !recording {
-        session.handle_line(r#"{"cmd":"history","action":"start"}"#);
+        session.exchange(r#"{"cmd":"history","action":"start"}"#);
     }
     let mut client = Client {
         stream,
@@ -540,5 +554,138 @@ pub fn serve_connection(session: &mut Session, stream: TcpStream) -> io::Result<
     match result {
         Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
         other => other,
+    }
+}
+
+// ---- l'appareil de la page web ----------------------------------------------------------------------------------------------------
+
+/// Combien de temps sans interrogation de la page avant de la croire partie.
+const ATTACH_TIMEOUT: Duration = Duration::from_secs(25);
+/// Combien de temps le débogueur attend la réponse de la page à une commande.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(15);
+
+#[derive(Default)]
+struct BridgeState {
+    next_id: u64,
+    requests: VecDeque<(u64, String)>,
+    answers: HashMap<u64, String>,
+    last_poll: Option<Instant>,
+    clients: usize,
+}
+
+/// Le pont entre un débogueur GDB et l'émulation de la page web : l'émulation tourne dans le navigateur, pas dans le serveur. Le
+/// débogueur (côté serveur) dépose ses commandes, la page les prend (`next_request`), les exécute et rend la réponse (`answer`).
+#[derive(Default)]
+pub struct Bridge {
+    state: Mutex<BridgeState>,
+    request_ready: Condvar,
+    answer_ready: Condvar,
+}
+
+impl Bridge {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self::default())
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, BridgeState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// La page interroge-t-elle le pont (elle accepte un débogueur) ?
+    pub fn attached(&self) -> bool {
+        self.lock()
+            .last_poll
+            .is_some_and(|t| t.elapsed() < ATTACH_TIMEOUT)
+    }
+
+    /// Nombre de débogueurs connectés.
+    pub fn clients(&self) -> usize {
+        self.lock().clients
+    }
+
+    pub fn client_connected(&self) {
+        self.lock().clients += 1;
+    }
+
+    pub fn client_gone(&self) {
+        let mut state = self.lock();
+        state.clients = state.clients.saturating_sub(1);
+    }
+
+    /// Côté page : la prochaine commande du débogueur, attendue au plus `wait`. Chaque appel dit que la page est là.
+    pub fn next_request(&self, wait: Duration) -> Option<(u64, String)> {
+        let mut state = self.lock();
+        state.last_poll = Some(Instant::now());
+        if state.requests.is_empty() {
+            state = self
+                .request_ready
+                .wait_timeout(state, wait)
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .0;
+        }
+        state.last_poll = Some(Instant::now());
+        state.requests.pop_front()
+    }
+
+    /// Côté page : la réponse à la commande `id`.
+    pub fn answer(&self, id: u64, reply: String) {
+        self.lock().answers.insert(id, reply);
+        self.answer_ready.notify_all();
+    }
+
+    /// Côté page : elle n'accepte plus de débogueur.
+    pub fn detach(&self) {
+        self.lock().last_poll = None;
+    }
+
+    fn error(message: &str) -> String {
+        Value::object()
+            .with("ok", false)
+            .with("error", message)
+            .to_string()
+    }
+
+    /// Côté débogueur : envoie une commande à la page et attend sa réponse.
+    fn exchange(&self, request: &str) -> String {
+        let mut state = self.lock();
+        if !state
+            .last_poll
+            .is_some_and(|t| t.elapsed() < ATTACH_TIMEOUT)
+        {
+            return Self::error(
+                "la page de l'émulateur n'accepte pas de débogueur (activez-le dans l'onglet Débogage)",
+            );
+        }
+        let id = state.next_id;
+        state.next_id += 1;
+        state.requests.push_back((id, request.to_owned()));
+        self.request_ready.notify_all();
+        let deadline = Instant::now() + ANSWER_TIMEOUT;
+        loop {
+            if let Some(reply) = state.answers.remove(&id) {
+                return reply;
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                state.requests.retain(|(i, _)| *i != id);
+                return Self::error("la page n'a pas répondu");
+            }
+            state = self
+                .answer_ready
+                .wait_timeout(state, left)
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .0;
+        }
+    }
+}
+
+/// L'appareil de la page, vu par le serveur GDB.
+pub struct PageDebuggee(pub Arc<Bridge>);
+
+impl Debuggee for PageDebuggee {
+    fn exchange(&mut self, request: &str) -> String {
+        self.0.exchange(request)
     }
 }

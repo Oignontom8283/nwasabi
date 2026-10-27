@@ -138,3 +138,83 @@ fn a_debugger_can_break_step_read_and_write() {
     assert_eq!(d.ask("D"), "OK");
     server.join().unwrap();
 }
+
+/// Le débogueur pilote l'appareil d'une « page » (ici un fil qui fait ce que fait la page web) par le pont.
+#[test]
+fn a_debugger_can_drive_the_device_of_a_page_through_the_bridge() {
+    use nwasabi::gdb::{Bridge, PageDebuggee};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Duration;
+
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let bridge = Bridge::new();
+    let stop = Arc::new(AtomicBool::new(false));
+
+    // La page : elle interroge le pont, exécute chaque commande sur son appareil et rend la réponse.
+    let page = {
+        let (bridge, stop) = (Arc::clone(&bridge), Arc::clone(&stop));
+        thread::spawn(move || {
+            let mut session = Session::new();
+            let loaded = session.handle_line(&format!(
+                r#"{{"cmd":"load","nwa":"{}"}}"#,
+                json::base64_encode(nwa)
+            ));
+            assert!(loaded.contains(r#""ok":true"#), "{loaded}");
+            while !stop.load(Ordering::Relaxed) {
+                if let Some((id, request)) = bridge.next_request(Duration::from_millis(50)) {
+                    bridge.answer(id, session.handle_line(&request));
+                }
+            }
+        })
+    };
+    while !bridge.attached() {
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = {
+        let bridge = Arc::clone(&bridge);
+        thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            serve_connection(&mut PageDebuggee(bridge), stream).unwrap();
+        })
+    };
+    let mut d = Debugger(TcpStream::connect(("127.0.0.1", port)).unwrap());
+    assert!(d.ask("qSupported").contains("PacketSize="));
+    let regs = d.ask("g");
+    assert_eq!(
+        regs.len(),
+        17 * 8,
+        "registres de l'appareil de la page : {regs}"
+    );
+    let entry = word(&regs, 15);
+    // Un pas avance l'appareil de la page.
+    assert!(d.ask("s").starts_with("T05"));
+    assert_ne!(word(&d.ask("g"), 15), entry);
+    // Un point d'arrêt à l'adresse suivante, puis reprise : l'exécution s'y arrête.
+    let next = word(&d.ask("g"), 15);
+    assert_eq!(d.ask(&format!("Z0,{next:x},2")), "OK");
+    // On revient d'un pas (pc = l'adresse d'avant), puis la reprise s'arrête au point d'arrêt posé.
+    assert_eq!(d.ask(&format!("Pf={}", to_le(entry))), "OK");
+    let reply = d.ask("c");
+    assert!(reply.starts_with("T05swbreak:"), "{reply}");
+    assert_eq!(word(&d.ask("g"), 15), next);
+    assert_eq!(d.ask("D"), "OK");
+    server.join().unwrap();
+
+    // La page qui part : le débogueur le sait.
+    bridge.detach();
+    assert!(!bridge.attached());
+    stop.store(true, Ordering::Relaxed);
+    page.join().unwrap();
+}
+
+fn to_le(value: u32) -> String {
+    value
+        .to_le_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
