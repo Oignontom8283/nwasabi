@@ -28,7 +28,7 @@ const backend = {
       case "symbols": return { ok: true, symbols: req.query === "main" ? [{ name: "main", address: 0x90000100 }] : [] };
       case "symbol": return req.address >= 0x90000100 && req.address < 0x90000200 ? { ok: true, name: "main", offset: req.address - 0x90000100 } : { ok: true };
       case "memory_read": return { ok: true, hex: Array.from(memory.slice(req.address - 0x20000000, req.address - 0x20000000 + req.length), (b) => b.toString(16).padStart(2, "0")).join("") };
-      case "break": state.breaks.push(req.address); return { ok: true };
+      case "break": state.breaks.push(req.address); state.lastCondition = req.condition; return { ok: true };
       case "unbreak": { const n = state.breaks.length; state.breaks = state.breaks.filter((a) => a !== req.address); return { ok: true, removed: n !== state.breaks.length }; }
       case "breaks": return { ok: true, breakpoints: state.breaks };
       case "watch": state.watches.push({ id: 7, address: req.address, length: req.length, kind: req.kind, stop: req.stop }); return { ok: true, id: 7 };
@@ -48,6 +48,10 @@ const run = (line) => runCommand(line, backend);
 assert.match((await run("help"))[0], /Commandes/);
 assert.deepEqual(await run("break main"), ["Point d'arrêt à 0x90000100 <main>"]);
 assert.deepEqual(await run("b 0x90000110"), ["Point d'arrêt à 0x90000110 <main+16>"]);
+assert.deepEqual(await run("break main+8 if r0 == 5"), ["Point d'arrêt à 0x90000108 <main+8> si r0 == 5"]);
+assert.deepEqual(state.lastCondition, { register: "r0", op: "==", value: 5 });
+assert.match((await run("break main if r0 ~ 5"))[0], /condition/);
+state.breaks.pop();
 assert.equal((await run("info breakpoints")).length, 2);
 assert.deepEqual(await run("delete main"), ["Point d'arrêt à 0x90000100 retiré."]);
 assert.deepEqual(await run("delete 0x1"), ["Pas de point d'arrêt à 0x00000001."]);
@@ -57,7 +61,7 @@ assert.deepEqual(await run("x/3xb 0x20000001"), ["0x20000001:\t0x01\t0x02\t0x03"
 assert.deepEqual(await run("x/2dh 0x20000000"), ["0x20000000:\t256\t770"]);
 assert.deepEqual(await run("x/2i main"), ["0x90000100:\tbx lr", "0x90000102:\tnop"]);
 assert.deepEqual(await run("p $r0+4"), ["5 (0x5)"]);
-assert.deepEqual(await run("p $pc"), [`${0x90000100 | 0} (0x90000100) <main>`]);
+assert.deepEqual(await run("p $pc"), [`${0x90000100} (0x90000100) <main>`]);
 assert.deepEqual(await run("set $r1 = 0x10"), ["r1 = 0x00000010"]);
 assert.equal(state.regs.r[1], 16);
 assert.deepEqual((await run("info registers r1")), ["r1   0x00000010\t16"]);

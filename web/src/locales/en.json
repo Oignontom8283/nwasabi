@@ -88,8 +88,10 @@
   },
   "debug": {
     "noApp": "Load an application to debug it.",
-    "views": { "label": "Debugging tools", "code": "Code", "watch": "Watchpoints", "profile": "Profile", "calls": "System calls" },
+    "views": { "label": "Debugging tools", "code": "Code", "points": "Breakpoints", "watch": "Watch", "console": "Console", "profile": "Profile", "calls": "System calls" },
     "intro": {
+      "points": "All your breakpoints and watchpoints: set some (with a condition if needed), disable them without losing them, remove them.",
+      "console": "The same actions from the keyboard, with GDB-style commands (break, x, bt, stepi…). Type help for the list.",
       "code": "The application's code, instruction by instruction: stop it wherever you want, step through it, look at the registers and the call stack.",
       "watch": "Watches bytes of memory and tells which instruction of the application reads or writes them. Find the address of a score with the value search, watch it for writes, and you will know which instruction changes it."
     },
@@ -150,7 +152,9 @@
     "intro": "These tools help you understand what an application does, instruction by instruction, like a computer debugger.",
     "tools": "The tools",
     "code": "the disassembled code, breakpoints, stepping, registers and the call stack.",
+    "points": "all breakpoints (conditional if needed) and watchpoints, which can be disabled without losing them.",
     "watch": "which instruction reads or writes a memory range.",
+    "console": "the same actions from the keyboard, with GDB-style commands.",
     "profile": "where the application spends its time (the most visited functions and addresses).",
     "calls": "the application's calls to the calculator's system, with their arguments.",
     "limits": "Good to know",
@@ -306,6 +310,40 @@
       "forced": "The fault was escalated to a HardFault, for lack of a dedicated handler.",
       "bkpt": "A bkpt instruction was executed."
     }
+  },
+  "points": {
+    "add": "Set a breakpoint",
+    "where": "Where",
+    "wherePlaceholder": "0x90570398 or main",
+    "onlyIf": "Only if",
+    "register": "Register",
+    "compare": "Comparison",
+    "value": "Value",
+    "addBreak": "Set",
+    "conditionHelp": "With a condition, the application only stops if the register satisfies it (unsigned values; “&”: at least one bit in common).",
+    "badAddress": "Address or function not found.",
+    "badValue": "Invalid value.",
+    "list": "Set points",
+    "none": "No points yet.",
+    "break": "Breakpoint",
+    "watch": "Watchpoint",
+    "if": "if",
+    "condition": "Breakpoint condition",
+    "show": "Show the instruction in the code",
+    "disable": "Disable",
+    "enable": "Enable",
+    "disabled": "disabled",
+    "forget": "Forget this point",
+    "toWatch": "Set a watchpoint (who reads or writes a memory range)…"
+  },
+  "console": {
+    "label": "Console output",
+    "welcome": "Debug console. Type help to see the commands (break main, x/8x $sp, bt, stepi, continue…).",
+    "placeholder": "Command (help)",
+    "run": "Run",
+    "hint": "Up and down arrows: history.",
+    "help": "Help",
+    "clear": "Clear"
   },
   "screen": {
     "copied": "Screen copied to the clipboard",
