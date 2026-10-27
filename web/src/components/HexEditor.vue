@@ -3,7 +3,8 @@ import { useEmu } from "../emulator.js";
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { confirmDialog } from "../dialogs.js";
-import { ui } from "../ui.js";
+import { notify, ui } from "../ui.js";
+import { addWatch } from "../watchStore.js";
 import { SCAN_TYPES, SIZE, tile } from "../scan.js";
 import type { Base, ScanType } from "../scan.js";
 import HexValueDialog from "./HexValueDialog.vue";
@@ -67,6 +68,15 @@ const anchor = ref<number | null>(null); // début de la sélection
 const pending = ref(""); // premier chiffre d'un octet en cours de saisie
 const column = ref<"hex" | "ascii">("hex"); // colonne où l'on saisit : chiffres hexadécimaux ou caractères
 const error = ref("");
+
+/** Observe en écriture la plage sélectionnée (le détail se règle dans « Points d'observation »). */
+async function watchSelection() {
+  const s = selection.value;
+  if (!s) return;
+  const failure = await addWatch(emulator, s.start, s.end - s.start + 1, "write", false);
+  if (failure) error.value = failure;
+  else notify(t("hex.watching", { address: hex0x(s.start) }));
+}
 
 const firstRow = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW)));
 const baseAddress = computed(() => (region.value?.base ?? 0) + firstRow.value * COLUMNS);
@@ -518,6 +528,7 @@ const beyond = (c: Column, length: number) => c.size > length;
       <button :disabled="!selection" @click="copy('hex')">{{ t("hex.copyHex") }}</button>
       <button :disabled="!selection" @click="copy('ascii')">{{ t("hex.copyAscii") }}</button>
       <button :disabled="!selection || !canEdit" @click="openFill">{{ t("hex.fill") }}</button>
+      <button :disabled="!selection" :title="t('hex.watchHint')" @click="watchSelection">{{ t("hex.watch") }}</button>
       <span v-if="selection" class="muted mono">{{ hex0x(selection.start) }}{{ selection.end > selection.start ? ` → ${hex0x(selection.end)} (${selection.end - selection.start + 1})` : "" }}</span>
       <span class="spacer" />
       <span v-if="findMessage" class="muted">{{ findMessage }}</span>

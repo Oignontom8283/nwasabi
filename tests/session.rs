@@ -173,6 +173,41 @@ fn memory_can_be_read_written_and_followed() {
 }
 
 #[test]
+fn watchpoints_are_listed_and_removed() {
+    let mut s = Session::new();
+    ok(&mut s, r#"{"cmd":"new"}"#);
+    let id = ok(
+        &mut s,
+        r#"{"cmd":"watch","address":"0x20020000","length":4,"kind":"readwrite","stop":true}"#,
+    )
+    .get("id")
+    .and_then(Value::as_i64)
+    .unwrap();
+    let list = ok(&mut s, r#"{"cmd":"watch_list"}"#);
+    let watches = list.get("watches").and_then(Value::as_array).unwrap();
+    assert_eq!(watches.len(), 1);
+    assert_eq!(watches[0].get("id").and_then(Value::as_i64), Some(id));
+    assert_eq!(
+        watches[0].get("address").and_then(Value::as_i64),
+        Some(0x2002_0000)
+    );
+    assert_eq!(watches[0].get("length").and_then(Value::as_i64), Some(4));
+    assert_eq!(
+        watches[0].get("kind").and_then(Value::as_str),
+        Some("readwrite")
+    );
+    assert_eq!(watches[0].get("stop"), Some(&Value::Bool(true)));
+    ok(&mut s, &format!(r#"{{"cmd":"unwatch","id":{id}}}"#));
+    let list = ok(&mut s, r#"{"cmd":"watch_list"}"#);
+    assert!(
+        list.get("watches")
+            .and_then(Value::as_array)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 fn running_without_an_app_is_an_error() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);

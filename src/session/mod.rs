@@ -14,7 +14,7 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod views;
@@ -216,6 +216,7 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "watch_list",
                     "watch_hits",
                     "svc_stats",
                     "fs_list",
@@ -364,6 +365,29 @@ impl Session {
                 let removed = self.emu()?.device.memory.unwatch(id);
                 Ok(Value::object().with("removed", removed))
             }
+            "watch_list" => {
+                let list = self.emu()?.device.memory.watch_list();
+                Ok(Value::object().with(
+                    "watches",
+                    list.iter()
+                        .map(|(id, start, len, kind, stop)| {
+                            Value::object()
+                                .with("id", id.0)
+                                .with("address", *start)
+                                .with("length", *len)
+                                .with(
+                                    "kind",
+                                    match kind {
+                                        WatchKind::Read => "read",
+                                        WatchKind::Write => "write",
+                                        WatchKind::ReadWrite => "readwrite",
+                                    },
+                                )
+                                .with("stop", *stop)
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            }
             "watch_hits" => {
                 let hits = self.emu()?.device.memory.take_watch_hits();
                 Ok(Value::object().with(
@@ -376,6 +400,7 @@ impl Session {
                                 .with("width", u32::from(h.width))
                                 .with("write", h.write)
                                 .with("value", h.value)
+                                .with("pc", h.pc)
                         })
                         .collect::<Vec<_>>(),
                 ))

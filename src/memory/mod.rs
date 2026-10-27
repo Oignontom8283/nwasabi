@@ -278,6 +278,11 @@ impl Memory {
         self.watches.remove(id)
     }
 
+    /// Les points d'observation posés : identifiant, début, longueur, sorte et arrêt.
+    pub fn watch_list(&self) -> Vec<(WatchId, u32, u32, WatchKind, bool)> {
+        self.watches.list()
+    }
+
     /// Les accès observés depuis le dernier appel (les plus anciens sont perdus au-delà de 4096).
     pub fn take_watch_hits(&mut self) -> Vec<WatchHit> {
         self.watches.take_hits()
@@ -286,6 +291,16 @@ impl Memory {
     /// Premier accès à un point d'observation « avec arrêt », s'il y en a eu un.
     pub fn take_watch_stop(&mut self) -> Option<WatchHit> {
         self.watches.take_stop()
+    }
+
+    /// Indique à la mémoire l'instruction en cours, pour que les accès observés la portent.
+    pub fn set_watch_pc(&mut self, pc: u32) {
+        self.watches.set_pc(pc);
+    }
+
+    /// Vrai s'il existe un point d'observation, avec ou sans arrêt.
+    pub fn is_watching(&self) -> bool {
+        !self.watches.is_empty()
     }
 
     /// Vrai s'il existe un point d'observation qui interrompt l'exécution.

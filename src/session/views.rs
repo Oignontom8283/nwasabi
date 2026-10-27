@@ -257,7 +257,8 @@ pub fn stop(stop: &RunStop) -> Value {
             .with("address", h.address)
             .with("width", u32::from(h.width))
             .with("write", h.write)
-            .with("value", h.value),
+            .with("value", h.value)
+            .with("pc", h.pc),
         RunStop::Fault(f) => {
             let mut v = kind("fault");
             if let Value::Object(entries) = fault(f) {

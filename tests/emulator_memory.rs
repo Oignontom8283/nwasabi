@@ -57,6 +57,7 @@ fn a_stopping_watchpoint_interrupts_the_app_on_the_access() {
         RunStop::Watchpoint(hit) => {
             assert_eq!(hit.id, id);
             assert!(!hit.write);
+            assert_ne!(hit.pc, 0, "l'instruction qui a lu est connue");
             assert!(hit.address >= buffer && hit.address < buffer + 4);
         }
         other => panic!("arrêt inattendu : {other:?}"),
