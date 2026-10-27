@@ -21,6 +21,9 @@ hero:
       link: /emulator/
       target: _self
     - theme: alt
+      text: Guide
+      link: /guide/
+    - theme: alt
       text: Code source
       link: https://github.com/Oignontom8283/nwasabi
 ---

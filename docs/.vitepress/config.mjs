@@ -43,10 +43,37 @@ export default defineConfig({
     logo: "/logo.svg",
     nav: [
       { text: "Émulateur", link: "/emulator/", target: "_self" },
-      { text: "Interface", link: "/interface" },
+      { text: "Guide", link: "/guide/" },
       { text: "Débogage", link: "/debug/" },
+      { text: "Référence", link: "/reference/compatibilite" },
       { text: "Formats de fichiers", link: "/format/" },
     ],
+    sidebar: {
+      "/guide/": [
+        {
+          text: "Guide",
+          items: [
+            { text: "Premiers pas", link: "/guide/" },
+            { text: "Écrire une application", link: "/guide/ecrire-une-application" },
+            { text: "L'émulateur web", link: "/guide/emulateur-web" },
+            { text: "Le serveur", link: "/guide/serveur" },
+            { text: "La ligne de commande", link: "/guide/cli" },
+          ],
+        },
+      ],
+      "/reference/": [
+        {
+          text: "Référence",
+          items: [
+            { text: "Compatibilité et limites", link: "/reference/compatibilite" },
+            { text: "Modèles et mémoire", link: "/reference/modeles-memoire" },
+            { text: "Appels système", link: "/reference/appels-systeme" },
+            { text: "Protocole de session", link: "/reference/protocole-session" },
+            { text: "Bibliothèque JavaScript", link: "/reference/bibliotheque-js" },
+          ],
+        },
+      ],
+    },
     socialLinks: [{ icon: "github", link: "https://github.com/Oignontom8283/nwasabi" }],
   },
 });
