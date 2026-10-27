@@ -85,6 +85,10 @@ pub struct ChangedRange {
     pub len: u32,
 }
 
+/// Une page de mémoire, et la copie des pages allouées d'une zone (index de page, contenu).
+pub type Page = Box<[u8; PAGE_SIZE as usize]>;
+pub type SavedPages = Vec<(usize, Page)>;
+
 /// Stockage d'une zone : pages allouées à la demande, indicateurs d'accès, dates des écritures.
 pub(super) struct Region {
     pub spec: RegionSpec,
@@ -218,6 +222,25 @@ impl Region {
         let lines = (self.spec.size / LINE_SIZE) as usize;
         let stamps = self.stamps.get_or_insert_with(|| vec![0; lines]);
         stamps[line_range(offset, len)].fill(tick);
+    }
+
+    /// Copie des pages allouées (index de page, contenu).
+    pub fn snapshot_pages(&self) -> SavedPages {
+        self.pages
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| p.as_ref().map(|p| (i, p.clone())))
+            .collect()
+    }
+
+    /// Remet les pages dans l'état d'une copie : celles qui n'y sont pas redeviennent vierges.
+    pub fn restore_pages(&mut self, saved: &[(usize, Page)]) {
+        for page in &mut self.pages {
+            *page = None;
+        }
+        for (i, data) in saved {
+            self.pages[*i] = Some(data.clone());
+        }
     }
 
     /// Adresses de début des pages réellement allouées.

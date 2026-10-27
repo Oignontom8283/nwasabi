@@ -19,6 +19,23 @@ pub use watch::{WatchHit, WatchId, WatchKind};
 
 use region::Region;
 
+/// Une copie du contenu des zones qui changent pendant l'exécution (RAM, registres simulés : tout sauf la flash), pour y revenir
+/// plus tard (voir [`Memory::snapshot_volatile`]).
+#[derive(Clone)]
+pub struct VolatileImage {
+    regions: Vec<(usize, region::SavedPages)>,
+}
+
+impl VolatileImage {
+    /// Octets copiés (pour borner la mémoire que prend un historique).
+    pub fn bytes(&self) -> usize {
+        self.regions
+            .iter()
+            .map(|(_, pages)| pages.len() * PAGE_SIZE as usize)
+            .sum()
+    }
+}
+
 /// L'espace d'adressage de l'appareil émulé.
 pub struct Memory {
     regions: Vec<Region>,
@@ -233,6 +250,41 @@ impl Memory {
         }
     }
 
+    /// Copie le contenu de toutes les zones qui ne sont pas de la flash.
+    pub fn snapshot_volatile(&self) -> VolatileImage {
+        VolatileImage {
+            regions: self
+                .regions
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.spec.kind != RegionKind::Flash)
+                .map(|(i, r)| (i, r.snapshot_pages()))
+                .collect(),
+        }
+    }
+
+    /// Remet ces zones dans l'état de la copie. Les indicateurs d'accès ne sont pas touchés ; le code déjà décodé est
+    /// invalidé (de la RAM exécutable a pu changer).
+    pub fn restore_volatile(&mut self, image: &VolatileImage) {
+        for (index, pages) in &image.regions {
+            if let Some(region) = self.regions.get_mut(*index) {
+                region.restore_pages(pages);
+            }
+        }
+        self.tick += 1;
+        self.code_epoch += 1;
+    }
+
+    /// Du contenu de la flash a-t-il changé depuis `cursor` ? (Une copie des zones volatiles ne le défait pas.)
+    pub fn flash_changed_since(&self, cursor: u64) -> bool {
+        self.regions.iter().any(|r| {
+            r.spec.kind == RegionKind::Flash
+                && r.stamps
+                    .as_ref()
+                    .is_some_and(|s| s.iter().any(|&t| t > cursor))
+        })
+    }
+
     /// Valeur actuelle du compteur de modifications ; à passer plus tard à [`Memory::changes_since`].
     pub fn change_cursor(&self) -> u64 {
         self.tick
@@ -276,6 +328,11 @@ impl Memory {
     /// Retire un point d'observation ; faux s'il n'existait pas.
     pub fn unwatch(&mut self, id: WatchId) -> bool {
         self.watches.remove(id)
+    }
+
+    /// Ignore (ou reprend) les points d'observation sans les retirer ; les accès en attente sont oubliés.
+    pub fn suspend_watches(&mut self, suspended: bool) {
+        self.watches.set_suspended(suspended);
     }
 
     /// Les points d'observation posés : identifiant, début, longueur, sorte et arrêt.
