@@ -192,6 +192,23 @@
     "goTab": "Go to the {tab} tab",
     "theme": "Switch light / dark"
   },
+  "svclog": {
+    "title": "System call log",
+    "help": "Every call the application makes to the calculator's system (screen, keyboard, time, files…), newest first, with its arguments and return value. The log keeps the last 400 calls.",
+    "start": "Start",
+    "stop": "Stop",
+    "filter": "Filter by name or number",
+    "freeze": "Freeze",
+    "clear": "Clear",
+    "total": "{n} call since the start | {n} calls since the start",
+    "call": "Call",
+    "args": "Arguments (r0 to r3)",
+    "ret": "Return (r0)",
+    "from": "From",
+    "show": "Show the instruction in the debugger",
+    "none": "No calls yet.",
+    "argsNote": "The four registers are shown as they are: not all of them are arguments, depending on the call. Values are in hexadecimal."
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
