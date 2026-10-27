@@ -105,9 +105,19 @@ impl Cpu {
         let (instr, size) = match self.cache.lookup(addr, epoch) {
             Some(hit) => hit,
             None => {
-                let hw1 = bus.fetch16(addr).map_err(Stop::BusFault)?;
-                let (decoded, size) = if is_32bit(hw1) {
-                    let hw2 = bus.fetch16(addr.wrapping_add(2)).map_err(Stop::BusFault)?;
+                let fetched = bus.fetch16(addr).and_then(|hw1| {
+                    if is_32bit(hw1) {
+                        bus.fetch16(addr.wrapping_add(2))
+                            .map(|hw2| (hw1, Some(hw2)))
+                    } else {
+                        Ok((hw1, None))
+                    }
+                });
+                let (hw1, hw2) = fetched.map_err(|fault| {
+                    self.fault_pc = addr;
+                    Stop::BusFault(fault)
+                })?;
+                let (decoded, size) = if let Some(hw2) = hw2 {
                     (decode32(hw1, hw2), 4)
                 } else {
                     (decode16(hw1), 2)

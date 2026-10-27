@@ -62,6 +62,16 @@ pub fn build_memory(profile: &FirmwareProfile, ram_fill: u8) -> Result<Memory, M
         RegionKind::Reserved,
         0,
     ))?;
+    // Les registres de faute du processeur (en lecture seule pour l'application : voir `scb`).
+    memory.add_region(region(
+        "scs",
+        crate::scb::SCS_BASE,
+        crate::scb::SCS_SIZE,
+        Perms::READ_ONLY,
+        RegionKind::Reserved,
+        0,
+    ))?;
+    crate::scb::reset(&mut memory)?;
     match profile.model {
         Model::N0110 | Model::N0115 => {
             memory.add_region(region(
