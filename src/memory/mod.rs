@@ -288,6 +288,16 @@ impl Memory {
         self.watches.take_stop()
     }
 
+    /// Indique à la mémoire l'instruction en cours, pour que les accès observés la portent.
+    pub fn set_watch_pc(&mut self, pc: u32) {
+        self.watches.set_pc(pc);
+    }
+
+    /// Vrai s'il existe un point d'observation, avec ou sans arrêt.
+    pub fn is_watching(&self) -> bool {
+        !self.watches.is_empty()
+    }
+
     /// Vrai s'il existe un point d'observation qui interrompt l'exécution.
     pub fn has_stopping_watch(&self) -> bool {
         self.watches.has_stopping()

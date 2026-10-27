@@ -376,6 +376,7 @@ impl Session {
                                 .with("width", u32::from(h.width))
                                 .with("write", h.write)
                                 .with("value", h.value)
+                                .with("pc", h.pc)
                         })
                         .collect::<Vec<_>>(),
                 ))

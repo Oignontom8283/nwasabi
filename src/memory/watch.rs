@@ -34,6 +34,8 @@ pub struct WatchHit {
     pub write: bool,
     /// Valeur écrite, ou valeur lue.
     pub value: u32,
+    /// Adresse de l'instruction qui a fait l'accès (connue tant qu'un point d'observation existe).
+    pub pc: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +60,7 @@ pub(super) struct Watchpoints {
     /// Déclenchements perdus faute de place.
     pub dropped: u64,
     stop_hit: Option<WatchHit>,
+    pc: u32,
 }
 
 impl Watchpoints {
@@ -84,6 +87,10 @@ impl Watchpoints {
         self.watches.len() != before
     }
 
+    pub fn set_pc(&mut self, pc: u32) {
+        self.pc = pc;
+    }
+
     pub fn has_stopping(&self) -> bool {
         self.watches.iter().any(|w| w.stop)
     }
@@ -101,6 +108,7 @@ impl Watchpoints {
                 width,
                 write,
                 value,
+                pc: self.pc,
             };
             if self.hits.len() == MAX_HITS {
                 self.hits.pop_front();

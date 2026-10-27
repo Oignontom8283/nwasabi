@@ -247,6 +247,7 @@ fn a_whole_flash_is_cheap_until_it_is_written() {
 fn watchpoints_report_matching_accesses_of_the_program_only() {
     let mut m = sample();
     let w = m.watch(0x2000_0100, 8, WatchKind::Write, false);
+    m.set_watch_pc(0x9000_1234);
     m.write32(0x2000_00fc, 1).unwrap(); // juste avant : ignoré
     m.write32(0x2000_0104, 0xdead_beef).unwrap();
     m.write8(0x2000_0100, 7).unwrap();
@@ -261,7 +262,8 @@ fn watchpoints_report_matching_accesses_of_the_program_only() {
             address: 0x2000_0104,
             width: 4,
             write: true,
-            value: 0xdead_beef
+            value: 0xdead_beef,
+            pc: 0x9000_1234
         }
     );
     assert_eq!((hits[1].width, hits[1].value), (1, 7));

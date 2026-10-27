@@ -225,13 +225,16 @@ impl Emulator {
             self.kernel.keyboard.clear_exit_request();
             return RunStop::HomePressed;
         }
-        // Avec un point d'observation qui interrompt, on avance instruction par instruction pour
-        // s'arrêter juste après l'accès.
-        let stepwise = self.device.memory.has_stopping_watch();
+        // Avec un point d'observation, on avance instruction par instruction : pour s'arrêter juste après
+        // l'accès (point qui interrompt) et pour savoir quelle instruction l'a fait (adresse notée).
+        let stepwise = self.device.memory.is_watching();
         let mut stop = Stop::Budget;
         let mut left = max_instructions;
         while left > 0 {
             let chunk = if stepwise { 1 } else { left };
+            if stepwise {
+                self.device.memory.set_watch_pc(self.cpu.regs.pc);
+            }
             stop = self
                 .cpu
                 .run(&mut self.device.memory, &mut self.kernel, chunk);
