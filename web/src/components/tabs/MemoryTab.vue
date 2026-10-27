@@ -11,6 +11,7 @@ import HexEditor from "../HexEditor.vue";
 import type { HexRegion } from "../HexEditor.vue";
 import MemoryMap from "../MemoryMap.vue";
 import MemoryScanner from "../MemoryScanner.vue";
+import WatchPoints from "../WatchPoints.vue";
 
 const { t, locale } = useI18n();
 const emulator = useEmu();
@@ -127,6 +128,12 @@ async function saveState() {
       <h2>{{ t("scan.title") }}</h2>
       <MemoryScanner :regions="regions" />
     </section>
+
+    <section class="card">
+      <h2>{{ t("watch.title") }}</h2>
+      <p class="muted help">{{ t("watch.help") }}</p>
+      <WatchPoints />
+    </section>
   </div>
 </template>
 
@@ -134,6 +141,7 @@ async function saveState() {
 .memory { display: grid; gap: 20px; }
 .card:first-child { border-top: none; padding-top: 0; }
 .card { border-top: 1px solid var(--line); padding: 16px 0 0; }
+.card > .help { margin: 4px 0 10px; font-size: 12px; }
 .state { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .state p { margin: 0; font-size: 12px; }
 .state p + p { margin-top: 4px; }
