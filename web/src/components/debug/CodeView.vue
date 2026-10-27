@@ -4,8 +4,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
-import { showInMemory, ui } from "../../ui.js";
+import { notify, showInMemory, ui } from "../../ui.js";
 import { assignIfChanged, hex, hex0x, parseAddress, poll } from "../../util.js";
+import { jumpKind, tooltip } from "../../thumbDocs.js";
+import type { JumpKind } from "../../thumbDocs.js";
+import { points } from "../../pointsStore.js";
+import ContextMenu from "../ContextMenu.vue";
+import type { MenuItem } from "../ContextMenu.vue";
 import FaultRegisters from "../FaultRegisters.vue";
 import Icon from "../Icon.vue";
 
@@ -51,6 +56,118 @@ let temporary: number | null = null;
 let stopPolling = () => {};
 
 const paused = computed(() => state.loaded && !state.running);
+
+// ---- dernières instructions exécutées (en pas à pas) --------------------------------------------------
+interface Executed {
+  n: number;
+  address: number;
+  text: string;
+  symbol: string;
+}
+const TRAIL = 40;
+const trail = ref<Executed[]>([]);
+let executed = 0;
+/** Note l'instruction qu'on s'apprête à exécuter (relue au besoin : la liste affichée peut avoir un instant de retard). */
+async function remember(shown: Line | undefined) {
+  let line = shown;
+  if (!line && cpu.value) line = ((await quiet({ cmd: "disasm", address: cpu.value.pc, count: 1 })).lines as Line[] | undefined)?.[0];
+  if (!line) return;
+  const symbol = here.value;
+  trail.value = [{ n: ++executed, address: line.address, text: `${line.mnemonic} ${line.operands}`.trim(), symbol }, ...trail.value].slice(0, TRAIL);
+}
+watch(() => state.appName, () => {
+  trail.value = [];
+  executed = 0;
+});
+
+// ---- sauts : icône, flèche au survol -------------------------------------------------------------------
+const rows = ref<HTMLElement | null>(null);
+const kindOf = (line: Line): JumpKind | null => jumpKind(line.mnemonic, line.operands, line.target !== undefined);
+const JUMP_TITLES: Record<JumpKind, string> = { jump: "jump", branch: "branch", call: "call", return: "return", indirect: "indirect" };
+interface Arrow {
+  from: number;
+  to: number | null;
+  /** Cible hors de la liste : on la montre au bord, vers le haut ou le bas. */
+  edge: "up" | "down" | null;
+  label: string;
+  kind: JumpKind;
+}
+const arrow = ref<Arrow | null>(null);
+const middle = (address: number): number | null => {
+  const el = rows.value?.querySelector<HTMLElement>(`[data-addr="${address}"]`);
+  return el ? el.offsetTop + el.offsetHeight / 2 : null;
+};
+function showArrow(line: Line) {
+  const kind = kindOf(line);
+  const from = middle(line.address);
+  if (!kind || line.target === undefined || from === null) return void (arrow.value = null);
+  const to = middle(line.target);
+  const label = line.target_symbol ?? hex0x(line.target);
+  arrow.value = { from, to, edge: to === null ? (line.target < (lines.value[0]?.address ?? 0) ? "up" : "down") : null, label, kind };
+}
+const hideArrow = () => (arrow.value = null);
+/** Chemin de la flèche : une accolade dans la marge de gauche, de l'instruction à sa cible. */
+const arrowPath = computed(() => {
+  const a = arrow.value;
+  if (!a) return "";
+  const x = 5;
+  const right = 16;
+  if (a.to === null) {
+    const y = a.edge === "up" ? 4 : (rows.value?.scrollHeight ?? 0) - 4;
+    return `M ${right} ${a.from} H ${x} V ${y}`;
+  }
+  return `M ${right} ${a.from} H ${x} V ${a.to} H ${right - 3}`;
+});
+
+// ---- clic droit ---------------------------------------------------------------------------------------
+const menu = ref<{ x: number; y: number; items: MenuItem[] } | null>(null);
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    notify(t("debug.menu.copied"));
+  } catch {
+    notify(t("debug.menu.copyFailed"));
+  }
+}
+async function nopOut(line: Line) {
+  // Un `nop` de la même taille : 16 bits (bf00) ou 32 bits (nop.w, f3af 8000).
+  const bytes = line.size === 4 ? "aff30080" : "00bf";
+  const r = await quiet({ cmd: "memory_write", address: line.address, hex: bytes });
+  message.value = r.ok ? "" : String(r.error);
+  emulator.bump();
+  await refresh();
+}
+async function setPc(line: Line) {
+  const r = await quiet({ cmd: "cpu_set", register: "pc", value: line.address });
+  message.value = r.ok ? "" : String(r.error);
+  viewAt.value = null;
+  await refresh();
+}
+function openMenu(event: MouseEvent, line: Line) {
+  const has = breaks.value.includes(line.address);
+  const kind = kindOf(line);
+  const target = line.target;
+  const items: MenuItem[] = [
+    { label: t("debug.menu.runTo"), disabled: !paused.value, action: () => void runTo(line.address) },
+    { label: has ? t("debug.removeBreak") : t("debug.addBreak"), action: () => void toggleBreak(line.address) },
+    { label: t("debug.menu.conditional"), action: () => ((points.pending = line.address), (ui.debugView = "points")) },
+    { label: t("debug.menu.setPc"), disabled: !paused.value, action: () => void setPc(line) },
+  ];
+  if (target !== undefined) {
+    items.push({ separator: true });
+    items.push({ label: t("debug.menu.gotoTarget", { target: line.target_symbol ?? hex0x(target) }), action: () => (viewAt.value = target) });
+    items.push({ label: t("debug.menu.breakTarget"), action: () => void toggleBreak(target) });
+    items.push({ label: kind === "call" ? t("debug.menu.viewFunction") : t("debug.showInMemory"), action: () => showInMemory(target) });
+  }
+  items.push({ separator: true });
+  items.push({ label: t("debug.menu.copyAddress"), action: () => void copyText(hex0x(line.address, 8)) });
+  items.push({ label: t("debug.menu.copyInstruction"), action: () => void copyText(`${line.mnemonic} ${line.operands}`.trim()) });
+  items.push({ label: t("debug.menu.copyBytes"), action: () => void copyText(line.hex) });
+  items.push({ label: t("debug.menu.viewHere"), action: () => showInMemory(line.address) });
+  items.push({ separator: true });
+  items.push({ label: t("debug.menu.nop"), danger: true, disabled: !paused.value, action: () => void nopOut(line) });
+  menu.value = { x: event.clientX, y: event.clientY, items };
+}
 
 // ---- remonter le temps ------------------------------------------------------------------------------
 interface HistoryStatus {
@@ -150,6 +267,7 @@ const status = computed((): { kind: string; text: string } => {
 
 async function step() {
   message.value = "";
+  await remember(current.value);
   const r = await quiet({ cmd: "step" });
   if (!r.ok) message.value = String(r.error);
   viewAt.value = null;
@@ -168,8 +286,10 @@ async function runTo(address: number) {
 /** Passe par-dessus un appel (`bl`, `blx`) : exécute jusqu'à l'instruction suivante ; sinon, un pas. */
 async function stepOver() {
   const instruction = current.value;
-  if (instruction && /^blx?$/.test(instruction.mnemonic)) await runTo(instruction.address + instruction.size);
-  else await step();
+  if (instruction && /^blx?$/.test(instruction.mnemonic)) {
+    await remember(instruction);
+    await runTo(instruction.address + instruction.size);
+  } else await step();
 }
 
 /** Sort de la fonction : exécute jusqu'à l'adresse de retour (lr). */
@@ -276,28 +396,76 @@ const flags = computed(() => {
       </section>
 
       <div class="code mono" role="table" :aria-label="t('debug.code')">
-        <div class="head muted" role="row" aria-hidden="true"><span class="c-dot" /><span class="c-addr">{{ t("debug.colAddress") }}</span><span class="c-bytes">{{ t("debug.colBytes") }}</span><span>{{ t("debug.colInstruction") }}</span></div>
-        <template v-for="line in lines" :key="line.address">
-          <div v-if="line.label" class="label">{{ line.label }}:</div>
-          <div class="row" :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address) }" role="row">
-            <button class="dot" :title="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" :aria-label="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" @click="toggleBreak(line.address)">
-              <span :class="{ on: breaks.includes(line.address) }" />
-            </button>
-            <span class="arrow" aria-hidden="true">{{ line.address === cpu?.pc ? "▶" : "" }}</span>
-            <button class="addr" :title="t('debug.runTo')" :disabled="!paused" @click="runTo(line.address)">{{ hex(line.address) }}</button>
-            <span class="bytes muted">{{ line.hex }}</span>
-            <span class="mn">{{ line.mnemonic }}</span>
-            <span class="ops">{{ line.operands }}<span v-if="line.target_symbol" class="muted"> &lt;{{ line.target_symbol }}&gt;</span></span>
-            <button v-if="line.target !== undefined" class="target" :title="t('debug.followTarget')" @click="viewAt = line.target ?? null">→</button>
-            <button v-if="line.target !== undefined" class="target" :title="t('debug.showInMemory')" @click="showInMemory(line.target as number)"><Icon name="chip" :size="12" /></button>
-          </div>
-        </template>
-        <p v-if="!lines.length" class="muted pad">{{ t("debug.unreadable") }}</p>
+        <div class="head muted" role="row">
+          <span class="c-dot" :title="t('debug.colBreakHint')">{{ t("debug.colBreak") }}</span>
+          <span class="c-jump" :title="t('debug.colJumpHint')">{{ t("debug.colJump") }}</span>
+          <span class="c-addr">{{ t("debug.colAddress") }}</span>
+          <span class="c-bytes">{{ t("debug.colBytes") }}</span>
+          <span class="c-mn">{{ t("debug.colInstruction") }}</span>
+          <span class="c-ops" />
+          <span class="c-actions" :title="t('debug.colActionsHint')">{{ t("debug.colActions") }}</span>
+        </div>
+        <div ref="rows" class="rows" @mouseleave="hideArrow">
+          <svg v-if="arrow" class="overlay" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" /></marker>
+            </defs>
+            <path :d="arrowPath" :class="['line', arrow.kind]" marker-end="url(#arrowhead)" />
+            <text v-if="arrow.edge" class="edge" x="28" :y="arrow.edge === 'up' ? 14 : (rows?.scrollHeight ?? 0) - 6">{{ arrow.edge === "up" ? "↑" : "↓" }} {{ arrow.label }}</text>
+          </svg>
+          <template v-for="line in lines" :key="line.address">
+            <div v-if="line.label" class="label">{{ line.label }}:</div>
+            <div
+              class="row"
+              :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address) }"
+              role="row"
+              :data-addr="line.address"
+              @mouseenter="showArrow(line)"
+              @contextmenu.prevent="openMenu($event, line)"
+            >
+              <button class="dot" :title="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" :aria-label="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" @click="toggleBreak(line.address)">
+                <span :class="{ on: breaks.includes(line.address) }" />
+              </button>
+              <span class="arrow" aria-hidden="true">{{ line.address === cpu?.pc ? "▶" : "" }}</span>
+              <span class="jump" :class="kindOf(line) ?? ''" :title="kindOf(line) ? t(`debug.jump.${JUMP_TITLES[kindOf(line) as JumpKind]}`) : ''">
+                <svg v-if="kindOf(line)" viewBox="0 0 12 12" width="14" height="14" aria-hidden="true">
+                  <path v-if="kindOf(line) === 'jump' || kindOf(line) === 'branch'" :d="(line.target ?? 0) > line.address ? 'M6 1v8 M3 6.5l3 3 3-3' : 'M6 11V3 M3 5.5l3-3 3 3'" />
+                  <path v-if="kindOf(line) === 'branch'" d="M1 6l1.5-1.5L4 6 2.5 7.5z" class="fill" />
+                  <path v-else-if="kindOf(line) === 'call'" d="M3 2l6 4-6 4z" class="fill" />
+                  <path v-else-if="kindOf(line) === 'return'" d="M10 2v4H3 M5.5 3.5L3 6l2.5 2.5" />
+                  <path v-else-if="kindOf(line) === 'indirect'" d="M2 6h.01 M6 6h.01 M10 6h.01" />
+                </svg>
+              </span>
+              <button class="addr" :title="t('debug.runTo')" :disabled="!paused" @click="runTo(line.address)">{{ hex(line.address) }}</button>
+              <span class="bytes muted">{{ line.hex }}</span>
+              <span class="mn" :title="tooltip(line.mnemonic, line.operands, line.target !== undefined)">{{ line.mnemonic }}</span>
+              <span class="ops" :title="tooltip(line.mnemonic, line.operands, line.target !== undefined)">{{ line.operands }}<span v-if="line.target_symbol" class="muted"> &lt;{{ line.target_symbol }}&gt;</span></span>
+              <span class="actions">
+                <button v-if="line.target !== undefined" class="act" :title="t('debug.followTarget')" :aria-label="t('debug.followTarget')" @click="viewAt = line.target ?? null"><Icon name="right" :size="14" /></button>
+                <button v-if="line.target !== undefined" class="act" :title="t('debug.showInMemory')" :aria-label="t('debug.showInMemory')" @click="showInMemory(line.target as number)"><Icon name="chip" :size="14" /></button>
+              </span>
+            </div>
+          </template>
+          <p v-if="!lines.length" class="muted pad">{{ t("debug.unreadable") }}</p>
+        </div>
       </div>
       <p class="legend muted">
         <button v-if="viewAt !== null" class="link" @click="viewAt = null">{{ t("debug.follow") }}</button>
         <span>{{ t("debug.legend") }}</span>
       </p>
+
+      <section>
+        <h3>{{ t("debug.trail.title") }}</h3>
+        <p class="muted small">{{ t("debug.trail.help") }}</p>
+        <div v-if="trail.length" class="trail mono">
+          <div class="head muted" role="row"><span class="t-n">#</span><span class="t-addr">{{ t("debug.colAddress") }}</span><span>{{ t("debug.colInstruction") }}</span><span class="t-fn">{{ t("debug.trail.function") }}</span></div>
+          <div v-for="e in trail" :key="e.n" class="t-row" role="row" :title="t('debug.trail.show')" @click="viewAt = e.address">
+            <span class="t-n muted">{{ e.n }}</span><span class="t-addr">{{ hex(e.address) }}</span><span class="t-text">{{ e.text }}</span><span class="t-fn muted">{{ e.symbol }}</span>
+          </div>
+        </div>
+        <p v-else class="muted small">{{ t("debug.trail.none") }}</p>
+        <p v-if="trail.length" class="small"><button class="link" @click="trail = []">{{ t("debug.trail.clear") }}</button></p>
+      </section>
 
       <section>
         <h3>{{ t("debug.stack") }}</h3>
@@ -351,6 +519,7 @@ const flags = computed(() => {
         <FaultRegisters />
       </section>
     </template>
+    <ContextMenu v-if="menu" :items="menu.items" :x="menu.x" :y="menu.y" @close="menu = null" />
   </div>
 </template>
 
@@ -369,33 +538,57 @@ kbd { font: 10.5px ui-monospace, monospace; color: var(--muted); border: 1px sol
 button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; }
 .goto { margin-left: auto; }
 .goto input { width: 11em; }
-.code { border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 440px; font-size: 12.5px; background: var(--surface); }
-.head { display: flex; gap: 8px; padding: 3px 8px 3px 2px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface-2); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
-.c-dot { width: 18px; }
-.c-addr { width: 8ch; margin-left: 14px; }
+.code { border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 440px; font-size: 12.5px; background: var(--surface); position: relative; }
+.head { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 3; background: var(--surface-2); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.c-dot { width: 38px; text-align: center; }
+.c-jump { width: 18px; }
+.c-addr { width: 8ch; }
 .c-bytes { min-width: 9ch; }
-.row { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 2px; white-space: nowrap; }
+.c-mn { min-width: 7ch; }
+.c-ops { flex: 1; }
+.c-actions { min-width: 62px; text-align: center; }
+.rows { position: relative; min-width: max-content; }
+.row { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 18px; white-space: nowrap; min-height: 26px; position: relative; }
 .row:hover { background: var(--accent-soft); }
 .row.pc { background: color-mix(in srgb, var(--warn) 22%, transparent); font-weight: 600; }
 .arrow { width: 6px; font-size: 9px; color: var(--warn); }
-.dot { border: none; background: none; padding: 0 4px; width: 18px; height: 20px; display: grid; place-items: center; cursor: pointer; }
-.dot span { width: 9px; height: 9px; border-radius: 50%; border: 1px solid transparent; }
+.dot { border: none; background: none; padding: 0 4px; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer; }
+.dot span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid transparent; }
 .dot:hover span { border-color: var(--danger); }
 .dot span.on { background: var(--danger); border-color: var(--danger); }
-.target { display: inline-grid; place-items: center; }
-.addr, .target { border: none; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; }
-.addr:hover, .target:hover { text-decoration: underline; }
+.jump { width: 18px; display: inline-grid; place-items: center; }
+.jump svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.jump svg .fill { fill: currentColor; stroke: none; }
+.jump.jump { color: var(--accent-strong); }
+.jump.branch { color: var(--warn); }
+.jump.call { color: var(--ok); }
+.jump.return { color: var(--muted); }
+.jump.indirect { color: var(--muted); }
+.addr, .act { border: none; background: none; padding: 0; font: inherit; color: var(--accent-strong); cursor: pointer; }
+.addr:hover { text-decoration: underline; }
 .addr:disabled { color: inherit; cursor: default; text-decoration: none; }
+.actions { display: inline-flex; gap: 4px; min-width: 62px; justify-content: center; }
+.act { width: 28px; height: 24px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.act:hover { background: var(--accent-soft); border-color: var(--accent); }
 .bytes { min-width: 9ch; }
-.mn { min-width: 7ch; color: var(--syn-key); }
-.ops { color: var(--syn-num); flex: 1; }
-.label { padding: 3px 8px 0 28px; color: var(--accent-strong); font-weight: 600; }
+.mn { min-width: 7ch; color: var(--syn-key); cursor: help; }
+.ops { color: var(--syn-num); flex: 1; cursor: help; }
+.label { padding: 3px 8px 0 82px; color: var(--accent-strong); font-weight: 600; }
+.overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+.overlay .line { fill: none; stroke: var(--accent-strong); stroke-width: 1.6; }
+.overlay .line.branch { stroke: var(--warn); }
+.overlay .line.call { stroke: var(--ok); }
+.overlay marker path { fill: context-stroke; }
+.overlay .edge { font: 11px ui-monospace, monospace; fill: var(--muted); }
 .pad { padding: 10px; margin: 0; }
-.time { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
-.time .record { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
-.time .slider { flex: 1 1 8em; min-width: 6em; }
-.time p { margin: 0; flex: 1 1 100%; }
-.stats { white-space: nowrap; }
+.trail { border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 260px; font-size: 12.5px; background: var(--surface); }
+.trail .head { z-index: 1; }
+.t-row { display: flex; gap: 8px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.t-row:hover { background: var(--accent-soft); }
+.t-n { width: 3.5ch; text-align: right; }
+.t-addr { width: 8ch; color: var(--accent-strong); }
+.t-text { min-width: 18ch; flex: 1; }
+.t-fn { min-width: 12ch; }
 .legend { margin: 0; font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 section { display: grid; gap: 4px; }
 h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }

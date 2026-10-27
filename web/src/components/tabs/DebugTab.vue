@@ -48,6 +48,7 @@ header { display: flex; align-items: center; gap: 8px; }
 .view { border: none; background: transparent; padding: 4px 12px; border-radius: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 .view:hover { color: var(--text); }
 .view.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
-.about { width: 26px; height: 26px; border-radius: 50%; font-weight: 700; font-family: Georgia, serif; font-style: italic; flex: none; }
+.about { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-weight: 700; font-family: Georgia, serif; font-style: italic; flex: none; display: inline-grid; place-items: center; line-height: 1; }
+.about::first-line { line-height: 1; }
 .intro { margin: 0; font-size: 12.5px; }
 </style>

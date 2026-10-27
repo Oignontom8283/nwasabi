@@ -26,6 +26,8 @@ export const points = reactive({
   breaks: [] as BreakPoint[],
   watches: [] as WatchPoint[],
   disabled: [] as DisabledPoint[],
+  /** Adresse à proposer dans le formulaire de la vue Points (demandée depuis le code). */
+  pending: null as number | null,
 });
 
 export async function refreshPoints(emulator: Emulator): Promise<void> {
@@ -52,6 +54,13 @@ export async function removeBreak(emulator: Emulator, address: number): Promise<
 
 export async function removeWatchPoint(emulator: Emulator, id: number): Promise<void> {
   await emulator.quiet({ cmd: "unwatch", id });
+  await refreshPoints(emulator);
+}
+
+/** Change ce qui se passe à l'accès : interrompre l'application ou seulement le relever (le cœur repose le point). */
+export async function setStop(emulator: Emulator, w: WatchPoint, stop: boolean): Promise<void> {
+  await emulator.quiet({ cmd: "unwatch", id: w.id });
+  await emulator.quiet({ cmd: "watch", address: w.address, length: w.length, kind: w.kind, stop });
   await refreshPoints(emulator);
 }
 
