@@ -4,6 +4,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { choiceDialog } from "../../dialogs.js";
+import { quick, quickLoad, quickSave } from "../../quicksave.js";
 import { download, formatBytes, hex0x, stem, poll, assignIfChanged } from "../../util.js";
 import Icon from "../Icon.vue";
 import HexEditor from "../HexEditor.vue";
@@ -83,6 +84,18 @@ async function saveState() {
       <button :disabled="!paused" :title="paused ? t('state.saveHint') : t('common.pauseRequired')" @click="saveState"><Icon name="floppy" :size="18" /> {{ t("state.save") }}</button>
     </section>
 
+    <section class="card state">
+      <div>
+        <h2>{{ t("quick.title") }}</h2>
+        <p class="muted">{{ t("quick.help") }}</p>
+        <p v-if="quick.savedAt" class="muted">{{ t("quick.last", { app: quick.appName || "—", when: new Date(quick.savedAt).toLocaleString(locale) }) }}</p>
+      </div>
+      <div class="quick-buttons">
+        <button :disabled="!state.loaded" :title="t('quick.saveHint')" @click="quickSave(emulator, { saved: t('quick.saved'), failed: t('quick.failed') })">{{ t("quick.save") }}</button>
+        <button :disabled="!quick.savedAt" :title="t('quick.loadHint')" @click="quickLoad(emulator, { loaded: t('quick.loaded'), none: t('quick.none'), failed: t('quick.failed') })">{{ t("quick.load") }}</button>
+      </div>
+    </section>
+
     <section class="card">
       <h2>{{ t("memory.usage") }}</h2>
       <div v-if="heap && stack" class="usage">
@@ -123,6 +136,8 @@ async function saveState() {
 .card { border-top: 1px solid var(--line); padding: 16px 0 0; }
 .state { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .state p { margin: 0; font-size: 12px; }
+.state p + p { margin-top: 4px; }
+.quick-buttons { display: grid; gap: 6px; }
 .usage { display: grid; gap: 10px; }
 .label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .bar { height: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin: 3px 0; }

@@ -87,6 +87,16 @@ export const screenApi = {
   capture: () => {},
 };
 
+/** Un petit message qui s'efface (« État enregistré »…), affiché en bas de la page. */
+export const notice = reactive({ text: "", seq: 0 });
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+export function notify(text: string, ms = 2200): void {
+  notice.text = text;
+  notice.seq++;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => (notice.text = ""), ms);
+}
+
 /** Ce que le menu de chargement peut ouvrir : un sélecteur de fichier par sorte de fichier. */
 export type PickKind = "app" | "data" | "keys" | "state" | "files";
 

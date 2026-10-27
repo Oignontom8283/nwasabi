@@ -16,7 +16,8 @@ import { FetchError, fetchFile, fileNameOf, launchParams } from "./launch.js";
 import { attachPersistence, disableKeeping, enableKeeping, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
-import { applyTheme, panelPixels, screenApi, ui } from "./ui.js";
+import { applyTheme, notice, panelPixels, screenApi, ui } from "./ui.js";
+import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
 import type { PickKind } from "./ui.js";
 import { readBytes } from "./util.js";
 
@@ -173,6 +174,13 @@ async function loadFromServer() {
 
 // En plein écran, Espace quitte et n'est jamais donné à l'application (même s'il est dans le mapping).
 function onKeyCapture(event: KeyboardEvent) {
+  // Ctrl + S enregistre l'état de l'émulation dans le navigateur, Ctrl + O le recharge.
+  if (event.altKey && event.type === "keydown" && (event.code === "KeyS" || event.code === "KeyL")) {
+    event.preventDefault();
+    if (event.code === "KeyS") void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") });
+    else void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") });
+    return;
+  }
   // Ctrl + R recharge les fichiers du serveur qui ont changé sur le disque.
   if (event.altKey && event.code === "KeyR" && event.type === "keydown" && server.stale.length) {
     event.preventDefault();
@@ -210,6 +218,7 @@ onMounted(async () => {
   document.addEventListener("visibilitychange", onVisibility);
   await emulator.init();
   attachPersistence(emulator);
+  void refreshQuick();
   // Les champs de saisie, listes, éditeurs et touches de la calculatrice gardent le clavier pour eux.
   detachKeyboard = emulator.attachKeyboard(window, (e) =>
     !!(e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable], dialog, [data-calc-key], [data-keep-keys]"),
@@ -269,6 +278,7 @@ provide("pick", pick);
       <span>{{ state.error }}</span>
       <button class="icon" :aria-label="t('common.dismiss')" @click="state.error = ''"><Icon name="close" /></button>
     </div>
+    <div v-if="notice.text" class="notice" role="status">{{ notice.text }}</div>
     <p class="sr-only" role="status" aria-live="polite">{{ state.running ? t("mini.states.running") : t("mini.states.paused") }}</p>
     <AboutWindow v-if="about" @close="about = false" />
     <InfoWindow v-if="info" @close="info = false" />
@@ -283,6 +293,7 @@ provide("pick", pick);
 .stage { position: absolute; left: 0; top: 0; bottom: 0; padding: 10px; }
 .fit { width: 100%; height: 100%; container-type: size; display: grid; place-items: center; }
 .peek { position: absolute; right: 0; top: 14px; border-radius: 8px 0 0 8px; z-index: 10; }
+.notice { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50; padding: 6px 14px; border-radius: 8px; background: var(--text); color: var(--surface); box-shadow: var(--shadow); font-size: 13px; }
 .toast {
   position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(640px, 92vw); display: flex; gap: 10px; align-items: center;
   background: var(--surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow); z-index: 50;

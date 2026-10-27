@@ -621,5 +621,18 @@
     "writeFailed": "Écriture impossible à {address}.",
     "min": "Valeur minimale",
     "max": "Valeur maximale"
+  },
+  "quick": {
+    "title": "Sauvegarde rapide",
+    "help": "Un emplacement dans ce navigateur, sans fichier : Ctrl + S enregistre l'état de l'émulation (application, mémoire, fichiers, processeur), Ctrl + O le recharge.",
+    "last": "Dernier état : {app}, le {when}",
+    "save": "Enregistrer (Ctrl + S)",
+    "load": "Charger (Ctrl + O)",
+    "saveHint": "Enregistre l'état dans ce navigateur (la simulation se met en pause un instant).",
+    "loadHint": "Remplace l'émulation par l'état enregistré et la reprend.",
+    "saved": "État enregistré",
+    "loaded": "État rechargé",
+    "none": "Aucun état enregistré",
+    "failed": "Enregistrement ou chargement impossible"
   }
 }

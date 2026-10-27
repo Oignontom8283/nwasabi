@@ -621,5 +621,18 @@
     "writeFailed": "Could not write at {address}.",
     "min": "Minimum value",
     "max": "Maximum value"
+  },
+  "quick": {
+    "title": "Quick save",
+    "help": "One slot in this browser, no file: Ctrl + S saves the emulation state (application, memory, files, processor), Ctrl + O reloads it.",
+    "last": "Last state: {app}, on {when}",
+    "save": "Save (Ctrl + S)",
+    "load": "Load (Ctrl + O)",
+    "saveHint": "Saves the state in this browser (the simulation pauses for a moment).",
+    "loadHint": "Replaces the emulation with the saved state and resumes it.",
+    "saved": "State saved",
+    "loaded": "State reloaded",
+    "none": "No state saved",
+    "failed": "Could not save or load"
   }
 }
