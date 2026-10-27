@@ -88,8 +88,10 @@
   },
   "debug": {
     "noApp": "Chargez une application pour la déboguer.",
-    "views": { "label": "Outils de débogage", "code": "Code", "watch": "Points d'observation", "profile": "Profil", "calls": "Appels système" },
+    "views": { "label": "Outils de débogage", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système" },
     "intro": {
+      "points": "Tous vos points d'arrêt et d'observation : posez-en (avec une condition si besoin), désactivez-les sans les perdre, retirez-les.",
+      "console": "Les mêmes actions au clavier, avec des commandes à la GDB (break, x, bt, stepi…). Tapez help pour la liste.",
       "code": "Le code de l'application, instruction par instruction : arrêtez-la où vous voulez, avancez pas à pas, regardez les registres et la pile d'appels.",
       "watch": "Surveille des octets de la mémoire et indique quelle instruction de l'application les lit ou les écrit. Repérez l'adresse d'un score avec la recherche de valeurs, observez-la en écriture, et vous saurez quelle instruction la modifie."
     },
@@ -150,7 +152,9 @@
     "intro": "Ces outils servent à comprendre ce que fait une application, instruction par instruction, comme un débogueur d'ordinateur.",
     "tools": "Les outils",
     "code": "le code désassemblé, les points d'arrêt, le pas-à-pas, les registres et la pile d'appels.",
+    "points": "tous les points d'arrêt (conditionnels si besoin) et d'observation, que l'on peut désactiver sans les perdre.",
     "watch": "quelle instruction lit ou écrit une zone de mémoire.",
+    "console": "les mêmes actions au clavier, avec des commandes à la GDB.",
     "profile": "où l'application passe son temps (fonctions et adresses les plus visitées).",
     "calls": "les appels de l'application au système de la calculatrice, avec leurs arguments.",
     "limits": "À savoir",
@@ -306,6 +310,40 @@
       "forced": "La faute a été escaladée en HardFault, faute de gestionnaire dédié.",
       "bkpt": "Instruction bkpt exécutée."
     }
+  },
+  "points": {
+    "add": "Poser un point d'arrêt",
+    "where": "Où",
+    "wherePlaceholder": "0x90570398 ou main",
+    "onlyIf": "Seulement si",
+    "register": "Registre",
+    "compare": "Comparaison",
+    "value": "Valeur",
+    "addBreak": "Poser",
+    "conditionHelp": "Avec une condition, l'application ne s'arrête que si le registre la vérifie (valeurs non signées ; « & » : au moins un bit en commun).",
+    "badAddress": "Adresse ou fonction introuvable.",
+    "badValue": "Valeur invalide.",
+    "list": "Points posés",
+    "none": "Aucun point pour l'instant.",
+    "break": "Arrêt",
+    "watch": "Observation",
+    "if": "si",
+    "condition": "Condition du point d'arrêt",
+    "show": "Voir l'instruction dans le code",
+    "disable": "Désactiver",
+    "enable": "Réactiver",
+    "disabled": "désactivé",
+    "forget": "Oublier ce point",
+    "toWatch": "Poser un point d'observation (qui lit ou écrit une zone de mémoire)…"
+  },
+  "console": {
+    "label": "Sortie de la console",
+    "welcome": "Console de débogage. Tapez help pour voir les commandes (break main, x/8x $sp, bt, stepi, continue…).",
+    "placeholder": "Commande (help)",
+    "run": "Exécuter",
+    "hint": "Flèches haut et bas : historique.",
+    "help": "Aide",
+    "clear": "Effacer"
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",

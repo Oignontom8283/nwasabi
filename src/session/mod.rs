@@ -62,6 +62,28 @@ fn number(req: &Value, key: &str) -> Result<u32, String> {
         .ok_or_else(|| format!("champ « {key} » (entier) manquant ou invalide"))
 }
 
+/// Numéro d'un registre de cœur d'après son nom (`r0` à `r12`, `sp`, `lr`, `pc`).
+fn register_number(name: &str) -> Option<u8> {
+    match name {
+        "sp" => Some(13),
+        "lr" => Some(14),
+        "pc" => Some(15),
+        other => other
+            .strip_prefix('r')
+            .and_then(|n| n.parse::<u8>().ok())
+            .filter(|&n| n <= 12),
+    }
+}
+
+fn register_name(number: u8) -> String {
+    match number {
+        13 => "sp".to_owned(),
+        14 => "lr".to_owned(),
+        15 => "pc".to_owned(),
+        n => format!("r{n}"),
+    }
+}
+
 fn model_of(name: &str) -> Result<Model, String> {
     Model::ALL
         .into_iter()
@@ -345,7 +367,25 @@ impl Session {
             }
             "break" => {
                 let address = number(req, "address")?;
-                self.emu()?.add_breakpoint(address);
+                // Condition facultative : { "register": "r0", "op": "==", "value": 5 }.
+                let condition = match req.get("condition") {
+                    Some(c) if !matches!(c, Value::Null) => {
+                        let name = text(c, "register")?.to_ascii_lowercase();
+                        let register = register_number(&name)
+                            .ok_or_else(|| format!("registre inconnu : {name}"))?;
+                        let op = text(c, "op")?;
+                        let compare = crate::emulator::Compare::parse(op).ok_or_else(|| {
+                            format!("comparaison inconnue : {op} (==, !=, <, <=, >, >=, &)")
+                        })?;
+                        Some(crate::emulator::Condition {
+                            register,
+                            compare,
+                            value: number(c, "value")?,
+                        })
+                    }
+                    _ => None,
+                };
+                self.emu()?.add_conditional_breakpoint(address, condition);
                 Ok(Value::object())
             }
             "unbreak" => {
@@ -353,14 +393,35 @@ impl Session {
                 let removed = self.emu()?.remove_breakpoint(address);
                 Ok(Value::object().with("removed", removed))
             }
-            "breaks" => Ok(Value::object().with(
-                "breakpoints",
-                self.emu()?
-                    .breakpoints()
-                    .iter()
-                    .map(|&a| Value::from(a))
-                    .collect::<Vec<_>>(),
-            )),
+            "breaks" => Ok(Value::object()
+                .with(
+                    "breakpoints",
+                    self.emu()?
+                        .breakpoints()
+                        .iter()
+                        .map(|b| Value::from(b.address))
+                        .collect::<Vec<_>>(),
+                )
+                .with(
+                    "details",
+                    self.emu()?
+                        .breakpoints()
+                        .iter()
+                        .map(|b| {
+                            let mut v = Value::object().with("address", b.address);
+                            if let Some(c) = b.condition {
+                                v.set(
+                                    "condition",
+                                    Value::object()
+                                        .with("register", register_name(c.register))
+                                        .with("op", c.compare.symbol())
+                                        .with("value", c.value),
+                                );
+                            }
+                            v
+                        })
+                        .collect::<Vec<_>>(),
+                )),
             "cpu_set" => {
                 let name = text(req, "register")?.to_ascii_lowercase();
                 let value = number(req, "value")?;
