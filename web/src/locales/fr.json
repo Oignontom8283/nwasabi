@@ -151,6 +151,22 @@
     "noApp": "Chargez une application pour avoir des signets.",
     "added": "Signet ajouté à {address}"
   },
+  "snapshot": {
+    "title": "Comparer deux instants",
+    "help": "Photographie la RAM, puis comparez-la plus tard à l'état du moment : vous voyez, par plage d'octets, ce que l'application a modifié entre les deux. Pour trouver une variable précise, la recherche de valeurs est plus directe ; ceci montre tout ce qui a bougé.",
+    "take": "Prendre un instantané",
+    "retake": "Reprendre un instantané",
+    "compare": "Comparer à maintenant",
+    "compareHint": "Relit la RAM et liste ce qui diffère de l'instantané.",
+    "taken": "Instantané de {time}",
+    "summary": "{ranges} plage modifiée, {bytes} octets | {ranges} plages modifiées, {bytes} octets",
+    "address": "Adresse",
+    "size": "Octets",
+    "before": "Avant",
+    "after": "Après",
+    "none": "Aucune différence avec l'instantané.",
+    "truncated": "Seules les {n} premières plages sont affichées."
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",

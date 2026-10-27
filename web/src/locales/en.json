@@ -151,6 +151,22 @@
     "noApp": "Load an application to have bookmarks.",
     "added": "Bookmark added at {address}"
   },
+  "snapshot": {
+    "title": "Compare two moments",
+    "help": "Takes a photo of the RAM, then compare it later with the current state: you see, by byte range, what the application changed in between. To find one particular variable the value search is more direct; this shows everything that moved.",
+    "take": "Take a snapshot",
+    "retake": "Take a new snapshot",
+    "compare": "Compare with now",
+    "compareHint": "Reads the RAM again and lists what differs from the snapshot.",
+    "taken": "Snapshot from {time}",
+    "summary": "{ranges} changed range, {bytes} bytes | {ranges} changed ranges, {bytes} bytes",
+    "address": "Address",
+    "size": "Bytes",
+    "before": "Before",
+    "after": "After",
+    "none": "No difference from the snapshot.",
+    "truncated": "Only the first {n} ranges are shown."
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",

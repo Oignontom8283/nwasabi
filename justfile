@@ -144,6 +144,7 @@ test-wasm corpus="": build-wasm build-js
     node tests/web/locales.mjs
     node tests/web/scan.mjs
     node tests/web/gif.mjs
+    node tests/web/snapshot.mjs
 
 # Vérifie les types TypeScript de l'interface web (web/src, Vue et TypeScript strict).
 typecheck-web: build-js

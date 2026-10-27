@@ -11,6 +11,7 @@ import HexEditor from "../HexEditor.vue";
 import type { HexRegion } from "../HexEditor.vue";
 import MemoryMap from "../MemoryMap.vue";
 import MemoryScanner from "../MemoryScanner.vue";
+import SnapshotCard from "../SnapshotCard.vue";
 import BookmarksCard from "../BookmarksCard.vue";
 import WatchPoints from "../WatchPoints.vue";
 
@@ -118,6 +119,11 @@ async function saveState() {
     <section class="card">
       <h2>{{ t("memory.map") }}</h2>
       <MemoryMap :regions="regions" :structures="structures" :app="app" :usage="usage" />
+    </section>
+
+    <section class="card">
+      <h2>{{ t("snapshot.title") }}</h2>
+      <SnapshotCard :regions="regions" />
     </section>
 
     <section class="card">
