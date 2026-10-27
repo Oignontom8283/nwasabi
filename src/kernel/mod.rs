@@ -178,6 +178,8 @@ pub struct Kernel {
     pub unknown_svcs: u32,
     /// Nombre d'appels de chaque appel système, par numéro (statistiques).
     pub svc_counts: Vec<u32>,
+    /// Journal des derniers appels système (arguments et retour), `None` tant qu'il n'est pas demandé.
+    pub svc_log: Option<SvcLog>,
     extra_us: u64,
     /// Fin de l'attente en cours (`msleep`, `usleep`) avec l'horloge de l'hôte.
     sleep_until_us: Option<u64>,
@@ -190,6 +192,42 @@ pub struct Kernel {
     brk: u32,
     stop: Option<KernelStop>,
     wait: Option<EventWait>,
+}
+
+/// Un appel système relevé par le journal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SvcCall {
+    /// Rang de l'appel depuis le début du journal.
+    pub seq: u64,
+    pub number: u8,
+    /// Adresse de l'instruction `svc`.
+    pub pc: u32,
+    /// r0 à r3 à l'entrée.
+    pub args: [u32; 4],
+    /// r0 au retour.
+    pub ret: u32,
+    /// Image en cours (nombre d'images terminées).
+    pub frame: u64,
+}
+
+/// Les derniers appels système, les plus anciens écartés au-delà de `SvcLog::CAPACITY`.
+#[derive(Debug, Clone, Default)]
+pub struct SvcLog {
+    pub calls: std::collections::VecDeque<SvcCall>,
+    pub total: u64,
+}
+
+impl SvcLog {
+    pub const CAPACITY: usize = 2000;
+
+    fn push(&mut self, mut call: SvcCall) {
+        call.seq = self.total;
+        self.total += 1;
+        if self.calls.len() == Self::CAPACITY {
+            self.calls.pop_front();
+        }
+        self.calls.push_back(call);
+    }
 }
 
 /// Délai avant la première répétition d'une touche, puis entre deux répétitions (millisecondes) :
@@ -209,6 +247,7 @@ impl Kernel {
             frames: 0,
             unknown_svcs: 0,
             svc_counts: vec![0; 256],
+            svc_log: None,
             extra_us: 0,
             sleep_until_us: None,
             repeat_since_us: None,

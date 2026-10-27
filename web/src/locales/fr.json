@@ -192,6 +192,23 @@
     "goTab": "Aller à l'onglet {tab}",
     "theme": "Changer clair / sombre"
   },
+  "svclog": {
+    "title": "Journal des appels système",
+    "help": "Chaque appel de l'application au système de la calculatrice (écran, clavier, temps, fichiers…), du plus récent au plus ancien, avec ses arguments et sa valeur de retour. Le journal garde les 400 derniers appels.",
+    "start": "Lancer",
+    "stop": "Arrêter",
+    "filter": "Filtrer par nom ou numéro",
+    "freeze": "Figer",
+    "clear": "Vider",
+    "total": "{n} appel depuis le lancement | {n} appels depuis le lancement",
+    "call": "Appel",
+    "args": "Arguments (r0 à r3)",
+    "ret": "Retour (r0)",
+    "from": "Depuis",
+    "show": "Voir l'instruction dans le débogueur",
+    "none": "Aucun appel pour l'instant.",
+    "argsNote": "Les quatre registres sont montrés tels quels : tous ne sont pas des arguments, selon l'appel. Les valeurs sont en hexadécimal."
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
