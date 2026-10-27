@@ -25,9 +25,11 @@ async function run<T>(mode: IDBTransactionMode, task: (store: IDBObjectStore) =>
   return new Promise((resolve) => {
     try {
       const request = task(db.transaction(STORE, mode).objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
+      // La connexion se ferme après chaque opération : elles ne s'accumulent pas et ne bloquent pas une future version de la base.
+      request.onsuccess = () => (db.close(), resolve(request.result));
+      request.onerror = () => (db.close(), resolve(null));
     } catch {
+      db.close();
       resolve(null);
     }
   });

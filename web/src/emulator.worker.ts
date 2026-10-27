@@ -121,9 +121,25 @@ function flush(): void {
   scope.postMessage({ kind: "state", patch: patch as StatePatch });
 }
 
-/** Dans tout appareil neuf (avec ou sans application), on remet les fichiers conservés par la page, avant la première image. */
-function restoreKept(): void {
-  if (kept && player) player.nwasabi.request({ cmd: "fs_import", nfs: kept, replace: true });
+/**
+ * Les fichiers de la calculatrice passent d'un appareil à l'autre : charger une autre application, la relancer ou changer de modèle
+ * crée un appareil neuf, et il reprend les fichiers de l'ancien (relevés juste avant). Les fichiers conservés par la page ne servent
+ * qu'au départ, pour le tout premier appareil.
+ */
+let carried: unknown = null;
+let keptApplied = false;
+
+/** Relève les fichiers de l'appareil actuel, avant qu'un appareil neuf ne le remplace. */
+function carryFiles(): void {
+  if (!player) return;
+  const exported = player.nwasabi.request({ cmd: "fs_export" });
+  if (exported.ok) carried = exported.nfs;
+}
+
+/** Dans tout appareil neuf (avec ou sans application), on remet les fichiers repris, avant la première image. */
+function restoreFiles(): void {
+  const document = carried ?? kept;
+  if (document && player) player.nwasabi.request({ cmd: "fs_import", nfs: document, replace: true });
 }
 
 const NEW_DEVICE: ReadonlySet<PlayerMethod> = new Set(["load", "restart", "runWithoutData", "changeModel"]);
@@ -137,7 +153,7 @@ async function handle(message: ToWorker): Promise<void> {
         canvas = message.canvas;
         player = await Player.create(wasm, { scheduler, slice: SLICE, maxWallMs: FRAME_MS });
         if (canvas) player.attach(canvas as never);
-        restoreKept();
+        restoreFiles();
         player.onFrame(() => {
           record();
           flush();
@@ -152,7 +168,10 @@ async function handle(message: ToWorker): Promise<void> {
     }
     case "kept":
       kept = message.document;
-      restoreKept();
+      // La première fois (au démarrage), les fichiers conservés vont dans l'appareil déjà là ; ensuite, changer le réglage ne doit pas
+      // écraser les fichiers de l'appareil en cours avec une copie plus ancienne.
+      if (!keptApplied) restoreFiles();
+      keptApplied = true;
       flush();
       return;
     case "request": {
@@ -166,8 +185,9 @@ async function handle(message: ToWorker): Promise<void> {
       if (!player) return void scope.postMessage({ kind: "failure", id: message.id, message: "émulateur pas encore prêt" });
       try {
         const method = (player as unknown as Record<string, (...args: unknown[]) => unknown>)[message.method];
+        if (NEW_DEVICE.has(message.method)) carryFiles();
         const result = method?.apply(player, message.args);
-        if (NEW_DEVICE.has(message.method)) restoreKept();
+        if (NEW_DEVICE.has(message.method)) restoreFiles();
         scope.postMessage({ kind: "reply", id: message.id, result });
       } catch (error) {
         scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });

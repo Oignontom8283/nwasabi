@@ -35,6 +35,7 @@ function summary(doc: Nfs | null): { files: number; bytes: number } | null {
 
 let emulator: Emulator | null = null;
 let lastGeneration = -1;
+let lastDevice = -1;
 let stopPolling: () => void = () => {};
 
 /** Donne à l'émulateur les fichiers à remettre dans chaque appareil neuf (il le fait lui-même, avant la première image). */
@@ -44,19 +45,30 @@ function offerKept(): void {
 
 async function save() {
   if (!keep.enabled || !emulator?.state.ready) return;
+  // La « génération » des fichiers repart de zéro dans chaque appareil neuf : elle ne se compare qu'au sein du même appareil.
+  const device = emulator.state.deviceSeq;
   const list = await emulator.quiet({ cmd: "fs_list" });
-  if (!list.ok || list.generation === lastGeneration) return;
+  if (!list.ok || (list.generation === lastGeneration && device === lastDevice)) return;
   const reply = await emulator.quiet({ cmd: "fs_export" });
-  if (!reply.ok) return;
-  lastGeneration = list.generation;
-  keep.failed = !remember.set(KEY, reply.nfs);
+  // Le réglage a pu changer pendant ces échanges : on n'écrit pas ce qu'on vient d'interdire ou d'effacer.
+  if (!reply.ok || !keep.enabled) return;
+  const stored = remember.set(KEY, reply.nfs);
+  keep.failed = !stored;
   keep.stored = summary(reply.nfs);
+  // Un enregistrement raté (stockage plein) sera réessayé au relevé suivant.
+  if (stored) {
+    lastGeneration = list.generation;
+    lastDevice = device;
+  }
 }
 
 /** Branche la conservation sur l'émulateur : à appeler une fois. */
 export function attachPersistence(target: Emulator): void {
   emulator = target;
   offerKept();
+  // Une modification faite dans l'onglet Fichiers est copiée tout de suite, sans attendre le relevé suivant : recharger la page juste
+  // après ne doit rien perdre.
+  target.onFilesChanged(() => void save());
   stopPolling();
   stopPolling = poll(save, POLL_MS);
 }
@@ -91,6 +103,7 @@ export async function clearKept() {
   offerKept();
   // Ce qui est dans l'appareil en cours n'est pas recopié tout de suite : seule une modification le fera.
   lastGeneration = (await emulator?.quiet({ cmd: "fs_list" }))?.generation ?? -1;
+  lastDevice = emulator?.state.deviceSeq ?? -1;
 }
 
 export async function checkPersistent() {

@@ -317,7 +317,7 @@ async function goto() {
 
 // Raccourcis des débogueurs usuels : F5 reprendre ou pause, F10 par-dessus, F11 pas, Maj + F11 sortir.
 function onKey(event: KeyboardEvent) {
-  if (ui.tab !== "debug" || ui.debugView !== "code" || !state.loaded) return;
+  if (!ui.panelOpen || ui.tab !== "debug" || ui.debugView !== "code" || !state.loaded) return;
   if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (event.key === "F5") void (state.running ? emulator.stop() : emulator.start());
   else if (event.key === "F10" && paused.value) void stepOver();

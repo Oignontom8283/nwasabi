@@ -11,7 +11,7 @@ import type { FromWorker, PlayerMethod, ToWorker } from "./worker-protocol.js";
 
 export function useEmulator() {
   // `keymapVersion` change à chaque nouveau mapping des touches : les vues qui l'affichent le suivent.
-  const state = reactive({ ...Player.initialState(), ready: false, keymapVersion: 0, mips: 0, slow: false });
+  const state = reactive({ ...Player.initialState(), ready: false, deviceSeq: 0, keymapVersion: 0, mips: 0, slow: false });
 
   let worker: Worker | null = null;
   let nextId = 1;
@@ -87,8 +87,22 @@ export function useEmulator() {
   }
 
   /** Envoie une requête au module ; les erreurs sont gardées dans `state.error`. */
+  /** Un appareil neuf remplace l'ancien : ce qui se compare d'un appareil à l'autre (la « génération » des fichiers) repart de zéro. */
+  const newDevice = <T>(done: Promise<T>): Promise<T> => done.finally(() => void state.deviceSeq++);
+
+  /** Appelé après toute modification des fichiers de la calculatrice par l'utilisateur : la conservation les copie tout de suite. */
+  let filesChanged: () => void = () => {};
+  const onFilesChanged = (callback: () => void): void => void (filesChanged = callback);
+  const WRITES = new Set(["fs_write", "fs_remove", "fs_rename", "fs_import"]);
+
   const call = (request: Request): Promise<Reply> =>
-    ask<Reply>((id) => ({ kind: "request", id, request, quiet: false })).catch((error: Error) => ({ ok: false, error: error.message }));
+    ask<Reply>((id) => ({ kind: "request", id, request, quiet: false })).then(
+      (reply) => {
+        if (reply.ok && WRITES.has(String(request.cmd))) filesChanged();
+        return reply;
+      },
+      (error: Error) => ({ ok: false, error: error.message }),
+    );
 
   /** Comme `call`, mais une erreur n'est pas affichée : pour les lectures périodiques des vues. */
   const quiet = (request: Request): Promise<Reply> =>
@@ -125,6 +139,7 @@ export function useEmulator() {
     init,
     call,
     quiet,
+    onFilesChanged,
     attach,
     keymap,
     setKeyMap,
@@ -134,11 +149,11 @@ export function useEmulator() {
     capture,
     startRecording,
     stopRecording,
-    load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null) => player<boolean>("load", nwa, name, data),
-    restart: () => player<boolean>("restart"),
+    load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null) => newDevice(player<boolean>("load", nwa, name, data)),
+    restart: () => newDevice(player<boolean>("restart")),
     stepFrame: () => player<boolean>("stepFrame"),
-    runWithoutData: () => player<boolean>("runWithoutData"),
-    changeModel: (model: Model, firmware?: Firmware) => player("changeModel", model, firmware),
+    runWithoutData: () => newDevice(player<boolean>("runWithoutData")),
+    changeModel: (model: Model, firmware?: Firmware) => newDevice(player("changeModel", model, firmware)),
     setSpeed: (speed: SpeedMode) => player("setSpeed", speed),
     setCustomMhz: (mhz: number) => player("setCustomMhz", mhz),
     start: () => player("start"),
@@ -147,7 +162,7 @@ export function useEmulator() {
     /** Redessine l'écran de l'appareil (après une remontée dans le temps, par exemple). */
     draw: () => player("draw"),
     dump: (parts: readonly string[]) => player<unknown>("dump", parts),
-    restore: (document: unknown) => player<boolean>("restore", document),
+    restore: (document: unknown) => newDevice(player<boolean>("restore", document)),
     /** Remplace l'état d'un champ qui n'est que de la page (le Worker n'y touche pas). */
     patch: (fields: Partial<PlayerState>) => Object.assign(state, fields),
   };

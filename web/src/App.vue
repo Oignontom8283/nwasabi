@@ -76,6 +76,9 @@ async function loadData(bytes: Uint8Array, name: string) {
 function loadKeymapText(text: string, source: string): boolean {
   try {
     emulator.setKeyMap(KeyMap.parse(text));
+    // Un mapping chargé à la main devient le mapping général : on ne le remplacera pas par un plus ancien en changeant d'application.
+    appMap = false;
+    generalMap = null;
     state.error = "";
     return true;
   } catch (error) {

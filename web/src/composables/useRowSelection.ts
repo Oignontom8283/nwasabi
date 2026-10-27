@@ -99,8 +99,8 @@ export function useRowSelection<K extends string | number>(options: RowSelection
     area.focus({ preventScroll: true });
     area.style.userSelect = "none";
     // Le relâchement peut avoir lieu hors de la liste : on le suit sur la fenêtre pour toujours rendre la sélection de texte.
-    window.addEventListener("pointerup", pointerUp, { once: true });
-    window.addEventListener("pointercancel", pointerUp, { once: true });
+    window.addEventListener("pointerup", pointerUp);
+    window.addEventListener("pointercancel", pointerUp);
     onBackground = event.target === area;
     const origin = area.getBoundingClientRect();
     start = { x: event.clientX - origin.left + area.scrollLeft, y: event.clientY - origin.top + area.scrollTop, id: event.pointerId };
@@ -129,6 +129,8 @@ export function useRowSelection<K extends string | number>(options: RowSelection
   }
 
   function pointerUp() {
+    window.removeEventListener("pointerup", pointerUp);
+    window.removeEventListener("pointercancel", pointerUp);
     const area = options.container.value;
     if (area) area.style.userSelect = "";
     // Comme dans un explorateur : un clic dans le vide, sans rectangle ni touche, désélectionne tout.

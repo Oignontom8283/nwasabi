@@ -23,14 +23,16 @@ onMounted(async () => {
   pos.value = { left: Math.min(props.x, innerWidth - box.width - 6), top: Math.min(props.y, innerHeight - box.height - 6) };
   menu.value.querySelector<HTMLElement>("button:not(:disabled)")?.focus();
   addEventListener("pointerdown", outside, true);
-  addEventListener("blur", () => emit("close"));
+  addEventListener("blur", closeOnBlur);
 });
 onBeforeUnmount(() => {
   removeEventListener("pointerdown", outside, true);
+  removeEventListener("blur", closeOnBlur);
   if (opener?.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true });
 });
 watch(() => [props.x, props.y], () => (pos.value = { left: props.x, top: props.y }));
 
+const closeOnBlur = () => emit("close");
 function outside(event: Event) {
   if (!menu.value?.contains(event.target as Node)) emit("close");
 }

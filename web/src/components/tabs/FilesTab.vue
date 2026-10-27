@@ -164,8 +164,12 @@ async function endEdit(commit: boolean) {
       ? { cmd: "fs_write", name, python: true, text: "", auto_import: false }
       : { cmd: "fs_write", name, text: "" };
     if (await fail(await call(request))) select({ name, kind: python ? "python" : "other", size: 0 });
-  } else if ((await fail(await call({ cmd: "fs_rename", from: edit.name, to: name }))) && selected.value === edit.name) {
-    selected.value = name;
+  } else {
+    const wasOpen = selected.value === edit.name;
+    const reply = await call({ cmd: "fs_rename", from: edit.name, to: name });
+    // Le fichier ouvert garde son éditeur (et ce qu'on y a tapé) sous son nouveau nom : la liste se relit après.
+    if (reply.ok && wasOpen) selected.value = name;
+    await fail(reply);
   }
 }
 
@@ -218,6 +222,12 @@ async function copy(text: string) {
 }
 
 async function downloadFile(file: FsFile) {
+  if (file.kind === "python") {
+    // Le texte du script, sans l'octet d'importation automatique ni le zéro final.
+    const script = await call({ cmd: "fs_read", name: file.name, python: true });
+    if (script.ok) download(file.name, script.text ?? "", "text/x-python");
+    return;
+  }
   const reply = await call({ cmd: "fs_read", name: file.name });
   if (reply.ok) download(file.name, fromBase64(reply.content) as Uint8Array<ArrayBuffer>);
 }
@@ -225,7 +235,11 @@ async function downloadFile(file: FsFile) {
 async function importFiles(event: Event) {
   const input = event.target as HTMLInputElement;
   for (const file of input.files ?? []) {
-    await fail(await call({ cmd: "fs_write", name: file.name, content: toBase64(await readBytes(file)) }));
+    // Un script est écrit comme tel (la calculatrice range un octet d'importation automatique avant le texte et un zéro après).
+    const request = file.name.endsWith(".py")
+      ? { cmd: "fs_write", name: file.name, python: true, text: await file.text(), auto_import: false }
+      : { cmd: "fs_write", name: file.name, content: toBase64(await readBytes(file)) };
+    await fail(await call(request));
   }
   input.value = "";
 }
