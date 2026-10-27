@@ -111,7 +111,11 @@
     "fullscreenHint": "Affiche seulement l'écran, sans les touches. Espace ou Échap pour quitter.",
     "tools": "Outils",
     "large": "Agrandir",
-    "largeHint": "Agrandit l'écran dans la page, sans les touches de la calculatrice. Il s'adapte au panneau ouvert à côté."
+    "largeHint": "Agrandit l'écran dans la page, sans les touches de la calculatrice. Il s'adapte au panneau ouvert à côté.",
+    "rate": "Cadence",
+    "rateHint": "Millions d'instructions du processeur émulé exécutées par seconde réelle, mesurées sur la dernière demi-seconde.",
+    "slow": "ralenti",
+    "slowHint": "L'application demande plus d'instructions que cet ordinateur ne peut en émuler dans le temps réel de l'image : elle tourne plus lentement que sur la vraie calculatrice. Le mode « sans limite » (Réglages) ne change pas cela : il laisse seulement l'émulation aller au plus vite."
   },
   "panel": {
     "label": "Panneau d'outils",

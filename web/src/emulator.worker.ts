@@ -2,8 +2,8 @@
 // WebAssembly et l'écran (un OffscreenCanvas) ; la page ne voit de lui que ses réponses et les changements d'état.
 
 import { Player } from "@nwasabi/js";
-import type { PlayerState, Scheduler } from "@nwasabi/js";
-import type { FromWorker, PlayerMethod, ToWorker } from "./worker-protocol.js";
+import type { Scheduler } from "@nwasabi/js";
+import type { FromWorker, PlayerMethod, StatePatch, ToWorker } from "./worker-protocol.js";
 
 const scope = self as unknown as {
   postMessage(message: FromWorker, transfer?: Transferable[]): void;
@@ -66,12 +66,38 @@ const COUNTERS = new Set(["frames", "instructions", "timeMs"]);
 const COUNTER_MS = 100;
 let counterSentAt = 0;
 
+// Vitesse mesurée : instructions exécutées par seconde réelle, relevées toutes les demi-secondes.
+const STATS_MS = 500;
+let statsAt = 0;
+let statsInstructions = 0;
+let statsHits = 0;
+let statsOut: { mips: number; slow: boolean } | null = null;
+function measure(state: Record<string, unknown>): void {
+  const now = performance.now();
+  if (now - statsAt < STATS_MS) return;
+  const running = state.running === true;
+  const instructions = Number(state.instructions ?? 0);
+  const hits = Number(state.capHits ?? 0);
+  statsOut = {
+    mips: running && statsAt > 0 ? Math.max(0, Math.round(((instructions - statsInstructions) / (now - statsAt)) / 100) / 10) : 0,
+    slow: running && hits !== statsHits,
+  };
+  statsAt = now;
+  statsInstructions = instructions;
+  statsHits = hits;
+}
+
 /** Envoie à la page les champs de l'état qui ont changé. */
 function flush(): void {
   if (!player) return;
   const state = player.state as unknown as Record<string, unknown>;
   state.timeMs = player.time();
+  measure(state);
   const patch: Record<string, unknown> = {};
+  if (statsOut) {
+    for (const [key, value] of Object.entries(statsOut)) if (!Object.is(sent[key], value)) patch[key] = value;
+    statsOut = null;
+  }
   const counters = performance.now() - counterSentAt >= COUNTER_MS;
   for (const [key, value] of Object.entries(state)) {
     if (COUNTERS.has(key) && !counters) continue;
@@ -83,7 +109,7 @@ function flush(): void {
   if (Object.keys(patch).length === 0) return;
   if (counters) counterSentAt = performance.now();
   sent = { ...sent, ...patch };
-  scope.postMessage({ kind: "state", patch: patch as Partial<PlayerState> });
+  scope.postMessage({ kind: "state", patch: patch as StatePatch });
 }
 
 /** Dans tout appareil neuf (avec ou sans application), on remet les fichiers conservés par la page, avant la première image. */

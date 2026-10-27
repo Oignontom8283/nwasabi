@@ -11,7 +11,7 @@ import type { FromWorker, PlayerMethod, ToWorker } from "./worker-protocol.js";
 
 export function useEmulator() {
   // `keymapVersion` change à chaque nouveau mapping des touches : les vues qui l'affichent le suivent.
-  const state = reactive({ ...Player.initialState(), ready: false, keymapVersion: 0 });
+  const state = reactive({ ...Player.initialState(), ready: false, keymapVersion: 0, mips: 0, slow: false });
 
   let worker: Worker | null = null;
   let nextId = 1;

@@ -111,7 +111,11 @@
     "fullscreenHint": "Shows only the screen, without the keys. Space or Escape to exit.",
     "tools": "Tools",
     "large": "Enlarge",
-    "largeHint": "Enlarges the screen within the page, without the calculator keys. It adapts to the panel open beside it."
+    "largeHint": "Enlarges the screen within the page, without the calculator keys. It adapts to the panel open beside it.",
+    "rate": "Rate",
+    "rateHint": "Millions of emulated processor instructions executed per real second, measured over the last half second.",
+    "slow": "slowed",
+    "slowHint": "The application asks for more instructions than this computer can emulate within the real time of a frame: it runs slower than on the real calculator. The “unlimited” mode (Settings) does not change this: it only lets the emulation go as fast as it can."
   },
   "panel": {
     "label": "Tools panel",

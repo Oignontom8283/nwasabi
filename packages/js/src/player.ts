@@ -62,6 +62,12 @@ export interface PlayerState {
   needsData: boolean;
   /** Augmente quand les vues dérivées (fichiers, mémoire…) doivent se rafraîchir. */
   revision: number;
+  /**
+   * Combien de fois l'émulation n'a pas pu suivre le processeur émulé : le temps réel de l'image est épuisé alors que l'application
+   * avait encore des instructions à exécuter (elle tourne alors plus lentement que sur la vraie calculatrice). Sans limite de
+   * vitesse, il ne bouge pas.
+   */
+  capHits: number;
 }
 
 /** Ce qui rythme le lecteur : l'heure, et « rappelle-moi à la prochaine image ». */
@@ -202,6 +208,7 @@ export class Player {
       keymapName: null,
       needsData: false,
       revision: 0,
+      capHits: 0,
     };
   }
 
@@ -543,6 +550,7 @@ export class Player {
       if (stop.kind === "budget" && (mhz === null || budget > 0) && this.scheduler.now() - wallStart < this.maxWallMs) {
         continue;
       }
+      if (stop.kind === "budget" && mhz !== null && budget > 0) state.capHits++;
       this.advance(budget);
       budget = 0;
       if (!["frame", "wait_event", "budget"].includes(stop.kind)) {

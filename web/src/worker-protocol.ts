@@ -5,6 +5,14 @@
 
 import type { PlayerState, Reply, Request } from "@nwasabi/js";
 
+/** Les champs de l'état du lecteur qui ont changé, plus les mesures de vitesse que le Worker ajoute. */
+export type StatePatch = Partial<PlayerState> & {
+  /** Millions d'instructions émulées par seconde, mesurés sur la dernière demi-seconde (0 en pause). */
+  mips?: number;
+  /** L'émulation n'a pas pu suivre le modèle émulé pendant la dernière demi-seconde. */
+  slow?: boolean;
+};
+
 /** Les méthodes du lecteur que la page peut appeler. */
 export type PlayerMethod =
   | "load"
@@ -34,6 +42,6 @@ export type FromWorker =
   | { kind: "reply"; id: number; result: unknown }
   | { kind: "failure"; id: number; message: string }
   /** Les champs de l'état du lecteur qui ont changé depuis le dernier message. */
-  | { kind: "state"; patch: Partial<PlayerState> };
+  | { kind: "state"; patch: StatePatch };
 
 export type { Reply };

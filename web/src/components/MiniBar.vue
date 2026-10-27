@@ -35,6 +35,9 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
       <div :title="t('mini.framesHint')"><dt>{{ t("mini.frames") }}</dt><dd class="mono">{{ n(state.frames) }}</dd></div>
       <div :title="t('mini.timeHint')"><dt>{{ t("mini.time") }}</dt><dd class="mono">{{ formatDuration(timeMs) }}</dd></div>
       <div :title="t('mini.speedHint')"><dt>{{ t("mini.speed") }}</dt><dd class="mono">{{ mhz }}</dd></div>
+      <div v-if="state.running" :title="state.slow ? t('mini.slowHint') : t('mini.rateHint')" :class="{ slow: state.slow }">
+        <dt>{{ t("mini.rate") }}</dt><dd class="mono">{{ state.mips }} MIPS<template v-if="state.slow"> · {{ t("mini.slow") }}</template></dd>
+      </div>
       <div v-if="state.stop?.kind === 'fault'" :title="t('mini.faultHint')" class="fault"><dt>{{ t("mini.fault") }}</dt><dd>{{ state.stop.fault }}</dd></div>
     </dl>
     <button :disabled="!state.loaded" :title="t('mini.captureHint')" @click="screenApi.capture()"><Icon name="camera" /> {{ t("mini.capture") }}</button>
@@ -58,6 +61,7 @@ dd { margin: 0; text-align: right; }
 .dot.paused { background: var(--warn); }
 .dot.fault { background: var(--danger); }
 .fault dd { color: var(--danger); }
+.slow dd { color: var(--warn); }
 .hide { justify-self: end; padding: 0 8px; }
 button { justify-content: center; }
 </style>
