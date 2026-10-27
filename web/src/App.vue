@@ -5,6 +5,8 @@ import { KeyMap } from "@nwasabi/js";
 import CalculatorSvg from "./components/CalculatorSvg.vue";
 import AboutWindow from "./components/AboutWindow.vue";
 import InfoWindow from "./components/InfoWindow.vue";
+import CommandPalette from "./components/CommandPalette.vue";
+import type { Command } from "./components/CommandPalette.vue";
 import DialogHost from "./components/DialogHost.vue";
 import Icon from "./components/Icon.vue";
 import MiniBar from "./components/MiniBar.vue";
@@ -16,7 +18,7 @@ import { FetchError, fetchFile, fileNameOf, launchParams } from "./launch.js";
 import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
-import { applyTheme, notice, panelPixels, screenApi, ui } from "./ui.js";
+import { applyTheme, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
@@ -196,6 +198,12 @@ async function loadFromServer() {
 
 // En plein écran, Espace quitte et n'est jamais donné à l'application (même s'il est dans le mapping).
 function onKeyCapture(event: KeyboardEvent) {
+  // Ctrl + K (ou Cmd + K) ouvre la palette de commandes.
+  if ((event.ctrlKey || event.metaKey) && event.code === "KeyK") {
+    event.preventDefault();
+    if (event.type === "keydown") palette.value = !palette.value;
+    return;
+  }
   // Ctrl + S enregistre l'état de l'émulation dans le navigateur, Ctrl + O le recharge.
   if (event.altKey && event.type === "keydown" && (event.code === "KeyS" || event.code === "KeyL")) {
     event.preventDefault();
@@ -267,6 +275,34 @@ onBeforeUnmount(() => {
 
 const stageStyle = computed(() => ({ right: ui.panelOpen ? `${panelPixels()}px` : "0px" }));
 
+const palette = ref(false);
+const commands = computed((): Command[] => {
+  const loaded = state.loaded;
+  const go = (tab: string) => () => {
+    ui.tab = tab;
+    ui.panelOpen = true;
+  };
+  return [
+    { id: "open-app", label: t("palette.openApp"), run: () => pick("app") },
+    { id: "open-data", label: t("palette.openData"), run: () => pick("data") },
+    { id: "open-state", label: t("palette.openState"), run: () => pick("state") },
+    { id: "open-keys", label: t("palette.openKeys"), run: () => pick("keys") },
+    { id: "open-files", label: t("palette.openFiles"), run: () => pick("files") },
+    { id: "pause", label: t("palette.pause"), enabled: loaded && state.running, run: () => emulator.stop() },
+    { id: "resume", label: t("palette.resume"), enabled: loaded && !state.running, run: () => emulator.start() },
+    { id: "restart", label: t("palette.restart"), enabled: loaded, run: () => void emulator.restart() },
+    { id: "frame", label: t("palette.frame"), enabled: loaded && !state.running, run: () => void emulator.stepFrame() },
+    { id: "capture", label: t("palette.capture"), enabled: loaded, run: () => screenApi.capture() },
+    { id: "copy", label: t("palette.copy"), enabled: loaded, run: () => screenApi.copy() },
+    { id: "gif", label: recording.on ? t("palette.gifStop") : t("palette.gif"), enabled: loaded, run: () => screenApi.toggleRecording() },
+    { id: "fullscreen", label: t("palette.fullscreen"), enabled: loaded, run: () => screenApi.toggleFullscreen() },
+    { id: "quick-save", label: t("palette.quickSave"), shortcut: "Ctrl + S", enabled: loaded, run: () => void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") }) },
+    { id: "quick-load", label: t("palette.quickLoad"), shortcut: "Ctrl + O", run: () => void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }) },
+    { id: "panel", label: ui.panelOpen ? t("palette.panelClose") : t("palette.panelOpen"), run: () => (ui.panelOpen = !ui.panelOpen) },
+    ...TABS.map((id) => ({ id: `tab-${id}`, label: t("palette.goTab", { tab: t(`tabs.${id}`) }), run: go(id) })),
+    { id: "theme", label: t("palette.theme"), run: () => (ui.theme = ui.theme === "dark" ? "light" : "dark") },
+  ];
+});
 const about = ref(false);
 const info = ref(false);
 const input_app = ref<HTMLInputElement | null>(null);
@@ -305,6 +341,7 @@ provide("pick", pick);
     <p class="sr-only" role="status" aria-live="polite">{{ state.running ? t("mini.states.running") : t("mini.states.paused") }}</p>
     <AboutWindow v-if="about" @close="about = false" />
     <InfoWindow v-if="info" @close="info = false" />
+    <CommandPalette v-if="palette" :commands="commands" @close="palette = false" />
     <DialogHost />
   </div>
 </template>
