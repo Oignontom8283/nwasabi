@@ -7,6 +7,7 @@ import { notify, ui } from "../ui.js";
 import { addWatch } from "../watchStore.js";
 import { SCAN_TYPES, SIZE, tile } from "../scan.js";
 import type { Base, ScanType } from "../scan.js";
+import ExportDialog from "./ExportDialog.vue";
 import HexValueDialog from "./HexValueDialog.vue";
 import Icon from "./Icon.vue";
 import { hex, hex0x, parseAddress, poll } from "../util.js";
@@ -352,6 +353,13 @@ interface ValueRequest {
   text: string;
 }
 const valueDialog = ref<ValueRequest | null>(null);
+/** Fenêtre d'export : plage proposée (la sélection, sinon 256 octets au curseur). */
+const exportDialog = ref<{ address: number; length: number } | null>(null);
+function openExport() {
+  const s = selection.value;
+  const at = s?.start ?? cursor.value ?? region.value?.base ?? 0;
+  exportDialog.value = { address: at, length: s ? s.end - s.start + 1 : 256 };
+}
 
 /** « Remplir » : répète une valeur sur toute la sélection. */
 function openFill() {
@@ -529,6 +537,7 @@ const beyond = (c: Column, length: number) => c.size > length;
       <button :disabled="!selection" @click="copy('ascii')">{{ t("hex.copyAscii") }}</button>
       <button :disabled="!selection || !canEdit" @click="openFill">{{ t("hex.fill") }}</button>
       <button :disabled="!selection" :title="t('hex.watchHint')" @click="watchSelection">{{ t("hex.watch") }}</button>
+      <button :title="t('hex.exportHint')" @click="openExport">{{ t("hex.export") }}</button>
       <span v-if="selection" class="muted mono">{{ hex0x(selection.start) }}{{ selection.end > selection.start ? ` → ${hex0x(selection.end)} (${selection.end - selection.start + 1})` : "" }}</span>
       <span class="spacer" />
       <span v-if="findMessage" class="muted">{{ findMessage }}</span>
@@ -611,6 +620,7 @@ const beyond = (c: Column, length: number) => c.size > length;
     </div>
 
     <p class="muted hint">{{ t("hex.help") }}</p>
+    <ExportDialog v-if="exportDialog" v-bind="exportDialog" @close="exportDialog = null" />
     <HexValueDialog v-if="valueDialog" v-bind="valueDialog" :big-endian="bigEndian" @close="valueDialog = null" @apply="applyValue" />
   </section>
 </template>

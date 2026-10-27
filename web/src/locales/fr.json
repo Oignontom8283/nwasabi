@@ -128,6 +128,18 @@
     "share": "Part du temps",
     "show": "Voir dans le débogueur"
   },
+  "export": {
+    "title": "Exporter une zone de mémoire",
+    "address": "Adresse",
+    "length": "Octets",
+    "format": "Format",
+    "bin": "Octets bruts (.bin)",
+    "hex": "Texte hexadécimal (.txt)",
+    "save": "Enregistrer",
+    "invalid": "Adresse ou nombre d'octets invalide.",
+    "tooBig": "Zone trop grande (16 Mio au plus).",
+    "done": "{n} octet enregistré | {n} octets enregistrés"
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
@@ -340,6 +352,8 @@
     "group": "Groupes",
     "copyHex": "Copier (hex)",
     "copyAscii": "Copier (texte)",
+    "export": "Exporter…",
+    "exportHint": "Enregistre une zone de la mémoire dans un fichier (la sélection, ou la plage de votre choix).",
     "watch": "Observer",
     "watching": "Observation de {address} en écriture (voir Points d'observation)",
     "watchHint": "Pose un point d'observation sur la sélection : on verra quelles instructions l'écrivent (voir Points d'observation).",

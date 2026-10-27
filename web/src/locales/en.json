@@ -128,6 +128,18 @@
     "share": "Share of time",
     "show": "Show in the debugger"
   },
+  "export": {
+    "title": "Export a memory range",
+    "address": "Address",
+    "length": "Bytes",
+    "format": "Format",
+    "bin": "Raw bytes (.bin)",
+    "hex": "Hexadecimal text (.txt)",
+    "save": "Save",
+    "invalid": "Invalid address or number of bytes.",
+    "tooBig": "Range too large (16 MiB at most).",
+    "done": "{n} byte saved | {n} bytes saved"
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
@@ -340,6 +352,8 @@
     "group": "Group",
     "copyHex": "Copy (hex)",
     "copyAscii": "Copy (text)",
+    "export": "Export…",
+    "exportHint": "Saves a memory range to a file (the selection, or the range you choose).",
     "watch": "Watch",
     "watching": "Watching {address} for writes (see Watchpoints)",
     "watchHint": "Sets a watchpoint on the selection: you will see which instructions write it (see Watchpoints).",
