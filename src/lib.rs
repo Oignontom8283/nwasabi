@@ -17,6 +17,8 @@ pub mod device;
 pub mod elf;
 pub mod emulator;
 pub mod formats;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod gdb;
 pub mod inspect;
 pub mod json;
 pub mod kernel;

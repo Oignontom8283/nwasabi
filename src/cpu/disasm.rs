@@ -91,7 +91,7 @@ fn address(a: Addr) -> String {
             IndexMode::PreIndex => format!("[{}, {}]!", reg(rn), simm(offset)),
             IndexMode::PostIndex => format!("[{}], {}", reg(rn), simm(offset)),
         },
-        Addr::Reg { rn, rm, shift } if shift == 0 => format!("[{}, {}]", reg(rn), reg(rm)),
+        Addr::Reg { rn, rm, shift: 0 } => format!("[{}, {}]", reg(rn), reg(rm)),
         Addr::Reg { rn, rm, shift } => {
             format!("[{}, {}, lsl {}]", reg(rn), reg(rm), imm(u32::from(shift)))
         }
@@ -752,7 +752,7 @@ fn render_fp(f: FpInstr) -> (String, String, Option<u32>) {
             writeback,
             decrement_before,
         } => {
-            let last = first + (words as u8).saturating_sub(1);
+            let last = first + words.saturating_sub(1);
             let list = format!("{{{}-{}}}", s_reg(first), s_reg(last));
             if rn == 13 && writeback && !decrement_before {
                 m("vpop", list)
@@ -770,7 +770,7 @@ fn render_fp(f: FpInstr) -> (String, String, Option<u32>) {
             writeback,
             decrement_before,
         } => {
-            let last = first + (words as u8).saturating_sub(1);
+            let last = first + words.saturating_sub(1);
             let list = format!("{{{}-{}}}", s_reg(first), s_reg(last));
             if rn == 13 && writeback && decrement_before {
                 m("vpush", list)
@@ -827,10 +827,10 @@ pub fn disassemble(
             ),
         };
         let mut mnemonic = mnemonic;
-        if let (Some(c), Some(i)) = (condition, &instr) {
-            if !matches!(i, Instr::BCond { .. } | Instr::It { .. }) {
-                mnemonic.push_str(CONDITIONS.get(usize::from(c)).copied().unwrap_or(""));
-            }
+        if let (Some(c), Some(i)) = (condition, &instr)
+            && !matches!(i, Instr::BCond { .. } | Instr::It { .. })
+        {
+            mnemonic.push_str(CONDITIONS.get(usize::from(c)).copied().unwrap_or(""));
         }
         if let Some(Instr::It { firstcond, mask }) = instr {
             // La première instruction suivante prend `firstcond` ; les autres, `firstcond` ou son contraire.
