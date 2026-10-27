@@ -42,6 +42,74 @@ pub enum Fault {
     UnknownSvc(u8),
 }
 
+/// Comparaison d'une condition de point d'arrêt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Compare {
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    /// Au moins un bit en commun (`registre & valeur != 0`).
+    And,
+}
+
+impl Compare {
+    pub fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "==" => Self::Eq,
+            "!=" => Self::Ne,
+            "<" => Self::Lt,
+            "<=" => Self::Le,
+            ">" => Self::Gt,
+            ">=" => Self::Ge,
+            "&" => Self::And,
+            _ => return None,
+        })
+    }
+
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Eq => "==",
+            Self::Ne => "!=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+            Self::And => "&",
+        }
+    }
+
+    fn test(self, left: u32, right: u32) -> bool {
+        match self {
+            Self::Eq => left == right,
+            Self::Ne => left != right,
+            Self::Lt => left < right,
+            Self::Le => left <= right,
+            Self::Gt => left > right,
+            Self::Ge => left >= right,
+            Self::And => left & right != 0,
+        }
+    }
+}
+
+/// Le point d'arrêt ne s'applique que si un registre vérifie cette comparaison (valeurs non signées).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Condition {
+    /// Numéro de registre : 0 à 12, 13 (sp), 14 (lr), 15 (pc).
+    pub register: u8,
+    pub compare: Compare,
+    pub value: u32,
+}
+
+/// Un point d'arrêt, éventuellement conditionnel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Breakpoint {
+    pub address: u32,
+    pub condition: Option<Condition>,
+}
+
 /// Nombre d'instructions entre deux relevés du profil d'exécution (environ).
 const PROFILE_SLICE: u64 = 509;
 
@@ -122,7 +190,7 @@ pub struct Emulator {
     /// Les octets donnés à [`Emulator::install_nwa`] (pour enregistrer l'état, voir `snapshot`).
     source: Option<AppSource>,
     /// Adresses où l'exécution s'arrête avant l'instruction (voir [`Emulator::add_breakpoint`]).
-    breakpoints: Vec<u32>,
+    breakpoints: Vec<Breakpoint>,
     /// Le point d'arrêt où l'on vient de s'arrêter : l'instruction qui s'y trouve s'exécute au prochain `run`.
     resume_from: Option<u32>,
     /// Échantillons du profil d'exécution : `None` tant qu'il n'est pas lancé, sinon le nombre de fois où chaque
@@ -261,22 +329,46 @@ impl Emulator {
 
     /// Pose un point d'arrêt : `run` s'interrompt avant d'exécuter l'instruction à cette adresse.
     pub fn add_breakpoint(&mut self, address: u32) {
+        self.add_conditional_breakpoint(address, None);
+    }
+
+    /// Pose un point d'arrêt qui n'arrête l'exécution que si la condition est vérifiée ; en reposer un à la même adresse
+    /// remplace le précédent (et sa condition).
+    pub fn add_conditional_breakpoint(&mut self, address: u32, condition: Option<Condition>) {
         let address = address & !1;
-        if !self.breakpoints.contains(&address) {
-            self.breakpoints.push(address);
-        }
+        self.breakpoints.retain(|b| b.address != address);
+        self.breakpoints.push(Breakpoint { address, condition });
     }
 
     /// Retire un point d'arrêt ; faux s'il n'existait pas.
     pub fn remove_breakpoint(&mut self, address: u32) -> bool {
         let before = self.breakpoints.len();
-        self.breakpoints.retain(|&a| a != address & !1);
+        self.breakpoints.retain(|b| b.address != address & !1);
         self.breakpoints.len() != before
     }
 
     /// Les points d'arrêt posés.
-    pub fn breakpoints(&self) -> &[u32] {
+    pub fn breakpoints(&self) -> &[Breakpoint] {
         &self.breakpoints
+    }
+
+    /// Valeur d'un registre de cœur par son numéro (0 à 15).
+    fn register(&self, number: u8) -> u32 {
+        match number {
+            0..=12 => self.cpu.regs.r[usize::from(number)],
+            13 => self.cpu.regs.sp,
+            14 => self.cpu.regs.lr,
+            _ => self.cpu.regs.pc,
+        }
+    }
+
+    /// Un point d'arrêt à `pc` s'applique-t-il ?
+    fn breakpoint_hits(&self, pc: u32) -> bool {
+        self.breakpoints.iter().any(|b| {
+            b.address == pc
+                && b.condition
+                    .is_none_or(|c| c.compare.test(self.register(c.register), c.value))
+        })
     }
 
     /// Lance (ou relance, en repartant de zéro) le profil d'exécution : l'adresse de l'instruction en cours est relevée toutes
@@ -344,7 +436,7 @@ impl Emulator {
             if stepwise {
                 let pc = self.cpu.regs.pc;
                 // Le point d'arrêt où l'on s'est arrêté ne s'applique pas deux fois de suite à la même instruction.
-                if self.resume_from.take() != Some(pc) && self.breakpoints.contains(&pc) {
+                if self.resume_from.take() != Some(pc) && self.breakpoint_hits(pc) {
                     self.resume_from = Some(pc);
                     return RunStop::Breakpoint { pc };
                 }

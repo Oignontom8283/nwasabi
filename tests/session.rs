@@ -479,6 +479,64 @@ fn a_fault_fills_the_fault_registers_like_the_processor_would() {
 }
 
 #[test]
+fn a_conditional_breakpoint_only_stops_when_its_condition_holds() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    // movs r0, #0 ; adds r0, #1 ; b (retour sur le `adds`) : r0 compte les tours.
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"002001 30fde7"}"#
+            .replace(' ', "")
+            .as_str(),
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"pc","value":"0x20020000"}"#,
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"break","address":"0x20020004","condition":{"register":"r0","op":"==","value":3}}"#,
+    );
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_eq!(
+        stop_pc(&ran),
+        ("breakpoint".to_string(), 0x2002_0004),
+        "{ran}"
+    );
+    let cpu = ok(&mut s, r#"{"cmd":"cpu"}"#);
+    assert_eq!(
+        cpu.get("r").and_then(Value::as_array).unwrap()[0].as_i64(),
+        Some(3)
+    );
+    let breaks = ok(&mut s, r#"{"cmd":"breaks"}"#);
+    let details = breaks.get("details").and_then(Value::as_array).unwrap();
+    let condition = details[0].get("condition").unwrap();
+    assert_eq!(
+        condition.get("register").and_then(Value::as_str),
+        Some("r0")
+    );
+    assert_eq!(condition.get("op").and_then(Value::as_str), Some("=="));
+    assert!(
+        error(
+            &mut s,
+            r#"{"cmd":"break","address":1,"condition":{"register":"r0","op":"~","value":1}}"#
+        )
+        .contains("comparaison inconnue")
+    );
+    assert!(
+        error(
+            &mut s,
+            r#"{"cmd":"break","address":1,"condition":{"register":"rr","op":"==","value":1}}"#
+        )
+        .contains("registre inconnu")
+    );
+}
+
+#[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);
