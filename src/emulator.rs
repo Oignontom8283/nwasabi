@@ -128,6 +128,8 @@ pub struct Emulator {
     /// Échantillons du profil d'exécution : `None` tant qu'il n'est pas lancé, sinon le nombre de fois où chaque
     /// adresse était celle de l'instruction en cours à l'arrêt d'une tranche.
     profile: Option<HashMap<u32, u64>>,
+    /// Adresse de l'instruction fautive de la dernière faute.
+    pub last_fault_pc: u32,
 }
 
 /// Le fichier `.nwa` installé et ses données externes, tels que donnés.
@@ -160,6 +162,7 @@ impl Emulator {
             breakpoints: Vec::new(),
             resume_from: None,
             profile: None,
+            last_fault_pc: 0,
         })
     }
 
@@ -299,8 +302,21 @@ impl Emulator {
         self.run(1)
     }
 
-    /// Exécute au plus `max_instructions` instructions de l'application.
+    /// Exécute au plus `max_instructions` instructions de l'application. Une faute retient l'adresse de l'instruction fautive
+    /// (`last_fault_pc`).
     pub fn run(&mut self, max_instructions: u64) -> RunStop {
+        let stop = self.run_inner(max_instructions);
+        if let RunStop::Fault(fault) = &stop {
+            self.last_fault_pc = match fault {
+                Fault::Bus(_) => self.cpu.fault_pc,
+                Fault::Unimplemented { pc, .. } | Fault::UsageFault { pc, .. } => *pc,
+                _ => self.cpu.regs.pc,
+            };
+        }
+        stop
+    }
+
+    fn run_inner(&mut self, max_instructions: u64) -> RunStop {
         if self.kernel.keyboard.exit_requested() {
             self.kernel.keyboard.clear_exit_request();
             return RunStop::HomePressed;
@@ -357,7 +373,11 @@ impl Emulator {
                 Some(KernelStop::Exited(code)) => RunStop::Exited(code),
                 Some(KernelStop::Reset) => RunStop::Reset,
                 Some(KernelStop::HomePressed) => RunStop::HomePressed,
-                Some(KernelStop::BusFault(f)) => RunStop::Fault(Fault::Bus(f)),
+                Some(KernelStop::BusFault(f)) => {
+                    // L'accès vient d'un appel système : l'instruction fautive est le `svc`, juste avant `pc`.
+                    self.cpu.fault_pc = self.cpu.regs.pc.wrapping_sub(2);
+                    RunStop::Fault(Fault::Bus(f))
+                }
                 Some(KernelStop::UnknownSvc(n)) => RunStop::Fault(Fault::UnknownSvc(n)),
                 None => RunStop::Budget,
             },

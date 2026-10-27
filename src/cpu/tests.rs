@@ -503,3 +503,20 @@ fn an_exception_clears_the_exclusive_monitor() {
     cpu.take_exception(&mut bus, 11).unwrap();
     assert_eq!(cpu.exclusive, None);
 }
+
+#[test]
+fn a_refused_memory_access_remembers_the_faulting_instruction() {
+    // movs r2, #1 ; ldr r1, [r0] avec r0 hors de la mémoire
+    let (cpu, _, stop) = run(&[0x2201, 0x6801], |c| c.regs.r[0] = 0xffff_0000, 5);
+    assert!(matches!(stop, Stop::BusFault(_)), "{stop:?}");
+    assert_eq!(
+        cpu.fault_pc,
+        START + 2,
+        "l'instruction fautive est le `ldr`"
+    );
+    assert_eq!(
+        cpu.regs.pc,
+        START + 4,
+        "l'exécution reprendrait à l'instruction suivante"
+    );
+}

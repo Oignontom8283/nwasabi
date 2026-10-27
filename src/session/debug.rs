@@ -1,11 +1,20 @@
 //! Aides au débogage : noms de fonctions et pile d'appels.
 
 use crate::cpu::{Instr, decode16, decode32, is_32bit};
-use crate::emulator::Emulator;
+use crate::emulator::{Emulator, RunStop};
 use crate::json::{Value, ValueExt};
 
 /// Nombre maximal de mots de pile examinés.
 const MAX_WORDS: u32 = 8192;
+
+/// La description d'un arrêt, avec l'adresse de l'instruction fautive (`pc`) pour une faute.
+pub fn stop_json(emu: &Emulator, stop: &RunStop) -> Value {
+    let mut v = super::views::stop(stop);
+    if matches!(stop, RunStop::Fault(_)) && v.get("pc").is_none() {
+        v.set("pc", Value::from(emu.last_fault_pc));
+    }
+    v
+}
 
 /// « fonction+0x10 » pour une adresse du code, ou `None`.
 pub fn symbol_text(emu: &Emulator, address: u32) -> Option<String> {

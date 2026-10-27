@@ -138,6 +138,9 @@ impl Cpu {
         if ctx.in_it && !is_it {
             self.regs.advance_it();
         }
+        if matches!(outcome, Err(Stop::BusFault(_))) {
+            self.fault_pc = addr;
+        }
         outcome
     }
 
