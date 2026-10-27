@@ -233,7 +233,23 @@ impl Kernel {
 
 impl Hooks for Kernel {
     fn on_svc<B: Bus>(&mut self, imm8: u8, cpu: &mut Cpu, bus: &mut B) -> SvcAction {
-        match self.handle(imm8, cpu, bus) {
+        let entry = self.svc_log.is_some().then(|| {
+            let r = &cpu.regs;
+            // `pc` a déjà avancé de 2 octets : l'instruction est juste avant.
+            (r.pc.wrapping_sub(2), [r.r[0], r.r[1], r.r[2], r.r[3]])
+        });
+        let result = self.handle(imm8, cpu, bus);
+        if let (Some((pc, args)), Some(log)) = (entry, self.svc_log.as_mut()) {
+            log.push(super::SvcCall {
+                seq: 0,
+                number: imm8,
+                pc,
+                args,
+                ret: cpu.regs.r[0],
+                frame: self.frames,
+            });
+        }
+        match result {
             Ok(action) => action,
             Err(fault) => self.stop_with(KernelStop::BusFault(fault)),
         }

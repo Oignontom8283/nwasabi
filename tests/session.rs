@@ -377,6 +377,54 @@ fn the_profile_counts_where_the_time_goes() {
 }
 
 #[test]
+fn system_calls_are_logged_with_their_arguments_on_demand() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    assert_eq!(
+        ok(&mut s, r#"{"cmd":"svc_log"}"#).get("running"),
+        Some(&Value::Bool(false))
+    );
+    ok(&mut s, r#"{"cmd":"svc_log","action":"start"}"#);
+    ok(&mut s, r#"{"cmd":"run","frames":3}"#);
+    let log = ok(&mut s, r#"{"cmd":"svc_log"}"#);
+    let calls = log.get("calls").and_then(Value::as_array).unwrap();
+    assert!(calls.len() >= 3, "{log}");
+    // L'application attend la synchronisation verticale (21) et lit le clavier (34).
+    let numbers: Vec<i64> = calls
+        .iter()
+        .map(|c| c.get("svc").and_then(Value::as_i64).unwrap())
+        .collect();
+    assert!(
+        numbers.contains(&21) && numbers.contains(&34),
+        "{numbers:?}"
+    );
+    assert!(
+        calls[0]
+            .get("args")
+            .and_then(Value::as_array)
+            .unwrap()
+            .len()
+            == 4
+    );
+    // « since » ne rend que les appels plus récents.
+    let total = log.get("total").and_then(Value::as_i64).unwrap();
+    let later = ok(&mut s, &format!(r#"{{"cmd":"svc_log","since":{total}}}"#));
+    assert!(
+        later
+            .get("calls")
+            .and_then(Value::as_array)
+            .unwrap()
+            .is_empty()
+    );
+    ok(&mut s, r#"{"cmd":"svc_log","action":"stop"}"#);
+    assert!(error(&mut s, r#"{"cmd":"svc_log","action":"nope"}"#).contains("action inconnue"));
+}
+
+#[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
     ok(&mut s, r#"{"cmd":"new"}"#);

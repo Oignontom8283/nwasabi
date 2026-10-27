@@ -14,7 +14,7 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `svc_log`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod debug;
@@ -231,6 +231,7 @@ impl Session {
                     "watch_list",
                     "watch_hits",
                     "svc_stats",
+                    "svc_log",
                     "fs_list",
                     "fs_stats",
                     "fs_read",
@@ -609,6 +610,56 @@ impl Session {
                         })
                         .collect::<Vec<_>>(),
                 ))
+            }
+            "svc_log" => {
+                let action = req.get("action").and_then(Value::as_str).unwrap_or("get");
+                let since = req
+                    .get("since")
+                    .and_then(Value::as_u32)
+                    .map_or(0, u64::from);
+                let kernel = &mut self.emu()?.kernel;
+                match action {
+                    "start" => kernel.svc_log = Some(crate::kernel::SvcLog::default()),
+                    "stop" => kernel.svc_log = None,
+                    "clear" => {
+                        if let Some(log) = kernel.svc_log.as_mut() {
+                            log.calls.clear();
+                        }
+                    }
+                    "get" => {}
+                    other => {
+                        return Err(format!(
+                            "action inconnue : {other} (start, stop, clear, get)"
+                        ));
+                    }
+                }
+                let (running, total, calls) = match &kernel.svc_log {
+                    Some(log) => (
+                        true,
+                        log.total,
+                        log.calls
+                            .iter()
+                            .filter(|c| c.seq >= since)
+                            .map(|c| {
+                                Value::object()
+                                    .with("seq", c.seq)
+                                    .with("svc", u32::from(c.number))
+                                    .with("pc", c.pc)
+                                    .with(
+                                        "args",
+                                        c.args.iter().map(|&a| Value::from(a)).collect::<Vec<_>>(),
+                                    )
+                                    .with("ret", c.ret)
+                                    .with("frame", c.frame)
+                            })
+                            .collect::<Vec<_>>(),
+                    ),
+                    None => (false, 0, Vec::new()),
+                };
+                Ok(Value::object()
+                    .with("running", running)
+                    .with("total", total)
+                    .with("calls", calls))
             }
             "svc_stats" => {
                 let emu = self.emu()?;
