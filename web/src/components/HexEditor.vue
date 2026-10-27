@@ -515,6 +515,26 @@ async function inspect() {
   inspector.value = { address: sel.start, length: sel.end - sel.start + 1, columns };
 }
 watch([cursor, anchor, bytes, bigEndian, () => state.revision], inspect);
+
+// Suivre un pointeur : si le mot de 32 bits sous la sélection ressemble à une adresse de la mémoire, on propose d'y aller ;
+// « Retour » revient d'où l'on est parti (une pile de positions).
+const pointer = computed(() => {
+  const column = inspector.value?.columns.find((c) => c.id === "u32");
+  if (!column || column.dec === NONE) return null;
+  const target = Number(column.dec);
+  return regionOf(target) >= 0 && target >= 0x1000 ? target : null;
+});
+const trail = ref<number[]>([]);
+async function followPointer() {
+  const target = pointer.value;
+  const here = selection.value?.start;
+  if (target === null || here === undefined) return;
+  if (await goTo(target)) trail.value.push(here);
+}
+async function backFromPointer() {
+  const to = trail.value.pop();
+  if (to !== undefined) await goTo(to);
+}
 const exact = (c: Column, length: number) => c.size === length;
 const beyond = (c: Column, length: number) => c.size > length;
 </script>
@@ -559,6 +579,10 @@ const beyond = (c: Column, length: number) => c.size > length;
         <span v-if="inspector"><strong>{{ t("hex.inspectAt", { address: hex0x(inspector.address) }) }}</strong>
           <span class="muted"> · {{ t("hex.selected", { n: inspector.length }, inspector.length) }}</span></span>
         <span v-else class="muted">{{ t("hex.inspectNone") }}</span>
+        <span class="pointer">
+          <button v-if="pointer !== null" :title="t('hex.followHint')" @click="followPointer">{{ t("hex.follow", { address: hex0x(pointer) }) }}</button>
+          <button v-if="trail.length" :title="t('hex.backHint')" @click="backFromPointer">{{ t("hex.back") }}</button>
+        </span>
         <label class="endian"><input v-model="bigEndian" type="checkbox" data-keep-keys /> {{ t("hex.bigEndian") }}</label>
       </div>
       <div v-if="inspector" class="inspector-scroll">
@@ -666,6 +690,7 @@ const beyond = (c: Column, length: number) => c.size > length;
 .inspector { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; }
 .inspector-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: 12.5px; }
 .endian { font-family: system-ui, sans-serif; font-size: 12px; }
+.pointer { display: inline-flex; gap: 6px; margin-left: auto; margin-right: 10px; }
 .inspector-scroll { overflow-x: auto; }
 .inspector table { border-collapse: collapse; width: 100%; font-size: 12px; }
 .inspector th, .inspector td { padding: 3px 7px; text-align: right; white-space: nowrap; max-width: 13ch; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--line); }
