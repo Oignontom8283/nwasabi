@@ -607,6 +607,9 @@
     "pressMsInfo": "How long the key stays down for a brief gesture (tap, swipe, double tap), so the application has time to see it."
   },
   "settings": {
+    "screen": "Screen",
+    "backlight": "Backlight effect",
+    "backlightHint": "The screen darkens when the brightness goes down (set by the application, or “Brightness” below), down to barely readable. Screenshots and GIFs keep the original colors.",
     "speed": "Processor speed",
     "speedHelp": "The model sets the real frequency (192 or 540 MHz); “unlimited” runs the app as fast as possible, paced by the 60 frames per second.",
     "speedMode": "Mode",

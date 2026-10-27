@@ -607,6 +607,9 @@
     "pressMsInfo": "Durée pendant laquelle la touche reste enfoncée pour un geste bref (appui, balayage, double appui), pour que l'application ait le temps de la voir."
   },
   "settings": {
+    "screen": "Écran",
+    "backlight": "Effet de rétroéclairage",
+    "backlightHint": "L'écran s'assombrit quand la luminosité baisse (réglage de l'application, ou « Luminosité » plus bas), jusqu'à rester à peine lisible. Les captures et les GIF gardent les couleurs d'origine.",
     "speed": "Vitesse du processeur",
     "speedHelp": "Le modèle fixe la fréquence réelle (192 ou 540 MHz) ; « sans limite » exécute l'application au plus vite, rythmée par les 60 images par seconde.",
     "speedMode": "Mode",

@@ -84,6 +84,15 @@ watch(() => state.revision, load);
     </section>
 
     <section>
+      <h2>{{ t("settings.screen") }}</h2>
+      <div class="row" :title="t('settings.backlightHint')">
+        <label for="backlight">{{ t("settings.backlight") }}</label>
+        <input id="backlight" v-model="ui.backlight" type="checkbox" />
+      </div>
+      <p class="muted help">{{ t("settings.backlightHint") }}</p>
+    </section>
+
+    <section>
       <h2>{{ t("settings.speed") }}</h2>
       <p class="muted help">{{ t("settings.speedHelp") }}</p>
       <div class="row">

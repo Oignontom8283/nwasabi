@@ -16,6 +16,8 @@ export const ui = reactive({
   tab: remember.get<string>("nwasabi.tab", "files"),
   /** Recharger tout seul ce que le serveur donne quand le fichier change sur le disque ? */
   autoReload: remember.get("nwasabi.autoReload", false),
+  /** Assombrir l'écran selon la luminosité réglée par l'application (rétroéclairage) ? */
+  backlight: remember.get("nwasabi.backlight", true),
   /** Écran agrandi (sans la calculatrice autour, mais pas en plein écran) ? */
   large: remember.get("nwasabi.large", false),
   /** Écran en plein écran ? */
@@ -57,6 +59,7 @@ export function panelPixels() {
 }
 watch(() => ui.miniVisible, (v) => remember.set("nwasabi.miniVisible", v));
 watch(() => ui.autoReload, (v) => remember.set("nwasabi.autoReload", v));
+watch(() => ui.backlight, (v) => remember.set("nwasabi.backlight", v));
 watch(() => ui.large, (v) => remember.set("nwasabi.large", v));
 watch(() => ui.tab, (v) => remember.set("nwasabi.tab", v));
 watch(

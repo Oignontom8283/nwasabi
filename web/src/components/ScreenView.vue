@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useEmu } from "../emulator.js";
-import { inject, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { notify, recording, screenApi, ui, usePick } from "../ui.js";
-import { download, stem } from "../util.js";
+import { download, poll, stem } from "../util.js";
 import Icon from "./Icon.vue";
 
 const { t } = useI18n();
@@ -14,11 +14,21 @@ const wrap = ref<HTMLElement | null>(null);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const showClose = ref(false);
 const over = ref(false); // un fichier est glissé au-dessus de la zone de dépôt
+/** Luminosité réglée (0 à 240, par pas de 16) : l'application et les Réglages la modifient. */
+const brightness = ref(240);
+let stopBrightness = () => {};
+// Une luminosité nulle laisse l'écran à peine lisible, comme sur l'appareil, au lieu de le noircir tout à fait.
+const screenFilter = computed(() => (ui.backlight ? `brightness(${(0.2 + 0.8 * (brightness.value / 240)).toFixed(3)})` : "none"));
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 onMounted(() => {
   if (canvas.value && wrap.value) emulator.attach(canvas.value, wrap.value);
   document.addEventListener("fullscreenchange", onChange);
+  stopBrightness = poll(async () => {
+    if (!state.loaded || !ui.backlight) return;
+    const reply = await emulator.quiet({ cmd: "settings_get" });
+    if (reply.ok) brightness.value = Number(reply.brightness);
+  }, 500);
   screenApi.toggleFullscreen = toggle;
   screenApi.exitFullscreen = exit;
   screenApi.capture = capture;
@@ -28,6 +38,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", onChange);
   clearTimeout(hideTimer);
+  stopBrightness();
 });
 
 function onChange() {
@@ -87,7 +98,7 @@ async function toggleRecording() {
 
 <template>
   <div ref="wrap" class="screen-wrap" :class="{ full: ui.fullscreen }" @pointermove="onMove">
-    <canvas ref="canvas" width="320" height="240" role="img" :aria-label="t('screen.label')" />
+    <canvas ref="canvas" width="320" height="240" role="img" :aria-label="t('screen.label')" :style="{ filter: screenFilter }" />
     <div
       v-if="!state.loaded && !ui.fullscreen"
       class="drop"
