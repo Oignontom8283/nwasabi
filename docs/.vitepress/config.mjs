@@ -31,12 +31,16 @@ const emulatorIndex = {
 
 export default defineConfig({
   lang: "fr",
-  title: "nwasabi",
+  title: "Nwasabi",
   description: "Émulateur d'applications externes NumWorks (.nwa) en Rust et WebAssembly",
   base,
   cleanUrls: true,
   vite: { plugins: [emulatorIndex] },
+  // Les logos sont ceux de `assets/logo/` : `just docs-emulator` les copie dans `public/` (VitePress ne sert que ce dossier).
+  // L'icône de l'onglet est la version à fond arrondi ; le logo de la barre et de l'accueil, la version sans fond.
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo-bordered.svg` }]],
   themeConfig: {
+    logo: "/logo.svg",
     nav: [
       { text: "Émulateur", link: "/emulator/", target: "_self" },
       { text: "Interface", link: "/interface" },

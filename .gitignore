@@ -35,8 +35,10 @@ local/
 example/js
 example/nwasabi.wasm
 
-# Site vitrine (docs/) : dépendances, sorties de VitePress et émulateur copié par `just site`.
+# Site vitrine (docs/) : dépendances, sorties de VitePress, émulateur et logos copiés par `just docs-emulator`.
 docs/public/emulator
+docs/public/logo.svg
+docs/public/logo-bordered.svg
 
 # Paquets npm : le module .wasm n'est copié que pour publier.
 packages/wasm/nwasabi.wasm

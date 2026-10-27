@@ -164,8 +164,9 @@ fn build_site(manifest: &Path, out: &Path, wasm: &Path, dist: &Path) -> Result<(
         copy_site_sources(&manifest.join(dir), &work.join(dir))?;
     }
     let _ = fs::remove_dir_all(work.join("assets"));
-    // Les icônes de l'interface (`web/src/components/Icon.vue` les lit à cet emplacement relatif).
+    // Les icônes et le logo de l'interface (`Icon.vue`, `Logo.vue` et `index.html` les lisent à cet emplacement relatif).
     copy_site_sources(&manifest.join("assets/icons"), &work.join("assets/icons"))?;
+    copy_site_sources(&manifest.join("assets/logo"), &work.join("assets/logo"))?;
     if !work.join("node_modules").exists() {
         run(
             npm()
@@ -234,6 +235,7 @@ fn main() {
         "web/vite.config.ts",
         "web/tsconfig.json",
         "assets/icons",
+        "assets/logo",
         "web/package.json",
         "packages/js/src",
         "packages/js/package.json",

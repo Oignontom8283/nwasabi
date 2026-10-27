@@ -70,6 +70,7 @@ alias web := emulator
 # Place l'émulateur (compilé en release) dans le site de documentation, à l'adresse /emulator/.
 [private]
 docs-emulator: build-emulator
+    @mkdir -p docs/public && for f in logo logo-bordered; do cmp -s assets/logo/$f.svg docs/public/$f.svg || cp assets/logo/$f.svg docs/public/$f.svg; done
     @if [ ! -f docs/public/emulator/index.html ] || [ web/dist/index.html -nt docs/public/emulator/index.html ]; then rm -rf docs/public/emulator && mkdir -p docs/public && cp -r web/dist docs/public/emulator; else echo "émulateur déjà dans la documentation"; fi
 
 # `SITE_BASE=/nwasabi/ just build-docs` pour un site publié dans un sous-dossier. Construit le site statique complet (VitePress + émulateur à /emulator/) dans docs/.vitepress/dist.

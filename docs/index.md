@@ -9,8 +9,11 @@ head:
     - "if (new URLSearchParams(location.search).has('nwa')) location.replace('./emulator/' + location.search + location.hash)"
 
 hero:
-  name: nwasabi
+  name: Nwasabi
   text: Émulateur d'applications NumWorks
+  image:
+    src: /logo.svg
+    alt: Logo de nwasabi
   tagline: Exécutez vos applications externes (.nwa) dans le navigateur, avec un processeur ARM émulé en Rust et WebAssembly.
   actions:
     - theme: brand
