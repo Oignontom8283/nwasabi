@@ -650,9 +650,9 @@ impl Bridge {
     /// Côté débogueur : envoie une commande à la page et attend sa réponse.
     fn exchange(&self, request: &str) -> String {
         let mut state = self.lock();
-        if !state
+        if state
             .last_poll
-            .is_some_and(|t| t.elapsed() < ATTACH_TIMEOUT)
+            .is_none_or(|t| t.elapsed() >= ATTACH_TIMEOUT)
         {
             return Self::error(
                 "la page de l'émulateur n'accepte pas de débogueur (activez-le dans l'onglet Débogage)",
