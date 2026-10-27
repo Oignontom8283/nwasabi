@@ -14,7 +14,7 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod views;
@@ -216,6 +216,11 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "step",
+                    "break",
+                    "unbreak",
+                    "breaks",
+                    "cpu_set",
                     "disasm",
                     "watch_list",
                     "watch_hits",
@@ -243,6 +248,65 @@ impl Session {
             }
             "run" => self.run(req),
             "key" => self.key(req),
+            "step" => {
+                let emu = self.emu()?;
+                if emu.app().is_none() {
+                    return Err("aucune application installée".to_owned());
+                }
+                let start = emu.cpu.cycles;
+                let mut stop = emu.step();
+                // Une instruction qui endort l'application (`usleep`…) se refait tant que le temps n'a pas passé :
+                // pour qu'un pas la fasse vraiment avancer, on laisse passer le temps demandé et on la refait.
+                for _ in 0..8 {
+                    let RunStop::Sleep { ms } = stop else { break };
+                    emu.kernel.advance_time(u64::from(ms) * 1000);
+                    stop = emu.step();
+                }
+                Ok(Value::object()
+                    .with("stop", views::stop(&stop))
+                    .with("instructions", emu.cpu.cycles - start)
+                    .with("time_ms", emu.time_us() / 1000))
+            }
+            "break" => {
+                let address = number(req, "address")?;
+                self.emu()?.add_breakpoint(address);
+                Ok(Value::object())
+            }
+            "unbreak" => {
+                let address = number(req, "address")?;
+                let removed = self.emu()?.remove_breakpoint(address);
+                Ok(Value::object().with("removed", removed))
+            }
+            "breaks" => Ok(Value::object().with(
+                "breakpoints",
+                self.emu()?
+                    .breakpoints()
+                    .iter()
+                    .map(|&a| Value::from(a))
+                    .collect::<Vec<_>>(),
+            )),
+            "cpu_set" => {
+                let name = text(req, "register")?.to_ascii_lowercase();
+                let value = number(req, "value")?;
+                let r = &mut self.emu()?.cpu.regs;
+                match name.as_str() {
+                    "sp" => r.sp = value & !3,
+                    "lr" => r.lr = value,
+                    "pc" => r.pc = value & !1,
+                    "xpsr" => r.xpsr = value,
+                    other => {
+                        let index = other
+                            .strip_prefix('r')
+                            .and_then(|n| n.parse::<usize>().ok())
+                            .filter(|&n| n < r.r.len())
+                            .ok_or_else(|| {
+                                format!("registre inconnu : {other} (r0 à r12, sp, lr, pc, xpsr)")
+                            })?;
+                        r.r[index] = value;
+                    }
+                }
+                Ok(Value::object())
+            }
             "advance" => {
                 // `us` (microsecondes) ou `ms` : le temps à faire passer pour l'application.
                 let us = match req.get("us") {
@@ -284,6 +348,7 @@ impl Session {
                     .with("pc", r.pc)
                     .with("xpsr", r.xpsr)
                     .with("fpscr", r.fpscr)
+                    .with("s", r.s.iter().map(|&v| Value::from(v)).collect::<Vec<_>>())
                     .with("instructions", emu.cpu.cycles))
             }
             "inspect" => {

@@ -64,6 +64,10 @@ pub enum RunStop {
     Budget,
     /// Un point d'observation « avec arrêt » a été touché (voir `Memory::watch`).
     Watchpoint(WatchHit),
+    /// L'exécution est arrivée à une instruction où l'hôte a posé un point d'arrêt (pas encore exécutée).
+    Breakpoint {
+        pc: u32,
+    },
     Fault(Fault),
 }
 
@@ -112,6 +116,10 @@ pub struct Emulator {
     app: Option<LinkedApp>,
     /// Les octets donnés à [`Emulator::install_nwa`] (pour enregistrer l'état, voir `snapshot`).
     source: Option<AppSource>,
+    /// Adresses où l'exécution s'arrête avant l'instruction (voir [`Emulator::add_breakpoint`]).
+    breakpoints: Vec<u32>,
+    /// Le point d'arrêt où l'on vient de s'arrêter : l'instruction qui s'y trouve s'exécute au prochain `run`.
+    resume_from: Option<u32>,
 }
 
 /// Le fichier `.nwa` installé et ses données externes, tels que donnés.
@@ -141,6 +149,8 @@ impl Emulator {
             storage,
             app: None,
             source: None,
+            breakpoints: Vec::new(),
+            resume_from: None,
         })
     }
 
@@ -219,6 +229,32 @@ impl Emulator {
         self.kernel.micros(self.cpu.cycles)
     }
 
+    /// Pose un point d'arrêt : `run` s'interrompt avant d'exécuter l'instruction à cette adresse.
+    pub fn add_breakpoint(&mut self, address: u32) {
+        let address = address & !1;
+        if !self.breakpoints.contains(&address) {
+            self.breakpoints.push(address);
+        }
+    }
+
+    /// Retire un point d'arrêt ; faux s'il n'existait pas.
+    pub fn remove_breakpoint(&mut self, address: u32) -> bool {
+        let before = self.breakpoints.len();
+        self.breakpoints.retain(|&a| a != address & !1);
+        self.breakpoints.len() != before
+    }
+
+    /// Les points d'arrêt posés.
+    pub fn breakpoints(&self) -> &[u32] {
+        &self.breakpoints
+    }
+
+    /// Exécute une seule instruction, même si un point d'arrêt y est posé.
+    pub fn step(&mut self) -> RunStop {
+        self.resume_from = Some(self.cpu.regs.pc);
+        self.run(1)
+    }
+
     /// Exécute au plus `max_instructions` instructions de l'application.
     pub fn run(&mut self, max_instructions: u64) -> RunStop {
         if self.kernel.keyboard.exit_requested() {
@@ -227,13 +263,22 @@ impl Emulator {
         }
         // Avec un point d'observation, on avance instruction par instruction : pour s'arrêter juste après
         // l'accès (point qui interrompt) et pour savoir quelle instruction l'a fait (adresse notée).
-        let stepwise = self.device.memory.is_watching();
+        let stepwise = self.device.memory.is_watching() || !self.breakpoints.is_empty();
+        if !stepwise {
+            self.resume_from = None;
+        }
         let mut stop = Stop::Budget;
         let mut left = max_instructions;
         while left > 0 {
             let chunk = if stepwise { 1 } else { left };
             if stepwise {
-                self.device.memory.set_watch_pc(self.cpu.regs.pc);
+                let pc = self.cpu.regs.pc;
+                // Le point d'arrêt où l'on s'est arrêté ne s'applique pas deux fois de suite à la même instruction.
+                if self.resume_from.take() != Some(pc) && self.breakpoints.contains(&pc) {
+                    self.resume_from = Some(pc);
+                    return RunStop::Breakpoint { pc };
+                }
+                self.device.memory.set_watch_pc(pc);
             }
             stop = self
                 .cpu

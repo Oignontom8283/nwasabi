@@ -215,6 +215,75 @@ fn code_in_memory_is_disassembled_with_the_instructions_before() {
     );
 }
 
+fn stop_pc(reply: &Value) -> (String, i64) {
+    let stop = reply.get("stop").unwrap();
+    (
+        stop.get("kind")
+            .and_then(Value::as_str)
+            .unwrap()
+            .to_string(),
+        stop.get("pc").and_then(Value::as_i64).unwrap_or(-1),
+    )
+}
+
+fn pc(s: &mut Session) -> i64 {
+    ok(s, r#"{"cmd":"cpu"}"#)
+        .get("pc")
+        .and_then(Value::as_i64)
+        .unwrap()
+}
+
+#[test]
+fn breakpoints_stop_before_the_instruction_and_steps_move_one_instruction() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    let entry = pc(&mut s);
+    ok(&mut s, &format!(r#"{{"cmd":"break","address":{entry}}}"#));
+    let breaks = ok(&mut s, r#"{"cmd":"breaks"}"#);
+    assert_eq!(
+        breaks
+            .get("breakpoints")
+            .and_then(Value::as_array)
+            .unwrap()
+            .len(),
+        1
+    );
+    // On s'arrête avant même la première instruction ; relancer la fait exécuter (pas de nouvel arrêt au même endroit).
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_eq!(stop_pc(&ran), ("breakpoint".to_string(), entry));
+    assert_eq!(pc(&mut s), entry);
+    let ran = ok(&mut s, r#"{"cmd":"run","instructions":1000}"#);
+    assert_ne!(stop_pc(&ran).0, "breakpoint", "{ran}");
+    assert_ne!(pc(&mut s), entry);
+    // Un pas exécute exactement une instruction, même sur un point d'arrêt.
+    ok(&mut s, r#"{"cmd":"launch"}"#);
+    assert_eq!(pc(&mut s), entry);
+    let stepped = ok(&mut s, r#"{"cmd":"step"}"#);
+    assert_eq!(stepped.get("instructions").and_then(Value::as_i64), Some(1));
+    assert_ne!(pc(&mut s), entry);
+    // Retirer le point d'arrêt.
+    let removed = ok(&mut s, &format!(r#"{{"cmd":"unbreak","address":{entry}}}"#));
+    assert_eq!(removed.get("removed"), Some(&Value::Bool(true)));
+    // Registres modifiables.
+    ok(
+        &mut s,
+        r#"{"cmd":"cpu_set","register":"r3","value":"0xdeadbeef"}"#,
+    );
+    let cpu = ok(&mut s, r#"{"cmd":"cpu"}"#);
+    assert_eq!(
+        cpu.get("r").and_then(Value::as_array).unwrap()[3].as_i64(),
+        Some(0xdead_beef)
+    );
+    assert!(
+        error(&mut s, r#"{"cmd":"cpu_set","register":"r99","value":1}"#)
+            .contains("registre inconnu")
+    );
+}
+
 #[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();
