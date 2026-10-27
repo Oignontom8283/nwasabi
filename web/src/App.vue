@@ -23,6 +23,8 @@ import { applyTheme, isNarrow, notice, panelPixels, recording, screenApi, TABS, 
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
+import { SHORTCUTS, shortcutOf } from "./shortcuts.js";
+import type { ShortcutId } from "./shortcuts.js";
 import type { PickKind } from "./ui.js";
 import { readBytes } from "./util.js";
 
@@ -198,6 +200,26 @@ async function loadFromServer() {
 // ---- clavier global, plein écran, onglet caché -----------------------------------------------------
 
 // En plein écran, Espace quitte et n'est jamais donné à l'application (même s'il est dans le mapping).
+/** Fait ce que dit le raccourci ; rend faux s'il n'y a rien à faire (alors la touche garde son effet habituel). */
+function runShortcut(id: ShortcutId): boolean {
+  const loaded = state.loaded;
+  switch (id) {
+    case "quickSave": void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") }); return true;
+    case "quickLoad": void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }); return true;
+    case "reload": if (!server.stale.length) return false; reload(); return true;
+    case "toggleRun": if (!loaded) return false; void (state.running ? emulator.stop() : emulator.start()); return true;
+    case "frame": if (!loaded || state.running) return false; void emulator.stepFrame(); return true;
+    case "restart": if (!loaded) return false; void emulator.restart(); return true;
+    case "capture": if (!loaded) return false; screenApi.capture(); return true;
+    case "copy": if (!loaded) return false; screenApi.copy(); return true;
+    case "gif": if (!loaded) return false; screenApi.toggleRecording(); return true;
+    case "fullscreen": if (!loaded) return false; screenApi.toggleFullscreen(); return true;
+    case "large": ui.large = !ui.large; return true;
+    case "panel": ui.panelOpen = !ui.panelOpen; return true;
+    default: return false;
+  }
+}
+
 function onKeyCapture(event: KeyboardEvent) {
   // Ctrl + K (ou Cmd + K) ouvre la palette de commandes.
   if ((event.ctrlKey || event.metaKey) && event.code === "KeyK") {
@@ -205,17 +227,12 @@ function onKeyCapture(event: KeyboardEvent) {
     if (event.type === "keydown") palette.value = !palette.value;
     return;
   }
-  // Ctrl + S enregistre l'état de l'émulation dans le navigateur, Ctrl + O le recharge.
-  if (event.altKey && event.type === "keydown" && (event.code === "KeyS" || event.code === "KeyL")) {
+  // Les raccourcis Ctrl + touche (voir `shortcuts.ts`).
+  const shortcut = event.type === "keydown" ? shortcutOf(event) : null;
+  if (shortcut && runShortcut(shortcut)) {
+    // La touche ne doit pas aussi presser la touche de la calculatrice qu'elle représente.
     event.preventDefault();
-    if (event.code === "KeyS") void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") });
-    else void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") });
-    return;
-  }
-  // Ctrl + R recharge les fichiers du serveur qui ont changé sur le disque.
-  if (event.altKey && event.code === "KeyR" && event.type === "keydown" && server.stale.length) {
-    event.preventDefault();
-    reload();
+    event.stopPropagation();
     return;
   }
   if (event.code === "Space" && document.fullscreenElement) {
@@ -298,17 +315,17 @@ const commands = computed((): Command[] => {
     { id: "open-state", label: t("palette.openState"), run: () => pick("state") },
     { id: "open-keys", label: t("palette.openKeys"), run: () => pick("keys") },
     { id: "open-files", label: t("palette.openFiles"), run: () => pick("files") },
-    { id: "pause", label: t("palette.pause"), enabled: loaded && state.running, run: () => emulator.stop() },
-    { id: "resume", label: t("palette.resume"), enabled: loaded && !state.running, run: () => emulator.start() },
-    { id: "restart", label: t("palette.restart"), enabled: loaded, run: () => void emulator.restart() },
-    { id: "frame", label: t("palette.frame"), enabled: loaded && !state.running, run: () => void emulator.stepFrame() },
-    { id: "capture", label: t("palette.capture"), enabled: loaded, run: () => screenApi.capture() },
-    { id: "copy", label: t("palette.copy"), enabled: loaded, run: () => screenApi.copy() },
-    { id: "gif", label: recording.on ? t("palette.gifStop") : t("palette.gif"), enabled: loaded, run: () => screenApi.toggleRecording() },
-    { id: "fullscreen", label: t("palette.fullscreen"), enabled: loaded, run: () => screenApi.toggleFullscreen() },
-    { id: "quick-save", label: t("palette.quickSave"), shortcut: "Ctrl + S", enabled: loaded, run: () => void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") }) },
-    { id: "quick-load", label: t("palette.quickLoad"), shortcut: "Ctrl + O", run: () => void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }) },
-    { id: "panel", label: ui.panelOpen ? t("palette.panelClose") : t("palette.panelOpen"), run: () => (ui.panelOpen = !ui.panelOpen) },
+    { id: "pause", label: t("palette.pause"), shortcut: SHORTCUTS.toggleRun, enabled: loaded && state.running, run: () => emulator.stop() },
+    { id: "resume", label: t("palette.resume"), shortcut: SHORTCUTS.toggleRun, enabled: loaded && !state.running, run: () => emulator.start() },
+    { id: "restart", label: t("palette.restart"), shortcut: SHORTCUTS.restart, enabled: loaded, run: () => void emulator.restart() },
+    { id: "frame", label: t("palette.frame"), shortcut: SHORTCUTS.frame, enabled: loaded && !state.running, run: () => void emulator.stepFrame() },
+    { id: "capture", label: t("palette.capture"), shortcut: SHORTCUTS.capture, enabled: loaded, run: () => screenApi.capture() },
+    { id: "copy", label: t("palette.copy"), shortcut: SHORTCUTS.copy, enabled: loaded, run: () => screenApi.copy() },
+    { id: "gif", label: recording.on ? t("palette.gifStop") : t("palette.gif"), enabled: loaded, shortcut: SHORTCUTS.gif, run: () => screenApi.toggleRecording() },
+    { id: "fullscreen", label: t("palette.fullscreen"), shortcut: SHORTCUTS.fullscreen, enabled: loaded, run: () => screenApi.toggleFullscreen() },
+    { id: "quick-save", label: t("palette.quickSave"), shortcut: SHORTCUTS.quickSave, enabled: loaded, run: () => void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") }) },
+    { id: "quick-load", label: t("palette.quickLoad"), shortcut: SHORTCUTS.quickLoad, run: () => void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }) },
+    { id: "panel", label: ui.panelOpen ? t("palette.panelClose") : t("palette.panelOpen"), shortcut: SHORTCUTS.panel, run: () => (ui.panelOpen = !ui.panelOpen) },
     ...TABS.map((id) => ({ id: `tab-${id}`, label: t("palette.goTab", { tab: t(`tabs.${id}`) }), run: go(id) })),
     { id: "theme", label: t("palette.theme"), run: () => (ui.theme = ui.theme === "dark" ? "light" : "dark") },
   ];

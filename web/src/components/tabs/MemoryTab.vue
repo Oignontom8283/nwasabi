@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { choiceDialog } from "../../dialogs.js";
 import { quick, quickLoad, quickSave } from "../../quicksave.js";
+import { keyed } from "../../shortcuts.js";
 import { download, formatBytes, hex0x, stem, poll, assignIfChanged } from "../../util.js";
 import Icon from "../Icon.vue";
 import HexEditor from "../HexEditor.vue";
@@ -93,8 +94,8 @@ async function saveState() {
         <p v-if="quick.savedAt" class="muted">{{ t("quick.last", { app: quick.appName || "—", when: new Date(quick.savedAt).toLocaleString(locale) }) }}</p>
       </div>
       <div class="quick-buttons">
-        <button :disabled="!state.loaded" :title="t('quick.saveHint')" @click="quickSave(emulator, { saved: t('quick.saved'), failed: t('quick.failed') })">{{ t("quick.save") }}</button>
-        <button :disabled="!quick.savedAt" :title="t('quick.loadHint')" @click="quickLoad(emulator, { loaded: t('quick.loaded'), none: t('quick.none'), failed: t('quick.failed') })">{{ t("quick.load") }}</button>
+        <button :disabled="!state.loaded" :title="keyed(t('quick.saveHint'), 'quickSave')" @click="quickSave(emulator, { saved: t('quick.saved'), failed: t('quick.failed') })">{{ t("quick.save") }}</button>
+        <button :disabled="!quick.savedAt" :title="keyed(t('quick.loadHint'), 'quickLoad')" @click="quickLoad(emulator, { loaded: t('quick.loaded'), none: t('quick.none'), failed: t('quick.failed') })">{{ t("quick.load") }}</button>
       </div>
     </section>
 

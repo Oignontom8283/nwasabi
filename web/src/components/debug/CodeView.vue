@@ -360,12 +360,12 @@ const flags = computed(() => {
       </div>
 
       <div class="bar" role="toolbar" :aria-label="t('debug.controls')">
-        <button class="primary" :title="state.running ? t('debug.pauseHint') : t('debug.resumeHint')" @click="state.running ? emulator.stop() : emulator.start()">
+        <button class="primary" :title="`${state.running ? t('debug.pauseHint') : t('debug.resumeHint')} (F5)`" @click="state.running ? emulator.stop() : emulator.start()">
           <Icon :name="state.running ? 'pause' : 'play'" :size="14" /> {{ state.running ? t("debug.pause") : t("debug.resume") }} <kbd>F5</kbd>
         </button>
-        <button :disabled="!paused" :title="t('debug.stepHint')" @click="step"><Icon name="step" :size="14" /> {{ t("debug.step") }} <kbd>F11</kbd></button>
-        <button :disabled="!paused" :title="t('debug.overHint')" @click="stepOver">{{ t("debug.over") }} <kbd>F10</kbd></button>
-        <button :disabled="!paused" :title="t('debug.outHint')" @click="stepOut">{{ t("debug.out") }} <kbd>Maj F11</kbd></button>
+        <button :disabled="!paused" :title="`${t('debug.stepHint')} (F11)`" @click="step"><Icon name="step" :size="14" /> {{ t("debug.step") }} <kbd>F11</kbd></button>
+        <button :disabled="!paused" :title="`${t('debug.overHint')} (F10)`" @click="stepOver">{{ t("debug.over") }} <kbd>F10</kbd></button>
+        <button :disabled="!paused" :title="`${t('debug.outHint')} (${t('debug.shiftF11')})`" @click="stepOut">{{ t("debug.out") }} <kbd>Maj F11</kbd></button>
         <form class="goto" @submit.prevent="goto">
           <input v-model="gotoText" class="mono" :placeholder="t('debug.goto')" :aria-label="t('debug.goto')" :title="t('debug.gotoHint')" data-keep-keys />
         </form>

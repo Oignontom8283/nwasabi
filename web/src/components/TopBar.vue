@@ -9,6 +9,7 @@ import type { PickKind, Theme } from "../ui.js";
 import { valueOf } from "../util.js";
 import type { Firmware, Model } from "@nwasabi/js";
 import { recent } from "../recent.js";
+import { keyed } from "../shortcuts.js";
 import Icon from "./Icon.vue";
 import Logo from "./Logo.vue";
 
@@ -84,12 +85,12 @@ onBeforeUnmount(() => {
       <option value="24">Epsilon 23–24</option>
       <option value="26.4.0">Epsilon 26.4.0</option>
     </select>
-    <button :disabled="!state.loaded" :title="state.running ? t('top.pauseHint') : t('top.resumeHint')" @click="state.running ? emulator.stop() : emulator.start()">
+    <button :disabled="!state.loaded" :title="keyed(state.running ? t('top.pauseHint') : t('top.resumeHint'), 'toggleRun')" @click="state.running ? emulator.stop() : emulator.start()">
       <Icon :name="state.running ? 'pause' : 'play'" :size="14" /> {{ state.running ? t("top.pause") : t("top.resume") }}
     </button>
-    <button :disabled="!state.loaded || state.running" :title="t('top.stepHint')" @click="emulator.stepFrame()"><Icon name="step" :size="14" /> {{ t("top.step") }}</button>
-    <button :disabled="!state.loaded" :title="t('top.restartHint')" @click="emulator.restart()"><Icon name="refresh" :size="14" /> {{ t("top.restart") }}</button>
-    <button v-if="server.stale.length" class="reload" :title="t('top.reloadHint')" @click="reload()"><Icon name="refresh" :size="14" /> {{ t("top.reload") }}</button>
+    <button :disabled="!state.loaded || state.running" :title="keyed(t('top.stepHint'), 'frame')" @click="emulator.stepFrame()"><Icon name="step" :size="14" /> {{ t("top.step") }}</button>
+    <button :disabled="!state.loaded" :title="keyed(t('top.restartHint'), 'restart')" @click="emulator.restart()"><Icon name="refresh" :size="14" /> {{ t("top.restart") }}</button>
+    <button v-if="server.stale.length" class="reload" :title="keyed(t('top.reloadHint'), 'reload')" @click="reload()"><Icon name="refresh" :size="14" /> {{ t("top.reload") }}</button>
     <button v-if="hasInfo" class="icon" :title="t('top.info')" :aria-label="t('top.info')" @click="emit('info')"><Icon name="info" :size="16" /></button>
 
     <div class="center" :class="{ idle: !state.appName }">
@@ -101,7 +102,7 @@ onBeforeUnmount(() => {
       <select :value="locale" :aria-label="t('top.language')" :title="t('top.language')" @change="(e: Event) => setLocale(valueOf(e))">
         <option v-for="[code, name] in LOCALES" :key="code" :value="code">{{ name }}</option>
       </select>
-      <button class="flat icon" :class="{ on: ui.large }" :title="t('top.large')" :aria-label="t('top.large')" :aria-pressed="ui.large" @click="ui.large = !ui.large"><Icon name="expand" :size="18" /></button>
+      <button class="flat icon" :class="{ on: ui.large }" :title="keyed(t('top.large'), 'large')" :aria-label="t('top.large')" :aria-pressed="ui.large" @click="ui.large = !ui.large"><Icon name="expand" :size="18" /></button>
       <button class="flat icon" :title="themeLabel" :aria-label="themeLabel" @click="nextTheme"><Icon :name="THEME_ICON[ui.theme]" :size="18" /></button>
       <button class="flat icon" :title="t('top.aboutWindow')" :aria-label="t('top.aboutWindow')" @click="emit('about')"><Icon name="license" :size="18" /></button>
       <a class="flat icon link" :href="REPO" target="_blank" rel="noopener noreferrer" :title="t('top.repo')" :aria-label="t('top.repo')"><Icon name="github" :size="18" /></a>

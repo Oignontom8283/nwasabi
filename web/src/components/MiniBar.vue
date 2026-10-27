@@ -3,6 +3,7 @@ import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { recording, screenApi, ui } from "../ui.js";
+import { keyed } from "../shortcuts.js";
 import { formatDuration } from "../util.js";
 import Icon from "./Icon.vue";
 
@@ -26,7 +27,7 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
 
 <template>
   <aside class="mini" :aria-label="t('mini.label')">
-    <button class="tools" :title="t('mini.openPanel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
+    <button class="tools" :title="keyed(t('mini.openPanel'), 'panel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
     <dl>
       <div :title="t('mini.statusHint')">
         <dt>{{ t("mini.status") }}</dt>
@@ -40,11 +41,11 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
       </div>
       <div v-if="state.stop?.kind === 'fault'" :title="t('mini.faultHint')" class="fault"><dt>{{ t("mini.fault") }}</dt><dd>{{ state.stop.fault }}</dd></div>
     </dl>
-    <button :disabled="!state.loaded" :title="t('mini.captureHint')" @click="screenApi.capture()"><Icon name="camera" /> {{ t("mini.capture") }}</button>
-    <button :disabled="!state.loaded" :title="t('mini.copyHint')" @click="screenApi.copy()"><Icon name="copy" /> {{ t("mini.copy") }}</button>
-    <button :disabled="!state.loaded" :aria-pressed="recording.on" :class="{ rec: recording.on }" :title="recording.on ? t('mini.recordStopHint') : t('mini.recordHint')" @click="screenApi.toggleRecording()"><Icon name="dot" /> {{ recording.on ? t("mini.recordStop") : t("mini.record") }}</button>
-    <button :aria-pressed="ui.large" :title="t('mini.largeHint')" @click="ui.large = !ui.large"><Icon name="expand" /> {{ t("mini.large") }}</button>
-    <button :disabled="!state.loaded" :title="t('mini.fullscreenHint')" @click="screenApi.toggleFullscreen()"><Icon name="maximize" /> {{ t("mini.fullscreen") }}</button>
+    <button :disabled="!state.loaded" :title="keyed(t('mini.captureHint'), 'capture')" @click="screenApi.capture()"><Icon name="camera" /> {{ t("mini.capture") }}</button>
+    <button :disabled="!state.loaded" :title="keyed(t('mini.copyHint'), 'copy')" @click="screenApi.copy()"><Icon name="copy" /> {{ t("mini.copy") }}</button>
+    <button :disabled="!state.loaded" :aria-pressed="recording.on" :class="{ rec: recording.on }" :title="keyed(recording.on ? t('mini.recordStopHint') : t('mini.recordHint'), 'gif')" @click="screenApi.toggleRecording()"><Icon name="dot" /> {{ recording.on ? t("mini.recordStop") : t("mini.record") }}</button>
+    <button :aria-pressed="ui.large" :title="keyed(t('mini.largeHint'), 'large')" @click="ui.large = !ui.large"><Icon name="expand" /> {{ t("mini.large") }}</button>
+    <button :disabled="!state.loaded" :title="keyed(t('mini.fullscreenHint'), 'fullscreen')" @click="screenApi.toggleFullscreen()"><Icon name="maximize" /> {{ t("mini.fullscreen") }}</button>
     <button class="hide" :title="t('mini.hideHint')" :aria-label="t('mini.hideHint')" @click="ui.miniVisible = false"><Icon name="right" /></button>
   </aside>
 </template>
