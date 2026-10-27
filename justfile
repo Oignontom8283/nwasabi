@@ -139,6 +139,7 @@ test-wasm corpus="": build-wasm build-js
     NWASABI_CORPUS={{corpus}} node tests/wasm/speed.mjs
     node tests/wasm/keymap.mjs
     node tests/wasm/state.mjs
+    node tests/wasm/step.mjs
     NWASABI_CORPUS={{corpus}} node tests/wasm/data.mjs
     node tests/web/locales.mjs
     node tests/web/scan.mjs

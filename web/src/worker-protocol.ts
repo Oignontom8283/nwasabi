@@ -17,6 +17,7 @@ export type StatePatch = Partial<PlayerState> & {
 export type PlayerMethod =
   | "load"
   | "restart"
+  | "stepFrame"
   | "runWithoutData"
   | "changeModel"
   | "setSpeed"

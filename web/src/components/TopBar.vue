@@ -76,6 +76,7 @@ onBeforeUnmount(() => {
     <button :disabled="!state.loaded" :title="state.running ? t('top.pauseHint') : t('top.resumeHint')" @click="state.running ? emulator.stop() : emulator.start()">
       <Icon :name="state.running ? 'pause' : 'play'" :size="14" /> {{ state.running ? t("top.pause") : t("top.resume") }}
     </button>
+    <button :disabled="!state.loaded || state.running" :title="t('top.stepHint')" @click="emulator.stepFrame()"><Icon name="step" :size="14" /> {{ t("top.step") }}</button>
     <button :disabled="!state.loaded" :title="t('top.restartHint')" @click="emulator.restart()"><Icon name="refresh" :size="14" /> {{ t("top.restart") }}</button>
     <button v-if="server.stale.length" class="reload" :title="t('top.reloadHint')" @click="reload()"><Icon name="refresh" :size="14" /> {{ t("top.reload") }}</button>
     <button v-if="hasInfo" class="icon" :title="t('top.info')" :aria-label="t('top.info')" @click="emit('info')"><Icon name="info" :size="16" /></button>

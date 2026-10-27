@@ -54,7 +54,9 @@
     "repo": "Dépôt GitHub de Nwasabi",
     "info": "Informations de cette installation",
     "reload": "Recharger",
-    "reloadHint": "Un fichier donné au serveur a changé sur le disque : le recharger."
+    "reloadHint": "Un fichier donné au serveur a changé sur le disque : le recharger.",
+    "step": "Image",
+    "stepHint": "Avance d'une image (en pause) : l'application s'exécute jusqu'à la prochaine fin d'image et reçoit 1/60 s."
   },
   "screen": {
     "dropApp": "Glissez un fichier .nwa ici",

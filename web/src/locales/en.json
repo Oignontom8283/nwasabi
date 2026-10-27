@@ -54,7 +54,9 @@
     "repo": "Nwasabi on GitHub",
     "info": "Information about this installation",
     "reload": "Reload",
-    "reloadHint": "A file given to the server changed on disk: reload it."
+    "reloadHint": "A file given to the server changed on disk: reload it.",
+    "step": "Frame",
+    "stepHint": "Advances one frame (while paused): the application runs to the end of the next frame and is given 1/60 s."
   },
   "screen": {
     "dropApp": "Drop a .nwa file here",

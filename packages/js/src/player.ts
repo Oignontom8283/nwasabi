@@ -475,6 +475,42 @@ export class Player {
     }
   }
 
+  /**
+   * Avance d'une image en pause : exécute l'application jusqu'à la prochaine fin d'image (ou jusqu'à une attente) et lui fait
+   * passer 1/60 s. Sans effet si la simulation tourne ou si rien n'est chargé. Rend `true` si l'application a avancé.
+   */
+  stepFrame(): boolean {
+    const state = this.state;
+    if (!state.loaded || state.running) return false;
+    let budget = FRAME_MS;
+    for (let runs = 0; runs < 64; runs++) {
+      const reply = this.call({ cmd: "run", instructions: this.slice, frames: 1 });
+      if (!reply.ok) return false;
+      for (const name of this.pressed) this.sampled.add(name);
+      for (const name of [...this.deferred]) {
+        this.deferred.delete(name);
+        this.release(name);
+      }
+      const stop = reply.stop as StopInfo;
+      state.stop = stop;
+      state.instructions += reply.instructions as number;
+      state.frames += reply.frames as number;
+      if (stop.kind === "sleep") {
+        const step = Math.min((stop.ms as number) ?? 0, budget);
+        this.advance(step);
+        budget -= step;
+        if (budget > 0) continue;
+      }
+      if (stop.kind !== "budget") break;
+    }
+    this.advance(budget);
+    state.timeMs = this.time();
+    this.draw();
+    this.emitFrame();
+    this.bump();
+    return true;
+  }
+
   start(): void {
     if (!this.state.loaded || this.state.running) return;
     this.state.running = true;

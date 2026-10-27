@@ -129,6 +129,7 @@ export function useEmulator() {
     capture,
     load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null) => player<boolean>("load", nwa, name, data),
     restart: () => player<boolean>("restart"),
+    stepFrame: () => player<boolean>("stepFrame"),
     runWithoutData: () => player<boolean>("runWithoutData"),
     changeModel: (model: Model, firmware?: Firmware) => player("changeModel", model, firmware),
     setSpeed: (speed: SpeedMode) => player("setSpeed", speed),
