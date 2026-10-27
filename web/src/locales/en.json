@@ -140,6 +140,17 @@
     "tooBig": "Range too large (16 MiB at most).",
     "done": "{n} byte saved | {n} bytes saved"
   },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "help": "Memory ranges you name, kept for this application in this browser. The editor's “Bookmark” button adds the selection.",
+    "name": "Name",
+    "address": "Address",
+    "size": "Bytes",
+    "remove": "Remove this bookmark",
+    "none": "No bookmarks for this application.",
+    "noApp": "Load an application to have bookmarks.",
+    "added": "Bookmark added at {address}"
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
@@ -354,6 +365,8 @@
     "copyAscii": "Copy (text)",
     "export": "Export…",
     "exportHint": "Saves a memory range to a file (the selection, or the range you choose).",
+    "bookmark": "Bookmark",
+    "bookmarkHint": "Adds the selection (or the cursor) to the application's bookmarks.",
     "watch": "Watch",
     "watching": "Watching {address} for writes (see Watchpoints)",
     "watchHint": "Sets a watchpoint on the selection: you will see which instructions write it (see Watchpoints).",

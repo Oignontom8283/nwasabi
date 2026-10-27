@@ -140,6 +140,17 @@
     "tooBig": "Zone trop grande (16 Mio au plus).",
     "done": "{n} octet enregistré | {n} octets enregistrés"
   },
+  "bookmarks": {
+    "title": "Signets",
+    "help": "Des zones de la mémoire que vous nommez, retenues pour cette application dans ce navigateur. Le bouton « Signet » de l'éditeur ajoute la sélection.",
+    "name": "Nom",
+    "address": "Adresse",
+    "size": "Octets",
+    "remove": "Retirer ce signet",
+    "none": "Aucun signet pour cette application.",
+    "noApp": "Chargez une application pour avoir des signets.",
+    "added": "Signet ajouté à {address}"
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
@@ -354,6 +365,8 @@
     "copyAscii": "Copier (texte)",
     "export": "Exporter…",
     "exportHint": "Enregistre une zone de la mémoire dans un fichier (la sélection, ou la plage de votre choix).",
+    "bookmark": "Signet",
+    "bookmarkHint": "Ajoute la sélection (ou le curseur) aux signets de l'application.",
     "watch": "Observer",
     "watching": "Observation de {address} en écriture (voir Points d'observation)",
     "watchHint": "Pose un point d'observation sur la sélection : on verra quelles instructions l'écrivent (voir Points d'observation).",

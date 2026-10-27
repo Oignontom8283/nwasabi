@@ -11,6 +11,7 @@ import HexEditor from "../HexEditor.vue";
 import type { HexRegion } from "../HexEditor.vue";
 import MemoryMap from "../MemoryMap.vue";
 import MemoryScanner from "../MemoryScanner.vue";
+import BookmarksCard from "../BookmarksCard.vue";
 import WatchPoints from "../WatchPoints.vue";
 
 const { t, locale } = useI18n();
@@ -117,6 +118,11 @@ async function saveState() {
     <section class="card">
       <h2>{{ t("memory.map") }}</h2>
       <MemoryMap :regions="regions" :structures="structures" :app="app" :usage="usage" />
+    </section>
+
+    <section class="card">
+      <h2>{{ t("bookmarks.title") }}</h2>
+      <BookmarksCard />
     </section>
 
     <section class="card">

@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { confirmDialog } from "../dialogs.js";
 import { notify, ui } from "../ui.js";
 import { addWatch } from "../watchStore.js";
+import { addBookmark } from "../bookmarks.js";
 import { SCAN_TYPES, SIZE, tile } from "../scan.js";
 import type { Base, ScanType } from "../scan.js";
 import ExportDialog from "./ExportDialog.vue";
@@ -69,6 +70,14 @@ const anchor = ref<number | null>(null); // début de la sélection
 const pending = ref(""); // premier chiffre d'un octet en cours de saisie
 const column = ref<"hex" | "ascii">("hex"); // colonne où l'on saisit : chiffres hexadécimaux ou caractères
 const error = ref("");
+
+/** Ajoute la sélection (ou, à défaut, le curseur) aux signets de l'application. */
+function bookmarkSelection() {
+  const s = selection.value;
+  const address = s?.start ?? cursor.value;
+  if (address === null || address === undefined) return;
+  if (addBookmark(address, s ? s.end - s.start + 1 : 1)) notify(t("bookmarks.added", { address: hex0x(address) }));
+}
 
 /** Observe en écriture la plage sélectionnée (le détail se règle dans « Points d'observation »). */
 async function watchSelection() {
@@ -538,6 +547,7 @@ const beyond = (c: Column, length: number) => c.size > length;
       <button :disabled="!selection || !canEdit" @click="openFill">{{ t("hex.fill") }}</button>
       <button :disabled="!selection" :title="t('hex.watchHint')" @click="watchSelection">{{ t("hex.watch") }}</button>
       <button :title="t('hex.exportHint')" @click="openExport">{{ t("hex.export") }}</button>
+      <button :disabled="!selection && cursor === null" :title="t('hex.bookmarkHint')" @click="bookmarkSelection">{{ t("hex.bookmark") }}</button>
       <span v-if="selection" class="muted mono">{{ hex0x(selection.start) }}{{ selection.end > selection.start ? ` → ${hex0x(selection.end)} (${selection.end - selection.start + 1})` : "" }}</span>
       <span class="spacer" />
       <span v-if="findMessage" class="muted">{{ findMessage }}</span>
