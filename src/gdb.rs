@@ -265,6 +265,29 @@ impl Client<'_> {
         }
     }
 
+    /// `bs` et `bc` : en arrière d'une instruction, ou jusqu'au point d'arrêt ou d'observation précédent. Au début de l'historique,
+    /// la réponse porte `replaylog:begin`, que GDB comprend comme « on ne peut pas remonter plus loin ».
+    fn reverse(&mut self, request: &str) -> String {
+        let reply = self.ask(request);
+        if !Self::ok(&reply) {
+            let begin = reply
+                .get("error")
+                .and_then(Value::as_str)
+                .is_some_and(|e| e.contains("pas d'historique") || e.contains("déjà au début"));
+            return if begin {
+                String::from("T05replaylog:begin;")
+            } else {
+                String::from("E01")
+            };
+        }
+        let stop = reply.get("stop").cloned().unwrap_or_else(Value::object);
+        match stop.get("kind").and_then(Value::as_str) {
+            Some("history_start") => String::from("T05replaylog:begin;"),
+            Some("breakpoint" | "watchpoint") => self.stop_reply(&stop),
+            _ => self.stop_reply(&Value::object().with("kind", "step")),
+        }
+    }
+
     /// `c` : reprend jusqu'à un arrêt qui intéresse le débogueur, ou jusqu'à son interruption.
     fn resume(&mut self) -> io::Result<String> {
         loop {
@@ -413,6 +436,11 @@ impl Client<'_> {
             }
             "Z" => self.breakpoint_packet(true, rest),
             "z" => self.breakpoint_packet(false, rest),
+            "b" => match rest {
+                "s" => self.reverse(r#"{"cmd":"step_back"}"#),
+                "c" => self.reverse(r#"{"cmd":"reverse_continue"}"#),
+                _ => String::new(),
+            },
             "c" => self.resume()?,
             "s" => self.step(),
             "v" => {
@@ -445,7 +473,7 @@ impl Client<'_> {
     fn query(&mut self, rest: &str) -> String {
         if rest.starts_with("Supported") {
             format!(
-                "PacketSize={PACKET_SIZE:x};qXfer:features:read+;swbreak+;hwbreak+;vContSupported+;QStartNoAckMode+"
+                "PacketSize={PACKET_SIZE:x};qXfer:features:read+;swbreak+;hwbreak+;vContSupported+;QStartNoAckMode+;ReverseStep+;ReverseContinue+"
             )
         } else if rest == "Attached" {
             String::from("1")
@@ -487,6 +515,13 @@ impl Client<'_> {
 /// Sert un débogueur sur `stream` jusqu'à sa déconnexion. La session garde son état (points d'arrêt compris) entre deux connexions.
 pub fn serve_connection(session: &mut Session, stream: TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
+    // Le débogueur peut remonter le temps (reverse-step, reverse-continue) : l'historique tourne pendant la connexion.
+    let recording = session
+        .handle_line(r#"{"cmd":"history"}"#)
+        .contains(r#""recording":true"#);
+    if !recording {
+        session.handle_line(r#"{"cmd":"history","action":"start"}"#);
+    }
     let mut client = Client {
         stream,
         session,
@@ -495,6 +530,9 @@ pub fn serve_connection(session: &mut Session, stream: TcpStream) -> io::Result<
         no_ack: false,
     };
     let result = client.run();
+    if !recording {
+        client.ask(r#"{"cmd":"history","action":"stop"}"#);
+    }
     // À la déconnexion, les points posés par ce débogueur ne restent pas.
     for (_, id) in client.watches.drain().collect::<Vec<_>>() {
         client.ask(&format!(r#"{{"cmd":"unwatch","id":{id}}}"#));
