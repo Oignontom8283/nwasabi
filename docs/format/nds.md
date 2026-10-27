@@ -5,7 +5,7 @@ registres du processeur, écran, clavier, temps. En le chargeant, l'émulation r
 elle s'était arrêtée : les deux exécutions suivantes (l'originale et la reprise) donnent les mêmes
 écrans, les mêmes registres, instruction par instruction.
 
-C'est du JSON, extension `.nds`, contenus binaires en base64. Les parties sont **facultatives** : on
+C'est du JSON, extension `.nds`, contenus binaires encodés en base64. Les parties sont **facultatives** : on
 choisit ce que l'on enregistre.
 
 ## Parties
@@ -33,16 +33,16 @@ touché que quelques pages de RAM donne quelques ko, pas les 256 Kio de la SRAM.
     "commit_hash": "a58aaa0", "security_level": 0, "active_slot": "a",
     "fcc_id": "…", "pcb_version": 0, "serial_number": "…", "device_name": "", "exam_mode": false
   },
-  "app": { "name": "Keys", "file_name": "keys.nwa", "nwa_base64": "…", "data_base64": "…" },
+  "app": { "name": "Keys", "file_name": "keys.nwa", "nwa": "…", "data": "…" },
   "memory": {
-    "pages": [ { "address": 537124864, "base64": "…" } ],
-    "access": [ { "region": "ram", "runs": [ { "line": 120, "base64": "…" } ] } ]
+    "pages": [ { "address": 537124864, "content": "…" } ],
+    "access": [ { "region": "ram", "runs": [ { "line": 120, "flags": "…" } ] } ]
   },
   "fs": { "nfs": 1, "files": [] },
   "cpu": { "r": [0, "…"], "sp": 0, "lr": 0, "pc": 0, "xpsr": 0, "s": ["…"], "fpscr": 0,
            "cycles": 123456, "msp": 0, "psp": 0, "control": 0, "handler_mode": false,
            "vtor": 0, "primask": false, "faultmask": false, "basepri": 0, "exclusive": null },
-  "kernel": { "config": {}, "status": {}, "display": { "encoding": "rle16", "base64": "…" },
+  "kernel": { "config": {}, "status": {}, "display": { "encoding": "rle16", "pixels": "…" },
               "keyboard": {}, "frames": 3, "extra_us": 0, "…": "…" }
 }
 ```
@@ -50,10 +50,10 @@ touché que quelques pages de RAM donne quelques ko, pas les 256 Kio de la SRAM.
 ## Détails
 
 - **`app`** : `name` est le nom que l'application déclare ; `file_name` (facultatif, ajouté par les hôtes qui le connaissent, comme l'émulateur web) est le nom du fichier `.nwa` d'origine ; il n'est pas lu par le cœur.
-- **`memory.pages`** : `address` est un multiple de 4096 ; `base64` couvre une ou plusieurs pages
+- **`memory.pages`** : `address` est un multiple de 4096 ; `content` couvre une ou plusieurs pages
   consécutives. L'« appareil neuf » de référence est construit comme à la restauration : modèle,
   firmware, réglages de `device`, puis le `.nwa` de la partie `app` **si elle est présente**.
-- **`memory.access`** : par zone, des suites `{ line, base64 }` d'indicateurs (un octet par ligne de 32
+- **`memory.access`** : par zone, des suites `{ line, flags }` d'indicateurs (un octet par ligne de 32
   octets : 1 lu, 2 écrit, 4 exécuté). Les lignes non listées valent 0.
 - **Les fichiers ne sont jamais dans `memory`** : le tampon des fichiers est exclu de la comparaison,
   il a sa partie `fs`.

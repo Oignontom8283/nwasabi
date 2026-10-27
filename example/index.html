@@ -58,7 +58,7 @@
         const file = event.target.files[0];
         if (!file) return;
         const nwa = new Uint8Array(await file.arrayBuffer());
-        const reply = emu.request({ cmd: "load", model: "n0110", nwa_base64: toBase64(nwa) });
+        const reply = emu.request({ cmd: "load", model: "n0110", nwa: toBase64(nwa) });
         if (!reply.ok) return (status.textContent = reply.error);
         status.textContent = reply.app.name;
         running = true;

@@ -80,14 +80,14 @@ if (!corpus) {
     if (!file) continue;
     check(`parité écran ${name}`, () => {
       const nwa = readFileSync(join(corpus, file));
-      emu.call({ cmd: "load", model, nwa_base64: toBase64(nwa) });
+      emu.call({ cmd: "load", model, nwa: toBase64(nwa) });
       emu.call({ cmd: "run", instructions: 40_000_000 });
       const crc = emu.call({ cmd: "screen" }).crc32;
       assert.equal(crc, golden.get(name).crc, "empreinte de l'écran différente du natif");
     });
   }
   check("capture : pixels RGBA bruts", () => {
-    const rgba = fromBase64(emu.call({ cmd: "screen", rgba_base64: true }).rgba_base64);
+    const rgba = fromBase64(emu.call({ cmd: "screen", rgba: true }).rgba);
     assert.equal(rgba.length, 320 * 240 * 4);
   });
 }

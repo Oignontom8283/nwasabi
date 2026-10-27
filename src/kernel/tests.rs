@@ -676,7 +676,7 @@ fn a_bad_kernel_state_changes_nothing() {
     let (mut emu, _) = setup();
     let mut state = emu.kernel.to_state();
     let before = emu.kernel.to_state();
-    state["display"]["base64"] = "AAAA".into();
+    state["display"]["pixels"] = "AAAA".into();
     assert!(emu.kernel.restore_state(&state).is_err());
     assert_eq!(emu.kernel.to_state(), before);
     let mut state = before.clone();

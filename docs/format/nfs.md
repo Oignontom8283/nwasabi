@@ -2,7 +2,7 @@
 
 Un fichier **NFS** contient les **fichiers de la calculatrice** (scripts Python, réglages…), ceux que
 l'on voit dans l'application « Python » et que les applications externes lisent et écrivent. C'est du
-JSON, extension `.nfs`. Les contenus sont en base64 : le fichier ne contient que du texte.
+JSON, extension `.nfs`. Les contenus binaires sont encodés en base64 : le fichier ne contient que du texte.
 
 Il décrit des fichiers, pas l'image brute du tampon de la calculatrice : un `.nfs` se recharge donc sur
 n'importe quel modèle et n'importe quelle disposition de firmware.
@@ -14,8 +14,8 @@ n'importe quel modèle et n'importe quelle disposition de firmware.
   "nfs": 1,
   "capacity": 43008,
   "files": [
-    { "name": "main.py", "base64": "cHJpbnQoMSk=" },
-    { "name": "scores.py", "base64": "eCA9IDQy" }
+    { "name": "main.py", "content": "cHJpbnQoMSk=" },
+    { "name": "scores.py", "content": "eCA9IDQy" }
   ]
 }
 ```
@@ -33,7 +33,7 @@ Chaque fichier :
 | Champ | Rôle |
 |---|---|
 | `name` | Nom de la forme `nom.extension`, sans caractère nul. Un nom ne peut apparaître qu'une fois. |
-| `base64` | Le corps du fichier, en base64. Au plus 65 535 octets. |
+| `content` | Le corps du fichier (octets, encodés en base64 dans le JSON). Au plus 65 535 octets. |
 
 Pour un script Python (`.py`), le corps commence par un octet « importé automatiquement » (0 ou 1)
 suivi du texte : c'est le corps tel que la calculatrice le stocke, sans transformation.

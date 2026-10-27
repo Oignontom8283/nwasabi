@@ -356,7 +356,7 @@ fn nfs_and_nds_files_go_through_the_cli() {
     let (nfs, nds) = (dir.join("files.nfs"), dir.join("state.nds"));
     std::fs::write(
         &nfs,
-        r#"{"nfs":1,"files":[{"name":"hello.py","base64":"cHJpbnQoMSk="}]}"#,
+        r#"{"nfs":1,"files":[{"name":"hello.py","content":"cHJpbnQoMSk="}]}"#,
     )
     .unwrap();
 

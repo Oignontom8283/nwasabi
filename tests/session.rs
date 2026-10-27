@@ -56,7 +56,7 @@ fn files_round_trip_through_the_protocol() {
     );
     ok(
         &mut s,
-        r#"{"cmd":"fs_write","name":"b.txt","base64":"AAEC"}"#,
+        r#"{"cmd":"fs_write","name":"b.txt","content":"AAEC"}"#,
     );
     let list = ok(&mut s, r#"{"cmd":"fs_list"}"#);
     let files = list.get("files").and_then(Value::as_array).unwrap();
@@ -68,7 +68,7 @@ fn files_round_trip_through_the_protocol() {
     assert_eq!(r.get("text").and_then(Value::as_str), Some("print(1)"));
     assert_eq!(r.get("auto_import"), Some(&Value::Bool(true)));
     let r = ok(&mut s, r#"{"cmd":"fs_read","name":"b.txt"}"#);
-    assert_eq!(r.get("base64").and_then(Value::as_str), Some("AAEC"));
+    assert_eq!(r.get("content").and_then(Value::as_str), Some("AAEC"));
 
     ok(&mut s, r#"{"cmd":"fs_rename","from":"b.txt","to":"c.txt"}"#);
     ok(&mut s, r#"{"cmd":"fs_remove","name":"a.py"}"#);
@@ -190,7 +190,7 @@ fn the_session_draws_the_same_screen_as_the_corpus_reference() {
         .unwrap();
     let mut s = Session::new();
     let load = format!(
-        r#"{{"cmd":"load","model":"n0110","nwa_base64":"{}"}}"#,
+        r#"{{"cmd":"load","model":"n0110","nwa":"{}"}}"#,
         json::base64_encode(nwa)
     );
     let loaded = ok(&mut s, &load);
@@ -203,14 +203,13 @@ fn the_session_draws_the_same_screen_as_the_corpus_reference() {
             .and_then(Value::as_str),
         Some("budget")
     );
-    let screen = ok(&mut s, r#"{"cmd":"screen","rgba_base64":true}"#);
+    let screen = ok(&mut s, r#"{"cmd":"screen","rgba":true}"#);
     // Même empreinte que dans tests/golden/screens.tsv (lancement par `emulator_corpus`).
     assert_eq!(
         screen.get("crc32").and_then(Value::as_str),
         Some("a6a4533d")
     );
-    let rgba =
-        json::base64_decode(screen.get("rgba_base64").and_then(Value::as_str).unwrap()).unwrap();
+    let rgba = json::base64_decode(screen.get("rgba").and_then(Value::as_str).unwrap()).unwrap();
     assert_eq!(rgba.len(), 320 * 240 * 4);
     // Le PNG est l'affaire de l'hôte : le cœur le refuse.
     assert!(error(&mut s, r#"{"cmd":"screen","png":true}"#).contains("côté hôte"));
@@ -246,10 +245,7 @@ fn keys_reach_the_app_and_waiting_is_reported() {
     let mut s = Session::new();
     ok(
         &mut s,
-        &format!(
-            r#"{{"cmd":"load","nwa_base64":"{}"}}"#,
-            json::base64_encode(nwa)
-        ),
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
     );
     let ran = ok(&mut s, r#"{"cmd":"run","instructions":100000000}"#);
     let kind = ran
@@ -279,7 +275,7 @@ fn play_minesweeper(firmware: &str) -> Option<Vec<u8>> {
     ok(
         &mut s,
         &format!(
-            r#"{{"cmd":"load","model":"n0110","firmware":"{firmware}","nwa_base64":"{}"}}"#,
+            r#"{{"cmd":"load","model":"n0110","firmware":"{firmware}","nwa":"{}"}}"#,
             json::base64_encode(nwa)
         ),
     );
@@ -296,8 +292,8 @@ fn play_minesweeper(firmware: &str) -> Option<Vec<u8>> {
         );
         ok(&mut s, r#"{"cmd":"run","instructions":3000000}"#);
     }
-    let screen = ok(&mut s, r#"{"cmd":"screen","rgb565_base64":true}"#);
-    json::base64_decode(screen.get("rgb565_base64").and_then(Value::as_str).unwrap())
+    let screen = ok(&mut s, r#"{"cmd":"screen","rgb565":true}"#);
+    json::base64_decode(screen.get("rgb565").and_then(Value::as_str).unwrap())
 }
 
 fn pixel(screen: &[u8], x: usize, y: usize) -> u16 {
@@ -362,7 +358,7 @@ fn with_the_host_clock_time_only_moves_when_the_host_says_so() {
     ok(
         &mut s,
         &format!(
-            r#"{{"cmd":"load","clock":"host","nwa_base64":"{}"}}"#,
+            r#"{{"cmd":"load","clock":"host","nwa":"{}"}}"#,
             json::base64_encode(nwa)
         ),
     );
@@ -403,10 +399,7 @@ fn with_the_virtual_clock_sleeping_jumps_the_time() {
     let mut s = Session::new();
     ok(
         &mut s,
-        &format!(
-            r#"{{"cmd":"load","nwa_base64":"{}"}}"#,
-            json::base64_encode(nwa)
-        ),
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
     );
     let ran = ok(&mut s, r#"{"cmd":"run","instructions":20000000}"#);
     assert!(time_ms(&ran) >= 100, "le temps virtuel avance seul : {ran}");
@@ -431,7 +424,7 @@ fn the_simulation_time_is_readable_at_any_moment_and_stops_without_the_host() {
     ok(
         &mut s,
         &format!(
-            r#"{{"cmd":"load","clock":"host","nwa_base64":"{}"}}"#,
+            r#"{{"cmd":"load","clock":"host","nwa":"{}"}}"#,
             json::base64_encode(nwa)
         ),
     );

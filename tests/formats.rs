@@ -22,9 +22,7 @@ fn loaded(model: &str, name: &str) -> Session {
     let mut session = Session::new();
     call(
         &mut session,
-        cmd("load")
-            .with("nwa_base64", app(name))
-            .with("model", model),
+        cmd("load").with("nwa", app(name)).with("model", model),
     );
     session
 }
@@ -70,7 +68,7 @@ fn nfs_round_trips_between_models() {
     assert_eq!(imported["files"].as_u64().unwrap() as usize, before.len());
     assert_eq!(files(&mut b), before);
     let read = call(&mut b, cmd("fs_read").with("name", "main.py"));
-    assert_eq!(read["base64"], json::base64_encode(b"print(1)"));
+    assert_eq!(read["content"], json::base64_encode(b"print(1)"));
 }
 
 #[test]
@@ -98,13 +96,13 @@ fn a_failed_nfs_import_changes_nothing() {
     let doc = Value::object().with("nfs", 1).with(
         "files",
         vec![
-            Value::object().with("name", "a.py").with("base64", "eA=="),
+            Value::object().with("name", "a.py").with("content", "eA=="),
             Value::object()
                 .with("name", "big1.py")
-                .with("base64", big.as_str()),
+                .with("content", big.as_str()),
             Value::object()
                 .with("name", "big2.py")
-                .with("base64", big.as_str()),
+                .with("content", big.as_str()),
         ],
     );
     let reply = a.handle(&cmd("fs_import").with("nfs", doc));
@@ -124,18 +122,18 @@ fn invalid_nfs_documents_are_refused_with_the_location() {
     assert!(try_doc(&mut a, json::parse(r#"{"nfs":2,"files":[]}"#).unwrap()).contains("version"));
     let e = try_doc(
         &mut a,
-        json::parse(r#"{"nfs":1,"files":[{"name":"a.py","base64":"eA=="},{"name":"sans_extension","base64":""}]}"#).unwrap(),
+        json::parse(r#"{"nfs":1,"files":[{"name":"a.py","content":"eA=="},{"name":"sans_extension","content":""}]}"#).unwrap(),
     );
     assert!(e.contains("files[1]"), "{e}");
     let e = try_doc(
         &mut a,
-        json::parse(r#"{"nfs":1,"files":[{"name":"a.py","base64":"???"}]}"#).unwrap(),
+        json::parse(r#"{"nfs":1,"files":[{"name":"a.py","content":"???"}]}"#).unwrap(),
     );
-    assert!(e.contains("files[0]") && e.contains("base64"), "{e}");
+    assert!(e.contains("files[0]") && e.contains("content"), "{e}");
     let e = try_doc(
         &mut a,
         json::parse(
-            r#"{"nfs":1,"files":[{"name":"a.py","base64":""},{"name":"a.py","base64":""}]}"#,
+            r#"{"nfs":1,"files":[{"name":"a.py","content":""},{"name":"a.py","content":""}]}"#,
         )
         .unwrap(),
     );

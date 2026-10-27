@@ -1,7 +1,7 @@
 //! `.nfs` — Nwasabi File System : les fichiers de la calculatrice (scripts Python, réglages…).
 //!
 //! ```json
-//! { "nfs": 1, "capacity": 43008, "files": [ { "name": "main.py", "base64": "…" } ] }
+//! { "nfs": 1, "capacity": 43008, "files": [ { "name": "main.py", "content": "…" } ] }
 //! ```
 //!
 //! Les fichiers sont dans l'ordre du tampon de la calculatrice. Le format décrit des fichiers, pas
@@ -30,7 +30,7 @@ pub fn export(fs: &mut Fs<'_>) -> Result<Value, String> {
         files.push(
             Value::object()
                 .with("name", info.name.as_str())
-                .with("base64", json::base64_encode(&body)),
+                .with("content", json::base64_encode(&body)),
         );
     }
     Ok(Value::object()
@@ -55,7 +55,7 @@ pub fn parse(document: &Value) -> Result<Vec<(String, Vec<u8>)>, String> {
     for (i, entry) in list.iter().enumerate() {
         let at = |m: String| format!("files[{i}] : {m}");
         let name = text(entry, "name").map_err(at)?.to_owned();
-        let body = base64(entry, "base64").map_err(at)?;
+        let body = base64(entry, "content").map_err(at)?;
         records::check_name(&name).map_err(|e| at(e.to_string()))?;
         if body.len() > 65_535 {
             return Err(at("fichier trop grand pour un enregistrement".into()));

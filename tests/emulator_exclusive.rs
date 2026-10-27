@@ -42,7 +42,7 @@ fn the_fault_is_reported_to_the_session_as_a_bus_fault() {
         .collect();
     let mut session = Session::new();
     session.handle_line(&format!(
-        r#"{{"cmd":"load","nwa_base64":"{}"}}"#,
+        r#"{{"cmd":"load","nwa":"{}"}}"#,
         nwasabi::json::base64_encode(&support::app_running(&bytes))
     ));
     let reply = session.handle_line(r#"{"cmd":"run","instructions":100000}"#);

@@ -144,8 +144,8 @@ async function serverApp(initial: boolean) {
   if (initial) {
     await emulator.changeModel(preload.model, preload.firmware ?? state.firmware);
   }
-  dataBytes = preload.data_base64 ? decode(preload.data_base64) : null;
-  await loadApp(decode(preload.nwa_base64), preload.name);
+  dataBytes = preload.data ? decode(preload.data) : null;
+  await loadApp(decode(preload.nwa), preload.name);
 }
 
 /** Une partie de ce que le serveur donne : l'application, le mapping `.nmk`, les fichiers `.nfs` ou l'état `.nds`. */

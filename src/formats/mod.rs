@@ -22,7 +22,7 @@ pub(crate) fn text<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> 
 
 pub(crate) fn base64(value: &Value, name: &str) -> Result<Vec<u8>, String> {
     crate::json::base64_decode(text(value, name)?)
-        .ok_or_else(|| format!("« {name} » : base64 invalide"))
+        .ok_or_else(|| format!("« {name} » : contenu invalide (base64 attendu)"))
 }
 
 pub(crate) fn number(value: &Value, name: &str) -> Result<u64, String> {

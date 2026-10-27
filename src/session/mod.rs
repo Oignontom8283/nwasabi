@@ -142,12 +142,12 @@ fn key_of(req: &Value) -> Result<Key, String> {
     Key::from_name(name).ok_or_else(|| format!("touche inconnue : {name}"))
 }
 
-/// Corps d'un fichier donné en `text` ou en `base64`.
+/// Corps d'un fichier donné en `text` ou en `content` (octets).
 fn body_of(req: &Value) -> Result<Vec<u8>, String> {
     if let Some(t) = req.get("text").and_then(Value::as_str) {
         return Ok(t.as_bytes().to_vec());
     }
-    let b64 = text(req, "base64").map_err(|_| "il faut « text » ou « base64 »".to_owned())?;
+    let b64 = text(req, "content").map_err(|_| "il faut « text » ou « content »".to_owned())?;
     json::base64_decode(b64).ok_or_else(|| "base64 invalide".to_owned())
 }
 
@@ -504,9 +504,9 @@ impl Session {
     }
 
     fn load(&mut self, req: &Value) -> Reply {
-        let nwa = json::base64_decode(text(req, "nwa_base64")?).ok_or("base64 invalide")?;
-        let data = match req.get("data_base64").and_then(Value::as_str) {
-            Some(d) => Some(json::base64_decode(d).ok_or("base64 invalide (data_base64)")?),
+        let nwa = json::base64_decode(text(req, "nwa")?).ok_or("base64 invalide")?;
+        let data = match req.get("data").and_then(Value::as_str) {
+            Some(d) => Some(json::base64_decode(d).ok_or("base64 invalide (data)")?),
             None => None,
         };
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
@@ -620,15 +620,15 @@ impl Session {
             );
         if req.get("png").is_some() {
             return Err(
-                "l'encodage PNG se fait côté hôte : demander « rgba_base64 » (pixels RGBA bruts)"
+                "l'encodage PNG se fait côté hôte : demander « rgba » (pixels RGBA bruts)"
                     .to_owned(),
             );
         }
-        if req.get("rgba_base64").and_then(Value::as_bool) == Some(true) {
-            out.set("rgba_base64", json::base64_encode(&display.to_rgba()));
+        if req.get("rgba").and_then(Value::as_bool) == Some(true) {
+            out.set("rgba", json::base64_encode(&display.to_rgba()));
         }
-        if req.get("rgb565_base64").and_then(Value::as_bool) == Some(true) {
-            out.set("rgb565_base64", json::base64_encode(&bytes));
+        if req.get("rgb565").and_then(Value::as_bool) == Some(true) {
+            out.set("rgb565", json::base64_encode(&bytes));
         }
         Ok(out)
     }
@@ -652,7 +652,7 @@ impl Session {
                 let body = fs.read(name).map_err(e)?;
                 Ok(Value::object()
                     .with("size", body.len())
-                    .with("base64", json::base64_encode(&body)))
+                    .with("content", json::base64_encode(&body)))
             }
             "fs_write" => {
                 let name = text(req, "name")?;

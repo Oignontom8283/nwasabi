@@ -53,16 +53,16 @@ fn encode_display(pixels: &[u16]) -> Value {
     };
     Value::object()
         .with("encoding", encoding)
-        .with("base64", json::base64_encode(&bytes))
+        .with("pixels", json::base64_encode(&bytes))
 }
 
 fn decode_display(v: &Value) -> Result<Vec<u16>, String> {
     let bytes = json::base64_decode(
-        field(v, "base64")?
+        field(v, "pixels")?
             .as_str()
-            .ok_or("« display.base64 » : texte attendu")?,
+            .ok_or("« display.pixels » : texte attendu")?,
     )
-    .ok_or("« display.base64 » : base64 invalide")?;
+    .ok_or("« display.pixels » : contenu invalide (base64 attendu)")?;
     let expected = (WIDTH * HEIGHT) as usize;
     let pixels: Vec<u16> = match field(v, "encoding")?.as_str() {
         Some("raw16") => bytes
@@ -145,7 +145,7 @@ impl Kernel {
             )
             .with("display", display)
             .with("keyboard", self.keyboard.to_state())
-            .with("stdout_base64", json::base64_encode(&self.stdout))
+            .with("stdout", json::base64_encode(&self.stdout))
             .with("frames", self.frames)
             .with("unknown_svcs", self.unknown_svcs)
             .with(
@@ -215,11 +215,11 @@ impl Kernel {
         }
         next.keyboard.restore_state(field(v, "keyboard")?)?;
         next.stdout = json::base64_decode(
-            field(v, "stdout_base64")?
+            field(v, "stdout")?
                 .as_str()
-                .ok_or("« stdout_base64 » : texte attendu")?,
+                .ok_or("« stdout » : texte attendu")?,
         )
-        .ok_or("« stdout_base64 » : base64 invalide")?;
+        .ok_or("« stdout » : contenu invalide (base64 attendu)")?;
         next.frames = uint(v, "frames")?;
         next.unknown_svcs = small(v, "unknown_svcs")?;
         let counts = field(v, "svc_counts")?

@@ -66,9 +66,9 @@ fn device_request(command: &str, device: &DeviceOpts) -> Value {
 }
 
 fn load_request(device: &DeviceOpts, nwa: &[u8]) -> Result<Value, String> {
-    let mut request = device_request("load", device).with("nwa_base64", json::base64_encode(nwa));
+    let mut request = device_request("load", device).with("nwa", json::base64_encode(nwa));
     if let Some(path) = &device.data {
-        request.set("data_base64", json::base64_encode(&read_file(path)?));
+        request.set("data", json::base64_encode(&read_file(path)?));
     }
     Ok(request)
 }
@@ -81,11 +81,11 @@ fn print(json: bool, value: &Value, text: impl FnOnce() -> String) {
     }
 }
 
-/// Les pixels bruts d'une réponse `screen` (`rgba_base64`) encodés en PNG : l'encodage est fait ici,
+/// Les pixels bruts d'une réponse `screen` (`rgba`) encodés en PNG : l'encodage est fait ici,
 /// côté hôte, le cœur ne rend que des pixels.
 fn png_from_reply(screen: &Value) -> Result<Vec<u8>, String> {
     let rgba = screen
-        .get("rgba_base64")
+        .get("rgba")
         .and_then(Value::as_str)
         .and_then(json::base64_decode)
         .ok_or("capture illisible")?;
@@ -191,7 +191,7 @@ pub fn run(args: RunArgs) -> Outcome {
         &mut session,
         Value::object()
             .with("cmd", "screen")
-            .with("rgba_base64", args.screenshot.is_some()),
+            .with("rgba", args.screenshot.is_some()),
     )?;
     if let Some(out) = &args.screenshot {
         write_file(out, &png_from_reply(&screen)?)?;
@@ -521,9 +521,9 @@ pub fn survey(args: SurveyArgs) -> Outcome {
             let mut load = Value::object()
                 .with("cmd", "load")
                 .with("model", model)
-                .with("nwa_base64", json::base64_encode(&nwa));
+                .with("nwa", json::base64_encode(&nwa));
             if let Some(d) = data {
-                load.set("data_base64", json::base64_encode(d));
+                load.set("data", json::base64_encode(d));
             }
             call(&mut s, load)?;
             let ran = call(
@@ -599,9 +599,9 @@ pub fn survey(args: SurveyArgs) -> Outcome {
 /// Remplace les chemins de fichiers d'une requête par leur contenu, et inversement pour la réponse.
 fn read_paths(request: &mut Value) -> Result<(), String> {
     for (path_key, content_key) in [
-        ("nwa_path", "nwa_base64"),
-        ("data_path", "data_base64"),
-        ("from_path", "base64"),
+        ("nwa_path", "nwa"),
+        ("data_path", "data"),
+        ("from_path", "content"),
     ] {
         if let Some(path) = request
             .get(path_key)
@@ -614,8 +614,8 @@ fn read_paths(request: &mut Value) -> Result<(), String> {
     if request.get("save_png").is_some() {
         // Le PNG est demandé pour l'écrire dans le fichier ; il ne reste dans la réponse que si
         // l'appelant l'avait réclamé lui-même.
-        let asked = request.get("rgba_base64").is_some();
-        request.set("rgba_base64", true);
+        let asked = request.get("rgba").is_some();
+        request.set("rgba", true);
         request.set("_strip_rgba", !asked);
     }
     Ok(())
@@ -631,11 +631,11 @@ fn write_paths(request: &Value, reply: &mut Value) -> Result<(), String> {
         if request.get("_strip_rgba").and_then(Value::as_bool) == Some(true)
             && let Value::Object(entries) = reply
         {
-            entries.remove("rgba_base64");
+            entries.remove("rgba");
         }
     }
     if let Some(path) = request.get("save_path").and_then(Value::as_str) {
-        let content = reply.get("base64").and_then(Value::as_str).unwrap_or("");
+        let content = reply.get("content").and_then(Value::as_str).unwrap_or("");
         write_file(
             path,
             &json::base64_decode(content).ok_or("contenu illisible")?,

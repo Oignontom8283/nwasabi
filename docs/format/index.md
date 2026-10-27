@@ -1,6 +1,6 @@
 # Formats de fichiers de Nwasabi
 
-Nwasabi définit quelques formats de fichiers, tous en **JSON** (les contenus binaires sont en base64),
+Nwasabi définit quelques formats de fichiers, tous en **JSON** (les contenus binaires y sont encodés en base64),
 chacun avec un champ de version obligatoire. Les fichiers invalides sont refusés avec l'endroit de l'erreur.
 
 | Extension | Nom | Contenu |

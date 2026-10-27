@@ -103,7 +103,7 @@ async function select(file: FsFile) {
   } else {
     text.value = original.value = "";
     const reply = await call({ cmd: "fs_read", name: file.name });
-    const bytes = reply.ok ? fromBase64(reply.base64) : new Uint8Array();
+    const bytes = reply.ok ? fromBase64(reply.content) : new Uint8Array();
     buffer.value = bytes;
     originalBuffer.value = bytes.slice();
     bufferVersion.value++;
@@ -113,7 +113,7 @@ async function select(file: FsFile) {
 async function save() {
   if (!current.value) return;
   if (!isText.value) {
-    if (await fail(await call({ cmd: "fs_write", name: selected.value, base64: toBase64(buffer.value) }))) originalBuffer.value = buffer.value.slice();
+    if (await fail(await call({ cmd: "fs_write", name: selected.value, content: toBase64(buffer.value) }))) originalBuffer.value = buffer.value.slice();
     return;
   }
   if (await fail(await call({ cmd: "fs_write", name: selected.value, python: true, text: text.value, auto_import: autoImport.value }))) {
@@ -258,13 +258,13 @@ async function copy(text: string) {
 
 async function downloadFile(file: FsFile) {
   const reply = await call({ cmd: "fs_read", name: file.name });
-  if (reply.ok) download(file.name, fromBase64(reply.base64) as Uint8Array<ArrayBuffer>);
+  if (reply.ok) download(file.name, fromBase64(reply.content) as Uint8Array<ArrayBuffer>);
 }
 
 async function importFiles(event: Event) {
   const input = event.target as HTMLInputElement;
   for (const file of input.files ?? []) {
-    await fail(await call({ cmd: "fs_write", name: file.name, base64: toBase64(await readBytes(file)) }));
+    await fail(await call({ cmd: "fs_write", name: file.name, content: toBase64(await readBytes(file)) }));
   }
   input.value = "";
 }

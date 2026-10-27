@@ -223,9 +223,9 @@ pub fn dump(emulator: &mut Emulator, firmware: &str, parts: Parts) -> Result<Val
     {
         let mut section = Value::object()
             .with("name", app.name.as_str())
-            .with("nwa_base64", json::base64_encode(&src.nwa));
+            .with("nwa", json::base64_encode(&src.nwa));
         if let Some(data) = &src.data {
-            section.set("data_base64", json::base64_encode(data));
+            section.set("data", json::base64_encode(data));
         }
         out.set("app", section);
     }
@@ -267,7 +267,7 @@ pub fn dump(emulator: &mut Emulator, firmware: &str, parts: Parts) -> Result<Val
             .map(|(address, bytes)| {
                 Value::object()
                     .with("address", *address)
-                    .with("base64", json::base64_encode(bytes))
+                    .with("content", json::base64_encode(bytes))
             })
             .collect();
         let memory = &emulator.device.memory;
@@ -337,11 +337,9 @@ pub fn restore(document: &Value, current: Option<&Current>) -> Result<Restored, 
         Some(section) => {
             parts.push("app");
             Some(AppSource {
-                nwa: base64(section, "nwa_base64").map_err(|e| format!("app : {e}"))?,
-                data: match section.get("data_base64") {
-                    Some(_) => {
-                        Some(base64(section, "data_base64").map_err(|e| format!("app : {e}"))?)
-                    }
+                nwa: base64(section, "nwa").map_err(|e| format!("app : {e}"))?,
+                data: match section.get("data") {
+                    Some(_) => Some(base64(section, "data").map_err(|e| format!("app : {e}"))?),
                     None => None,
                 },
             })
@@ -357,7 +355,7 @@ pub fn restore(document: &Value, current: Option<&Current>) -> Result<Restored, 
         for (i, page) in pages.iter().enumerate() {
             let at = |m: String| format!("memory.pages[{i}] : {m}");
             let address = number32(page, "address").map_err(at)?;
-            let bytes = base64(page, "base64").map_err(at)?;
+            let bytes = base64(page, "content").map_err(at)?;
             if address % PAGE_SIZE != 0 || bytes.len() % PAGE_SIZE as usize != 0 {
                 return Err(at(format!(
                     "adresse et taille doivent être des multiples de {PAGE_SIZE}"
@@ -393,7 +391,7 @@ pub fn restore(document: &Value, current: Option<&Current>) -> Result<Restored, 
             {
                 let at = |m: String| format!("memory.access[{i}].runs[{j}] : {m}");
                 let line = number32(run, "line").map_err(at)? as usize;
-                let bytes = base64(run, "base64").map_err(at)?;
+                let bytes = base64(run, "flags").map_err(at)?;
                 let end = line + bytes.len();
                 if end > map.len() {
                     return Err(at("hors de la zone".into()));
@@ -440,7 +438,7 @@ pub fn restore(document: &Value, current: Option<&Current>) -> Result<Restored, 
 }
 
 /// Les stretches d'indicateurs d'accès non nuls (en fusionnant ceux que moins de 16 lignes séparent), en
-/// `{ line, base64 }` : une zone de plusieurs Mio où le programme n'a touché que quelques lignes tient en
+/// `{ line, flags }` : une zone de plusieurs Mio où le programme n'a touché que quelques lignes tient en
 /// quelques octets.
 fn access_runs(map: &[u8]) -> Vec<Value> {
     const GAP: usize = 16;
@@ -455,7 +453,7 @@ fn access_runs(map: &[u8]) -> Vec<Value> {
         .map(|(start, end)| {
             Value::object()
                 .with("line", start)
-                .with("base64", json::base64_encode(&map[start..end]))
+                .with("flags", json::base64_encode(&map[start..end]))
         })
         .collect()
 }

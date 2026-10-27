@@ -366,9 +366,9 @@ export class Player {
       firmware: state.firmware,
       clock: "host", // le temps de l'application est celui que ce lecteur lui donne, jamais plus
       ...this.speedFields(),
-      nwa_base64: toBase64(this.nwa),
+      nwa: toBase64(this.nwa),
     };
-    if (this.data) request.data_base64 = toBase64(this.data);
+    if (this.data) request.data = toBase64(this.data);
     state.needsData = false;
     const reply = this.call(request);
     if (!reply.ok && !this.data && /données externes|external/i.test(reply.error ?? "")) {
@@ -419,11 +419,11 @@ export class Player {
     if (!reply.ok) return false;
     const state = this.state;
     const doc = document as {
-      app?: { nwa_base64?: string; data_base64?: string; name?: string; file_name?: string };
+      app?: { nwa?: string; data?: string; name?: string; file_name?: string };
     };
-    if (doc.app?.nwa_base64) {
-      this.nwa = fromBase64(doc.app.nwa_base64);
-      this.data = doc.app.data_base64 !== undefined ? fromBase64(doc.app.data_base64) : null;
+    if (doc.app?.nwa) {
+      this.nwa = fromBase64(doc.app.nwa);
+      this.data = doc.app.data !== undefined ? fromBase64(doc.app.data) : null;
     }
     const app = reply.app as { name?: string } | undefined;
     if (doc.app?.file_name || app?.name) state.appName = doc.app?.file_name ?? app?.name ?? state.appName;

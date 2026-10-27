@@ -100,9 +100,9 @@ fn preloads_the_given_application() {
     assert_eq!(v.get("name").and_then(Value::as_str), Some("demo.nwa"));
     assert_eq!(v.get("model").and_then(Value::as_str), Some("n0120"));
     assert_eq!(v.get("firmware").and_then(Value::as_str), Some("24"));
-    let nwa = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
+    let nwa = json::base64_decode(v.get("nwa").and_then(Value::as_str).unwrap()).unwrap();
     assert_eq!(nwa, [1, 2, 3, 250]);
-    assert_eq!(v.get("data_base64"), Some(&Value::Null));
+    assert_eq!(v.get("data"), Some(&Value::Null));
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn nfs_and_nds_are_served_after_checking() {
     let bad = format!("{}/nfs-bad.json", std::env::temp_dir().display());
     std::fs::write(
         &bad,
-        r#"{"nfs":1,"files":[{"name":"sans_extension","base64":""}]}"#,
+        r#"{"nfs":1,"files":[{"name":"sans_extension","content":""}]}"#,
     )
     .unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
@@ -238,7 +238,7 @@ fn given_files_are_read_again_and_their_stamp_changes_with_them() {
 
     let (_, body) = get(&server, "/__nwasabi/preload");
     let v = json::parse(&String::from_utf8(body).unwrap()).unwrap();
-    let bytes = json::base64_decode(v.get("nwa_base64").and_then(Value::as_str).unwrap()).unwrap();
+    let bytes = json::base64_decode(v.get("nwa").and_then(Value::as_str).unwrap()).unwrap();
     assert_eq!(
         bytes,
         [9, 8, 7, 6, 5],

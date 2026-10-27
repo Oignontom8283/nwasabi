@@ -144,8 +144,8 @@ fn load_preload(served: &Served) -> Result<Option<Value>, String> {
         "name": name,
         "model": served.model,
         "firmware": served.firmware,
-        "nwa_base64": base64_encode(&nwa),
-        "data_base64": data.as_deref().map(base64_encode),
+        "nwa": base64_encode(&nwa),
+        "data": data.as_deref().map(base64_encode),
     })))
 }
 
