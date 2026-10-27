@@ -3,7 +3,8 @@ import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { notify, recording, screenApi, ui, usePick } from "../ui.js";
-import { download, poll, stem } from "../util.js";
+import { download, stem } from "../util.js";
+import { poll } from "../poll.js";
 import Icon from "./Icon.vue";
 
 const { t } = useI18n();

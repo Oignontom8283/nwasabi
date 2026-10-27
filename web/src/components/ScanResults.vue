@@ -6,7 +6,8 @@ import { useEmu } from "../emulator.js";
 import { formatValue } from "../scan.js";
 import type { ScanType } from "../scan.js";
 import { addWatched, memoryAccess, scan, store } from "../scanStore.js";
-import { hex0x, poll } from "../util.js";
+import { hex0x } from "../util.js";
+import { poll } from "../poll.js";
 import AddressLink from "./AddressLink.vue";
 import Icon from "./Icon.vue";
 

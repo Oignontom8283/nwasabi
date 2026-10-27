@@ -9,7 +9,8 @@ import { bookmarks, loadBookmarks, removeBookmark, renameBookmark, setBookmarkTy
 import { SCAN_TYPES } from "../scan.js";
 import type { ScanType } from "../scan.js";
 import { memoryAccess } from "../scanStore.js";
-import { hex0x, poll } from "../util.js";
+import { hex0x } from "../util.js";
+import { poll } from "../poll.js";
 import AddressLink from "./AddressLink.vue";
 import Icon from "./Icon.vue";
 import ValueField from "./ValueField.vue";

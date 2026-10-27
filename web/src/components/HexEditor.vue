@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useEmu } from "../emulator.js";
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, inject, nextTick, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { confirmDialog } from "../dialogs.js";
-import { notify, showInDebugger, ui } from "../ui.js";
+import { notify, showBreakpoints, showInDebugger, showWatchpoints, ui } from "../ui.js";
 import { addBreak } from "../pointsStore.js";
 import { addWatch } from "../watchStore.js";
 import { addBookmark } from "../bookmarks.js";
@@ -14,7 +14,8 @@ import type { MenuItem } from "./ContextMenu.vue";
 import ExportDialog from "./ExportDialog.vue";
 import HexValueDialog from "./HexValueDialog.vue";
 import Icon from "./Icon.vue";
-import { hex, hex0x, parseAddress, poll } from "../util.js";
+import { hex, hex0x, parseAddress } from "../util.js";
+import { poll } from "../poll.js";
 
 // Sans autre indication, l'éditeur lit et écrit la mémoire de l'émulateur (modifiable seulement en pause). Avec
 // `read(adresse, longueur)` et `write(adresse, octets)`, il édite autre chose : les octets d'un fichier, par exemple.
@@ -89,7 +90,7 @@ async function watchKind(kind: "write" | "readwrite") {
   if (!s) return;
   const failure = await addWatch(emulator, s.start, s.end - s.start + 1, kind, false);
   if (failure) error.value = failure;
-  else notify(t("hex.watching", { address: hex0x(s.start) }));
+  else showWatchpoints();
 }
 function openMenu(event: MouseEvent, address: number) {
   if (!inSelection(address)) {
@@ -106,7 +107,7 @@ function openMenu(event: MouseEvent, address: number) {
     { label: length > 1 ? t("link.copyRange", { range }) : t("debug.menu.copyAddress"), action: () => void navigator.clipboard?.writeText(range) },
     { separator: true },
     { label: t("link.inCode"), action: () => showInDebugger(s.start, length) },
-    { label: t("hex.menu.break"), action: () => void addBreak(emulator, s.start & ~1) },
+    { label: t("hex.menu.break"), action: () => void addBreak(emulator, s.start & ~1).then(() => showBreakpoints()) },
     { label: t("hex.menu.watchWrite"), action: () => void watchKind("write") },
     { label: t("hex.menu.watchBoth"), action: () => void watchKind("readwrite") },
     { label: t("link.bookmark"), action: () => bookmarkSelection() },
@@ -127,7 +128,7 @@ async function watchSelection() {
   if (!s) return;
   const failure = await addWatch(emulator, s.start, s.end - s.start + 1, "write", false);
   if (failure) error.value = failure;
-  else notify(t("hex.watching", { address: hex0x(s.start) }));
+  else showWatchpoints();
 }
 
 const firstRow = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW)));
@@ -189,6 +190,10 @@ watch(() => props.regions.length, () => {
   // Une demande d'adresse arrivée avant que les zones soient connues (l'onglet vient de s'ouvrir) est reprise maintenant.
   if (ui.hexGoto && ui.hexGoto.seq !== handledSeq && !props.read) void followRequest(ui.hexGoto);
 });
+
+// Un onglet ou un panneau qu'on réaffiche avait une hauteur nulle : on remesure la fenêtre de lecture.
+onActivated(() => void nextTick().then(measure));
+watch(() => ui.panelOpen, (open) => open && void nextTick().then(measure));
 
 function measure() {
   if (scroller.value) viewRows.value = Math.ceil(scroller.value.clientHeight / ROW) + 1;

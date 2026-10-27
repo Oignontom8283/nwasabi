@@ -96,6 +96,20 @@ export function showInDebugger(address: number, length = 1): void {
   ui.panelOpen = true;
 }
 
+/** Va à la vue des points d'observation de l'onglet Débogage (après en avoir posé un d'ailleurs). */
+export function showWatchpoints(): void {
+  ui.debugView = "watch";
+  ui.tab = "debug";
+  ui.panelOpen = true;
+}
+
+/** Va à la vue des points d'arrêt de l'onglet Débogage. */
+export function showBreakpoints(): void {
+  ui.debugView = "points";
+  ui.tab = "debug";
+  ui.panelOpen = true;
+}
+
 /** Va à l'onglet Structures, à cette section. */
 export function showStructure(section: string): void {
   ui.structureGoto = { section, seq: Date.now() };

@@ -5,7 +5,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../emulator.js";
 import { showInDebugger } from "../ui.js";
-import { assignIfChanged, hex0x, poll } from "../util.js";
+import { assignIfChanged, hex0x } from "../util.js";
+import { poll } from "../poll.js";
 import AddressLink from "./AddressLink.vue";
 
 const { t, n } = useI18n();

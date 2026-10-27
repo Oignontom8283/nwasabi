@@ -6,7 +6,8 @@
 import { reactive } from "vue";
 import type { Emulator } from "./emulator.js";
 import { clearRecent } from "./recent.js";
-import { poll, remember } from "./util.js";
+import { remember } from "./util.js";
+import { poll } from "./poll.js";
 
 /** Un document `.nfs` : seul ce que ce module lit est décrit. */
 interface Nfs {

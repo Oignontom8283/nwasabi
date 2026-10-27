@@ -4,7 +4,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { useI18n } from "vue-i18n";
 import { fromBase64, toBase64 } from "@nwasabi/js";
 import { confirmDialog } from "../../dialogs.js";
-import { download, formatBytes, poll, readBytes } from "../../util.js";
+import { useRowSelection } from "../../composables/useRowSelection.js";
+import { download, formatBytes, readBytes } from "../../util.js";
+import { poll } from "../../poll.js";
 import ContextMenu from "../ContextMenu.vue";
 import type { MenuItem } from "../ContextMenu.vue";
 import type { Reply } from "@nwasabi/js";
@@ -27,8 +29,9 @@ const stats = ref<Reply | null>(null);
 const corrupt = ref<number | null>(null);
 const selected = ref("");
 // Sélection multiple : `marked` (Ctrl ou Cmd + clic, Maj + clic, rectangle dans l'espace libre) ; `selected` est le fichier ouvert dans l'éditeur.
-const marked = ref(new Set<string>());
-let anchor = "";
+const rowsBox = ref<HTMLElement | null>(null);
+const rows = useRowSelection<string>({ container: rowsBox, keys: () => files.value.map((f) => f.name), attribute: "data-file", parse: (raw) => raw });
+const marked = rows.selected;
 const message = ref("");
 const menu = ref<{ x: number; y: number; items: MenuItem[] } | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
@@ -92,8 +95,7 @@ function closeEditor() {
 }
 
 async function select(file: FsFile) {
-  marked.value = new Set([file.name]);
-  anchor = file.name;
+  rows.only(file.name);
   if (dirty.value && !(await confirmDialog(t("files.discard"), { accept: t("files.discardAccept") }))) return;
   selected.value = file.name;
   if (file.kind === "python") {
@@ -202,50 +204,9 @@ async function clearAll() {
 }
 
 function rowClick(event: MouseEvent, file: FsFile) {
-  if (event.ctrlKey || event.metaKey) {
-    const next = new Set(marked.value);
-    if (!next.delete(file.name)) next.add(file.name);
-    marked.value = next;
-    anchor = file.name;
-  } else if (event.shiftKey && anchor) {
-    const names = files.value.map((f) => f.name);
-    const [from = 0, to = 0] = [names.indexOf(anchor), names.indexOf(file.name)].sort((x, y) => x - y);
-    marked.value = new Set(names.slice(from, to + 1));
-  } else select(file);
-}
-
-// Rectangle de sélection dans l'espace libre sous la liste (il se dessine par-dessus, sans changer la mise en page).
-const rowsBox = ref<HTMLElement | null>(null);
-const band = ref<{ x: number; y: number; w: number; h: number } | null>(null); // relatif au conteneur
-let bandStart: { x: number; y: number } | null = null;
-let bandBase = new Set<string>();
-function bandDown(event: PointerEvent) {
-  const area = rowsBox.value;
-  if (!area || event.target !== area || event.button !== 0) return;
-  const box = area.getBoundingClientRect();
-  bandStart = { x: event.clientX - box.left + area.scrollLeft, y: event.clientY - box.top + area.scrollTop };
-  bandBase = event.ctrlKey || event.metaKey || event.shiftKey ? new Set(marked.value) : new Set();
-  if (!bandBase.size) marked.value = new Set();
-  area.setPointerCapture(event.pointerId);
-}
-function bandMove(event: PointerEvent) {
-  const area = rowsBox.value;
-  if (!area || !bandStart) return;
-  const box = area.getBoundingClientRect();
-  const x = event.clientX - box.left + area.scrollLeft;
-  const y = event.clientY - box.top + area.scrollTop;
-  const rect = { x: Math.min(bandStart.x, x), y: Math.min(bandStart.y, y), w: Math.abs(x - bandStart.x), h: Math.abs(y - bandStart.y) };
-  band.value = rect;
-  const next = new Set(bandBase);
-  for (const row of area.querySelectorAll<HTMLElement>("[data-file]")) {
-    const top = row.offsetTop;
-    if (top < rect.y + rect.h && top + row.offsetHeight > rect.y && rect.x < area.clientWidth && row.dataset.file) next.add(row.dataset.file);
-  }
-  marked.value = next;
-}
-function bandUp() {
-  bandStart = null;
-  band.value = null;
+  if (rows.wasDrag() || getSelection()?.toString()) return; // la fin d'un rectangle (ou d'une sélection de texte) n'est pas un clic
+  if (event.ctrlKey || event.metaKey || event.shiftKey) rows.click(file.name, event);
+  else select(file);
 }
 
 async function copy(text: string) {
@@ -316,7 +277,7 @@ function rowKey(event: KeyboardEvent, file: FsFile, index: number) {
   else if (event.key === "Enter") select(file);
   else if (event.key === "F2") startRename(file);
   else if (event.key === "Delete") remove(targets(file), event.shiftKey);
-  else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") marked.value = new Set(files.value.map((f) => f.name));
+  else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") rows.selectAll();
   else if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
     const box = (event.currentTarget as Element).getBoundingClientRect();
     openMenu({ preventDefault() {}, clientX: box.left + 30, clientY: box.bottom }, file);
@@ -352,7 +313,7 @@ watch(() => state.revision, () => refresh(true));
 
     <div class="explorer" role="listbox" :aria-label="t('files.list')">
       <div class="head" aria-hidden="true"><span /><span>{{ t("files.colName") }}</span><span>{{ t("files.colType") }}</span><span class="r">{{ t("files.colSize") }}</span></div>
-      <div ref="rowsBox" class="rows" @pointerdown="bandDown" @pointermove="bandMove" @pointerup="bandUp" @pointercancel="bandUp">
+      <div ref="rowsBox" class="rows" @pointerdown="rows.pointerDown" @pointermove="rows.pointerMove" @pointerup="rows.pointerUp" @pointercancel="rows.pointerUp" @dragstart="rows.dragStart">
         <div v-if="editing?.mode === 'new'" class="row">
           <span class="ico" aria-hidden="true"><Icon name="file" :size="14" /></span>
           <input :ref="focusName" v-model="editing.value" class="name-input" spellcheck="false" :aria-label="t('files.newName')" data-keep-keys @keydown="editKey" @blur="editBlur" />
@@ -390,7 +351,7 @@ watch(() => state.revision, () => refresh(true));
           <span class="type muted">{{ t(`files.kinds.${f.kind.split(":")[0]}`) }}</span>
           <span class="size mono muted r">{{ formatBytes(f.size, locale) }}</span>
         </div>
-        <div v-if="band" class="band" :style="{ left: band.x + 'px', top: band.y + 'px', width: band.w + 'px', height: band.h + 'px' }" />
+        <div v-if="rows.band.value" class="band" :style="{ left: rows.band.value.x + 'px', top: rows.band.value.y + 'px', width: rows.band.value.w + 'px', height: rows.band.value.h + 'px' }" />
         <p v-if="!files.length && !editing" class="empty muted">{{ t("files.empty") }}</p>
       </div>
       <div class="status" :title="t('files.storageHint')">

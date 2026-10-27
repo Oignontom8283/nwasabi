@@ -87,26 +87,6 @@ export const valueOf = (event: Event): string => (event.target as HTMLInputEleme
 export const checkedOf = (event: Event): boolean => (event.target as HTMLInputElement).checked;
 
 /**
- * Relève périodiquement (`task` est asynchrone : elle parle au Worker) sans jamais empiler deux relevés : si le précédent
- * n'est pas fini, on saute ce tour. Rend la fonction qui arrête.
- */
-export function poll(task: () => Promise<void> | void, ms: number): () => void {
-  let busy = false;
-  const run = async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      await task();
-    } finally {
-      busy = false;
-    }
-  };
-  void run();
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-}
-
-/**
  * Remplace la valeur d'une référence seulement si elle a changé (comparaison des données, pas des objets) : un relevé
  * périodique qui rend les mêmes données ne doit pas faire redessiner la vue, sous peine de perdre menus ouverts et survols.
  */

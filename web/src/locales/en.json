@@ -87,6 +87,7 @@
     "clear": "Clear the log"
   },
   "debug": {
+    "rowsHint": "Code list: arrows to move, Shift + arrows to extend the selection, Ctrl + C to copy",
     "zone": "Marked range: {address}, {n} byte | Marked range: {address}, {n} bytes",
     "zoneClear": "Clear",
     "shiftF11": "Shift + F11",
@@ -153,6 +154,8 @@
       "indirect": "Jump whose target depends on a register or a table"
     },
     "menu": {
+      "copySelection": "Copy the {n} instructions",
+      "clearSelection": "Clear the selection",
       "runTo": "Run to here",
       "conditional": "Conditional breakpoint…",
       "setPc": "Resume here (pc = this address)",
@@ -271,6 +274,7 @@
     "truncated": "Only the first {n} ranges are shown."
   },
   "palette": {
+    "shortcuts": "Show the keyboard shortcuts",
     "title": "Commands",
     "placeholder": "Type an action…",
     "none": "No command matches.",
@@ -418,6 +422,16 @@
     "break": "Set a breakpoint here",
     "watch": "Watch for writes",
     "bookmark": "Add to the bookmarks"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "groups": { "general": "General", "screen": "Screen and windows", "debug": "Debugging", "lists": "Lists (code, files…)" },
+    "actions": {
+      "general": { "palette": "Command palette", "toggleRun": "Pause or resume", "frame": "Advance one frame", "restart": "Restart the application", "quickSave": "Quick save", "quickLoad": "Quick load", "reload": "Reload the server's files" },
+      "screen": { "capture": "Capture the screen", "copy": "Copy the screen", "gif": "Record a GIF", "fullscreen": "Full screen", "large": "Large screen", "panel": "Open or close the panel" },
+      "debug": { "resume": "Resume or pause", "over": "Step over", "step": "Step", "out": "Step out of the function" },
+      "lists": { "move": "Previous or next row", "extend": "Extend the selection", "all": "Select all", "copy": "Copy the selection", "menu": "Open the menu of a row or an address", "clear": "Clear the selection", "breakpoint": "Breakpoint on the active line (code)", "follow": "Follow the jump of the active line (code)" }
+    }
   },
   "screen": {
     "copied": "Screen copied to the clipboard",

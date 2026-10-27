@@ -4,7 +4,8 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { showInMemory, ui } from "../../ui.js";
-import { hex0x, poll } from "../../util.js";
+import { hex0x } from "../../util.js";
+import { poll } from "../../poll.js";
 import AddressLink from "../AddressLink.vue";
 
 const { t } = useI18n();
