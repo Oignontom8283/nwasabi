@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
-import { showInMemory } from "../../ui.js";
+import { showInMemory, ui } from "../../ui.js";
 import { assignIfChanged, hex, hex0x, parseAddress, poll } from "../../util.js";
 import Icon from "../Icon.vue";
 
@@ -76,6 +76,11 @@ onMounted(() => {
 });
 onBeforeUnmount(() => stopPolling());
 watch(() => [state.revision, viewAt.value], refresh);
+watch(
+  () => ui.debugGoto,
+  (goto) => goto && (viewAt.value = (goto.address & ~1) >>> 0),
+  { immediate: true },
+);
 watch(
   () => state.running,
   async (running) => {

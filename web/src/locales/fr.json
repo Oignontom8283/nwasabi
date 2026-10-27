@@ -116,6 +116,18 @@
     "stoppedWatch": "Pause : l'instruction à {pc} a touché {address}.",
     "stoppedFault": "Pause sur une faute : {fault}"
   },
+  "profile": {
+    "title": "Profil d'exécution",
+    "help": "Relève régulièrement l'instruction en cours : les fonctions et les adresses qui reviennent le plus souvent sont celles où l'application passe son temps. Le relevé continue tant qu'on ne l'arrête pas.",
+    "start": "Lancer",
+    "stop": "Arrêter",
+    "samples": "{n} relevé | {n} relevés",
+    "waiting": "En attente de relevés : l'application tourne-t-elle ?",
+    "function": "Fonction",
+    "address": "Adresse",
+    "share": "Part du temps",
+    "show": "Voir dans le débogueur"
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
