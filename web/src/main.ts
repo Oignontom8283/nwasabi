@@ -6,9 +6,10 @@ import logo from "../../assets/logo/logo-bordered.svg?url";
 
 createApp(App).use(i18n).mount("#app");
 
-// Installable et utilisable hors ligne : le service worker garde les fichiers du site (voir `web/vite.config.ts`).
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  addEventListener("load", () => void navigator.serviceWorker.register("./sw.js").catch(() => {}));
+// Le site n'est plus installable ni gardé hors ligne : on retire le service worker et le cache que d'anciennes versions ont pu installer.
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.getRegistrations().then((all) => all.forEach((one) => void one.unregister())).catch(() => {});
+  void caches?.keys().then((names) => names.filter((name) => name.startsWith("nwasabi-")).forEach((name) => void caches.delete(name))).catch(() => {});
 }
 
 // Icône de l'onglet : lue dans assets/logo, comme les autres images. La page statique ne peut pas la nommer, car son adresse
