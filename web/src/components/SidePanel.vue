@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount } from "vue";
+import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from "vue";
 import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { isNarrow, PANEL_MIN, PANEL_ROOM, panelPixels, TABS, ui } from "../ui.js";
@@ -17,6 +17,31 @@ const COMPONENTS: Record<string, Component> = { files: FilesTab, memory: MemoryT
 const ICONS: Record<string, string> = { files: "folder", memory: "chip", structures: "layers", keys: "keyboard", settings: "sliders", debug: "bug", trace: "activity" };
 
 const width = computed(() => panelPixels());
+
+// Les onglets restent en mémoire (`KeepAlive`) : on retrouve la mémoire où on l'avait laissée, la liste de fichiers, une saisie…
+// Le panneau fermé reste lui aussi en mémoire ; ce qu'il contient cesse de relever l'appareil (voir `poll`).
+provide("panelActive", computed(() => ui.panelOpen));
+
+// Les zones qui défilent (le panneau, l'éditeur hexadécimal, les listes…) retrouvent leur position : un élément retiré de la page par
+// `KeepAlive`, ou masqué, la perd. On la relève avant le changement d'onglet ou la fermeture du panneau, et on la remet après.
+const root = ref<HTMLElement | null>(null);
+const body = ref<HTMLElement | null>(null);
+type Saved = Array<[HTMLElement, number, number]>;
+const saved: Record<string, Saved> = {};
+const snapshot = (): Saved => [...(root.value?.querySelectorAll<HTMLElement>("*") ?? [])].filter((e) => e.scrollTop > 0 || e.scrollLeft > 0).map((e) => [e, e.scrollTop, e.scrollLeft]);
+const restore = (list: Saved | undefined) => list?.forEach(([e, top, left]) => ((e.scrollTop = top), (e.scrollLeft = left)));
+watch(() => ui.tab, (_tab, old) => old && (saved[old] = snapshot()), { flush: "pre" });
+watch(() => ui.tab, async (tab) => {
+  await nextTick();
+  if (body.value) body.value.scrollTop = 0;
+  restore(saved[tab]);
+});
+watch(() => ui.panelOpen, (open) => !open && (saved[`panel:${ui.tab}`] = snapshot()), { flush: "pre" });
+watch(() => ui.panelOpen, async (open) => {
+  if (!open) return;
+  await nextTick();
+  restore(saved[`panel:${ui.tab}`]);
+});
 
 // Redimensionnement à la souris (ou au doigt) par la poignée de gauche, et au clavier. Pendant le glissement, la
 // largeur n'est appliquée qu'une fois par image : suivre chaque événement du pointeur fait inutilement du travail.
@@ -60,7 +85,7 @@ function tabKey(event: KeyboardEvent) {
 </script>
 
 <template>
-  <section class="side" :style="{ width: width + 'px' }" :aria-label="t('panel.label')">
+  <section ref="root" class="side" :style="{ width: width + 'px' }" :aria-label="t('panel.label')">
     <div
       v-if="!isNarrow()"
       class="grip"
@@ -95,8 +120,8 @@ function tabKey(event: KeyboardEvent) {
       </div>
       <button class="collapse icon" :title="t('panel.collapse')" :aria-label="t('panel.collapse')" @click="ui.panelOpen = false"><Icon name="right" /></button>
     </div>
-    <div :id="`panel-${ui.tab}`" class="body" role="tabpanel" :aria-labelledby="`tab-${ui.tab}`" tabindex="-1">
-      <component :is="COMPONENTS[ui.tab]" />
+    <div :id="`panel-${ui.tab}`" ref="body" class="body" role="tabpanel" :aria-labelledby="`tab-${ui.tab}`" tabindex="-1">
+      <KeepAlive><component :is="COMPONENTS[ui.tab]" :key="ui.tab" /></KeepAlive>
     </div>
   </section>
 </template>

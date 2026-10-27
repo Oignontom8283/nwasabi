@@ -6,7 +6,8 @@ import { useEmu } from "../../emulator.js";
 import { addBreak, describeCondition, disable, enable, points, refreshPoints, removeBreak, removeWatchPoint, setStop } from "../../pointsStore.js";
 import type { Condition } from "../../pointsStore.js";
 import { ui, showInDebugger, showInMemory } from "../../ui.js";
-import { hex0x, parseAddress, poll } from "../../util.js";
+import { hex0x, parseAddress } from "../../util.js";
+import { poll } from "../../poll.js";
 import Icon from "../Icon.vue";
 import AddressLink from "../AddressLink.vue";
 
@@ -77,7 +78,7 @@ const kindText = (kind: string) => t(`watch.kinds.${kind}`);
   <div class="points">
     <p v-if="!state.loaded" class="empty muted">{{ t("debug.noApp") }}</p>
     <template v-else>
-      <h3>{{ t("points.add") }}</h3>
+      <h3 class="subhead">{{ t("points.add") }}</h3>
       <form class="form" @submit.prevent="add">
         <label class="grow">{{ t("points.where") }}<input v-model="where" class="mono" :placeholder="t('points.wherePlaceholder')" data-keep-keys /></label>
         <label class="check"><input v-model="useCondition" type="checkbox" /> {{ t("points.onlyIf") }}</label>
@@ -91,7 +92,7 @@ const kindText = (kind: string) => t(`watch.kinds.${kind}`);
       <p class="muted small">{{ t("points.conditionHelp") }}</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-      <h3>{{ t("points.list") }}</h3>
+      <h3 class="subhead">{{ t("points.list") }}</h3>
       <p v-if="empty" class="muted small">{{ t("points.none") }}</p>
       <ul v-else class="list">
         <li class="cols head" aria-hidden="true">
@@ -143,7 +144,6 @@ const kindText = (kind: string) => t(`watch.kinds.${kind}`);
 <style scoped>
 .points { display: grid; gap: 8px; align-content: start; }
 .empty { padding: 24px 8px; text-align: center; margin: 0; }
-h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .small { margin: 0; font-size: 12px; }
 .form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .form label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }

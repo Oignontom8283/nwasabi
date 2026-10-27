@@ -7,7 +7,7 @@ import { useI18n } from "vue-i18n";
 import { useEmu } from "../emulator.js";
 import { addBookmark } from "../bookmarks.js";
 import { addBreak } from "../pointsStore.js";
-import { notify, showInDebugger, showInMemory } from "../ui.js";
+import { notify, showBreakpoints, showInDebugger, showInMemory, showWatchpoints } from "../ui.js";
 import { hex0x } from "../util.js";
 import { addWatch } from "../watchStore.js";
 import ContextMenu from "./ContextMenu.vue";
@@ -44,9 +44,17 @@ async function copy(value: string) {
 }
 async function watch() {
   const failure = await addWatch(emulator, props.address, props.length, "write", false);
-  notify(failure ?? t("hex.watching", { address: hex0x(props.address) }));
+  if (failure) notify(failure);
+  else showWatchpoints();
 }
-function openMenu(event: MouseEvent) {
+/** Touche « menu contextuel » ou Maj + F10 : ouvre le menu à côté du lien, comme un clic droit. */
+function menuKey(event: KeyboardEvent) {
+  if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey)) return;
+  event.preventDefault();
+  const box = (event.currentTarget as Element).getBoundingClientRect();
+  openMenu({ clientX: box.left, clientY: box.bottom });
+}
+function openMenu(event: { clientX: number; clientY: number }) {
   menu.value = {
     x: event.clientX,
     y: event.clientY,
@@ -55,7 +63,7 @@ function openMenu(event: MouseEvent) {
       { label: t("link.inCode"), action: () => open("code") },
       { separator: true },
       { label: isRange.value ? t("link.copyRange", { range: `${hex0x(props.address)}–${hex0x(props.address + props.length - 1)}` }) : t("debug.menu.copyAddress"), action: () => void copy(isRange.value ? `${hex0x(props.address)}-${hex0x(props.address + props.length - 1)}` : hex0x(props.address, 8)) },
-      { label: t("link.break"), action: () => void addBreak(emulator, props.address & ~1) },
+      { label: t("link.break"), action: () => void addBreak(emulator, props.address & ~1).then(() => showBreakpoints()) },
       { label: t("link.watch"), action: () => void watch() },
       { label: t("link.bookmark"), action: () => notify(addBookmark(props.address, props.length) ? t("bookmarks.added", { address: hex0x(props.address) }) : t("bookmarks.noApp")) },
     ],
@@ -68,8 +76,10 @@ function openMenu(event: MouseEvent) {
     class="address-link mono"
     :class="{ range: isRange }"
     :title="`${isRange ? t('link.rangeHint', { n: length }, length) + '\n' : ''}${t(view === 'code' ? 'link.hintCode' : 'link.hintMemory')}`"
+    aria-haspopup="menu"
     @click="open(view)"
     @contextmenu.prevent.stop="openMenu"
+    @keydown="menuKey"
   >{{ text }}<span v-if="isRange" class="size">+{{ length }}</span></button>
   <ContextMenu v-if="menu" :items="menu.items" :x="menu.x" :y="menu.y" @close="menu = null" />
 </template>

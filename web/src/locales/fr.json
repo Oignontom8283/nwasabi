@@ -87,6 +87,7 @@
     "clear": "Effacer le relevé"
   },
   "debug": {
+    "rowsHint": "Liste du code : flèches pour se déplacer, Maj + flèches pour étendre la sélection, Ctrl + C pour copier",
     "zone": "Zone repérée : {address}, {n} octet | Zone repérée : {address}, {n} octets",
     "zoneClear": "Effacer",
     "shiftF11": "Maj + F11",
@@ -153,6 +154,8 @@
       "indirect": "Saut dont la cible dépend d'un registre ou d'une table"
     },
     "menu": {
+      "copySelection": "Copier les {n} instructions",
+      "clearSelection": "Désélectionner",
       "runTo": "Exécuter jusqu'ici",
       "conditional": "Point d'arrêt conditionnel…",
       "setPc": "Reprendre ici (pc = cette adresse)",
@@ -271,6 +274,7 @@
     "truncated": "Seules les {n} premières plages sont affichées."
   },
   "palette": {
+    "shortcuts": "Afficher les raccourcis clavier",
     "title": "Commandes",
     "placeholder": "Tapez une action…",
     "none": "Aucune commande ne correspond.",
@@ -418,6 +422,16 @@
     "break": "Poser un point d'arrêt ici",
     "watch": "Observer en écriture",
     "bookmark": "Ajouter aux signets"
+  },
+  "shortcuts": {
+    "title": "Raccourcis clavier",
+    "groups": { "general": "Général", "screen": "Écran et fenêtres", "debug": "Débogage", "lists": "Listes (code, fichiers…)" },
+    "actions": {
+      "general": { "palette": "Palette de commandes", "toggleRun": "Pause ou reprise", "frame": "Avancer d'une image", "restart": "Relancer l'application", "quickSave": "Sauvegarde rapide", "quickLoad": "Chargement rapide", "reload": "Recharger les fichiers du serveur" },
+      "screen": { "capture": "Capture de l'écran", "copy": "Copier l'écran", "gif": "Enregistrer un GIF", "fullscreen": "Plein écran", "large": "Écran large", "panel": "Ouvrir ou fermer le panneau" },
+      "debug": { "resume": "Reprendre ou pause", "over": "Pas par-dessus", "step": "Pas", "out": "Sortir de la fonction" },
+      "lists": { "move": "Ligne précédente ou suivante", "extend": "Étendre la sélection", "all": "Tout sélectionner", "copy": "Copier la sélection", "menu": "Ouvrir le menu d'une ligne ou d'une adresse", "clear": "Désélectionner", "breakpoint": "Point d'arrêt sur la ligne active (code)", "follow": "Suivre le saut de la ligne active (code)" }
+    }
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",

@@ -6,7 +6,8 @@ import { useI18n } from "vue-i18n";
 import { useEmu } from "../emulator.js";
 import { NAMES } from "../svcNames.js";
 import { showInDebugger } from "../ui.js";
-import { hex, hex0x, poll } from "../util.js";
+import { hex, hex0x } from "../util.js";
+import { poll } from "../poll.js";
 import AddressLink from "./AddressLink.vue";
 
 interface Call {

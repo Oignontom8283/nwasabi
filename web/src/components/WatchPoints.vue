@@ -5,7 +5,8 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../emulator.js";
 import { showInMemory } from "../ui.js";
-import { hex0x, parseAddress, poll, valueOf, checkedOf } from "../util.js";
+import { hex0x, parseAddress, valueOf, checkedOf } from "../util.js";
+import { poll } from "../poll.js";
 import { addWatch, clearHits, drainHits, refreshWatches, removeWatch, watching } from "../watchStore.js";
 import { setStop } from "../pointsStore.js";
 import type { WatchKind } from "../watchStore.js";
@@ -45,7 +46,7 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
 
 <template>
   <div class="watch">
-    <h3>{{ t("watch.new") }}</h3>
+    <h3 class="subhead">{{ t("watch.new") }}</h3>
     <form class="form" @submit.prevent="add">
       <label>{{ t("watch.address") }}<input :value="address" class="mono" placeholder="0x20020000" data-keep-keys @input="address = valueOf($event)" /></label>
       <label>{{ t("watch.length") }}<input :value="length" class="mono short" data-keep-keys @input="length = valueOf($event)" /></label>
@@ -64,7 +65,7 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
       {{ t("watch.stopped", { pc: hex0x(Number(state.stop.pc)), address: hex0x(Number(state.stop.address)) }) }}
     </p>
 
-    <h3>{{ t("watch.posed") }}</h3>
+    <h3 class="subhead">{{ t("watch.posed") }}</h3>
     <ul v-if="watching.list.length" class="list">
       <li class="cols head" aria-hidden="true">
         <span>{{ t("points.colWhere") }}</span><span>{{ t("points.colSize") }}</span><span>{{ t("watch.kind") }}</span>
@@ -80,7 +81,7 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
     </ul>
     <p v-else class="muted">{{ t("watch.none") }}</p>
 
-    <h3 v-if="watching.list.length">{{ t("watch.accesses") }}</h3>
+    <h3 class="subhead" v-if="watching.list.length">{{ t("watch.accesses") }}</h3>
     <div v-if="watching.list.length" class="gh">
       <div class="gh-head cols" aria-hidden="true"><span>{{ t("watch.colInstruction") }}</span><span>{{ t("watch.colAccess") }}</span><span>{{ t("watch.colValue") }}</span><span>{{ t("watch.colCount") }}</span></div>
       <div class="gh-rows">
@@ -99,7 +100,6 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
 
 <style scoped>
 .watch { display: grid; gap: 10px; }
-h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .form label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
 .form label.check { display: flex; align-items: center; gap: 4px; color: inherit; }

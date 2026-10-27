@@ -1,14 +1,17 @@
 <script setup lang="ts">
 // Le code de l'application : désassemblé autour de l'instruction en cours, avec les commandes d'exécution (reprendre, pas,
 // par-dessus, sortir), les points d'arrêt, la pile d'appels, les registres (modifiables en pause) et les registres de faute.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
-import { notify, showInMemory, ui } from "../../ui.js";
-import { assignIfChanged, hex, hex0x, parseAddress, poll } from "../../util.js";
+import { notify, showInMemory, showWatchpoints, ui } from "../../ui.js";
+import { addWatch } from "../../watchStore.js";
+import { assignIfChanged, hex, hex0x, parseAddress } from "../../util.js";
+import { poll } from "../../poll.js";
 import { jumpKind, tooltip } from "../../thumbDocs.js";
 import type { JumpKind } from "../../thumbDocs.js";
 import { points } from "../../pointsStore.js";
+import { useRowSelection } from "../../composables/useRowSelection.js";
 import AddressLink from "../AddressLink.vue";
 import ContextMenu from "../ContextMenu.vue";
 import type { MenuItem } from "../ContextMenu.vue";
@@ -50,6 +53,15 @@ const frames = ref<Frame[]>([]);
 const here = ref("");
 /** Adresse affichée ; `null` : on suit l'instruction en cours. */
 const viewAt = ref<number | null>(null);
+/** L'instruction qu'on vient de rejoindre (saut, lien, aller à…) : elle est sélectionnée, ramenée dans la vue et signalée un instant. */
+const focus = ref<number | null>(null);
+const flash = ref<number | null>(null);
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+function go(address: number) {
+  const aligned = (address & ~1) >>> 0;
+  viewAt.value = aligned;
+  focus.value = aligned;
+}
 const gotoText = ref("");
 const message = ref("");
 /** Point d'arrêt provisoire de « jusqu'ici », « par-dessus » et « sortir » : retiré dès que l'exécution s'arrête. */
@@ -83,6 +95,10 @@ watch(() => state.appName, () => {
 
 // ---- sauts : icône, flèche au survol -------------------------------------------------------------------
 const rows = ref<HTMLElement | null>(null);
+const sel = useRowSelection<number>({ container: rows, keys: () => lines.value.map((l) => l.address), attribute: "data-addr", parse: Number });
+/** Les lignes sélectionnées, dans l'ordre du code. */
+const chosen = computed(() => lines.value.filter((l) => sel.selected.value.has(l.address)));
+const lineText = (l: Line) => `${hex(l.address)}  ${l.hex.padEnd(9)}  ${l.mnemonic} ${l.operands}`.trimEnd();
 const kindOf = (line: Line): JumpKind | null => jumpKind(line.mnemonic, line.operands, line.target !== undefined);
 const JUMP_TITLES: Record<JumpKind, string> = { jump: "jump", branch: "branch", call: "call", return: "return", indirect: "indirect" };
 interface Arrow {
@@ -130,6 +146,11 @@ async function copyText(text: string) {
     notify(t("debug.menu.copyFailed"));
   }
 }
+async function watchRange(address: number, length: number) {
+  const failure = await addWatch(emulator, address, length, "write", false);
+  if (failure) message.value = failure;
+  else showWatchpoints();
+}
 async function nopOut(line: Line) {
   // Un `nop` de la même taille : 16 bits (bf00) ou 32 bits (nop.w, f3af 8000).
   const bytes = line.size === 4 ? "aff30080" : "00bf";
@@ -144,7 +165,26 @@ async function setPc(line: Line) {
   viewAt.value = null;
   await refresh();
 }
-function openMenu(event: MouseEvent, line: Line) {
+function openMenu(event: { clientX: number; clientY: number }, line: Line) {
+  // Clic droit sur une sélection de plusieurs lignes : les actions de la sélection ; sinon, celles de la ligne.
+  if (sel.selected.value.has(line.address) && chosen.value.length > 1) {
+    const first = chosen.value[0] as Line;
+    const last = chosen.value[chosen.value.length - 1] as Line;
+    const length = last.address + last.size - first.address;
+    menu.value = {
+      x: event.clientX,
+      y: event.clientY,
+      items: [
+        { label: t("debug.menu.copySelection", { n: chosen.value.length }), action: () => void copyChosen() },
+        { label: t("link.inMemory"), action: () => showInMemory(first.address, length) },
+        { label: t("link.watch"), action: () => void watchRange(first.address, length) },
+        { separator: true },
+        { label: t("debug.menu.clearSelection"), action: () => sel.clear() },
+      ],
+    };
+    return;
+  }
+  if (!sel.selected.value.has(line.address)) sel.only(line.address);
   const has = breaks.value.includes(line.address);
   const kind = kindOf(line);
   const target = line.target;
@@ -156,7 +196,7 @@ function openMenu(event: MouseEvent, line: Line) {
   ];
   if (target !== undefined) {
     items.push({ separator: true });
-    items.push({ label: t("debug.menu.gotoTarget", { target: line.target_symbol ?? hex0x(target) }), action: () => (viewAt.value = target) });
+    items.push({ label: t("debug.menu.gotoTarget", { target: line.target_symbol ?? hex0x(target) }), action: () => go(target) });
     items.push({ label: t("debug.menu.breakTarget"), action: () => void toggleBreak(target) });
     items.push({ label: kind === "call" ? t("debug.menu.viewFunction") : t("debug.showInMemory"), action: () => showInMemory(target) });
   }
@@ -240,13 +280,26 @@ onBeforeUnmount(() => {
   removeEventListener("keydown", onKey);
 });
 watch(() => [state.revision, viewAt.value], refresh);
+watch([lines, focus], async () => {
+  const address = focus.value;
+  if (address === null) return;
+  await nextTick();
+  const row = rows.value?.querySelector<HTMLElement>(`[data-addr="${address}"]`);
+  if (!row) return;
+  focus.value = null;
+  sel.only(address);
+  row.scrollIntoView({ block: "nearest" });
+  flash.value = address;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => (flash.value = null), 1600);
+});
 /** Plage d'octets à repérer dans le code (venue d'un lien « zone ») : ses instructions sont surlignées. */
 const zone = ref<{ address: number; length: number } | null>(null);
 watch(
   () => ui.debugGoto,
   (goto) => {
     if (!goto) return;
-    viewAt.value = (goto.address & ~1) >>> 0;
+    go(goto.address);
     zone.value = goto.length > 1 ? { address: goto.address, length: goto.length } : null;
   },
   { immediate: true },
@@ -322,7 +375,43 @@ async function goto() {
   }
   if (address === undefined) return void (message.value = t("debug.badAddress"));
   message.value = "";
-  viewAt.value = (address & ~1) >>> 0;
+  go(address);
+}
+
+function rowClick(event: MouseEvent, line: Line) {
+  if (sel.wasDrag() || (event.target as Element).closest("button, a, input") || getSelection()?.toString()) return;
+  sel.click(line.address, event);
+}
+
+async function copyChosen() {
+  const text = chosen.value.map(lineText).join("\n");
+  if (!text) return;
+  await copyText(text);
+}
+
+/** Flèches, Maj + flèches, Ctrl + A, Ctrl + C, Échap dans la liste du code. */
+function rowsKey(event: KeyboardEvent) {
+  const ctrl = event.ctrlKey || event.metaKey;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    const next = sel.move(event.key === "ArrowDown" ? 1 : -1, event.shiftKey);
+    if (next !== null) rows.value?.querySelector<HTMLElement>(`[data-addr="${next}"]`)?.scrollIntoView({ block: "nearest" });
+  } else if (ctrl && event.key.toLowerCase() === "a") sel.selectAll();
+  else if (ctrl && event.key.toLowerCase() === "c") void copyChosen();
+  else if (event.key === "Escape") sel.clear();
+  else if (event.key === "F9" || event.key === "Enter" || event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+    // Sur la ligne active : F9 pose ou retire un point d'arrêt, Entrée suit un saut, le menu s'ouvre à côté de la ligne.
+    const line = lines.value.find((l) => l.address === sel.caret.value);
+    if (!line) return;
+    if (event.key === "F9") void toggleBreak(line.address);
+    else if (event.key === "Enter") {
+      if (line.target === undefined) return;
+      go(line.target);
+    } else {
+      const box = rows.value?.querySelector<HTMLElement>(`[data-addr="${line.address}"]`)?.getBoundingClientRect();
+      openMenu({ clientX: (box?.left ?? 0) + 60, clientY: box?.bottom ?? 0 }, line);
+    }
+  } else return;
+  event.preventDefault();
 }
 
 // Raccourcis des débogueurs usuels : F5 reprendre ou pause, F10 par-dessus, F11 pas, Maj + F11 sortir.
@@ -419,7 +508,7 @@ const flags = computed(() => {
           <span class="c-ops" />
           <span class="c-actions" :title="t('debug.colActionsHint')">{{ t("debug.colActions") }}</span>
         </div>
-        <div ref="rows" class="rows" @mouseleave="hideArrow">
+        <div ref="rows" class="rows" tabindex="0" role="rowgroup" aria-multiselectable="true" :aria-label="t('debug.rowsHint')" @mouseleave="hideArrow" @pointerdown="sel.pointerDown" @pointermove="sel.pointerMove" @pointerup="sel.pointerUp" @pointercancel="sel.pointerUp" @dragstart="sel.dragStart" @keydown="rowsKey">
           <svg v-if="arrow" class="overlay" aria-hidden="true">
             <defs>
               <marker id="arrowhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" /></marker>
@@ -431,13 +520,15 @@ const flags = computed(() => {
             <div v-if="line.label" class="label">{{ line.label }}:</div>
             <div
               class="row"
-              :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address), zone: inZone(line.address) }"
+              :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address), zone: inZone(line.address), selected: sel.selected.value.has(line.address), flash: flash === line.address }"
+              :aria-selected="sel.selected.value.has(line.address)"
+              @click="rowClick($event, line)"
               role="row"
               :data-addr="line.address"
               @mouseenter="showArrow(line)"
               @contextmenu.prevent="openMenu($event, line)"
             >
-              <button class="dot" :title="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" :aria-label="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" @click="toggleBreak(line.address)">
+              <button class="dot" tabindex="-1" :title="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" :aria-label="breaks.includes(line.address) ? t('debug.removeBreak') : t('debug.addBreak')" @click="toggleBreak(line.address)">
                 <span :class="{ on: breaks.includes(line.address) }" />
               </button>
               <span class="arrow" aria-hidden="true">{{ line.address === cpu?.pc ? "▶" : "" }}</span>
@@ -450,16 +541,18 @@ const flags = computed(() => {
                   <path v-else-if="kindOf(line) === 'indirect'" d="M2 6h.01 M6 6h.01 M10 6h.01" />
                 </svg>
               </span>
-              <button class="addr" :title="t('debug.runTo')" :disabled="!paused" @click="runTo(line.address)">{{ hex(line.address) }}</button>
+              <button class="addr" tabindex="-1" :title="t('debug.runTo')" :disabled="!paused" @click="runTo(line.address)">{{ hex(line.address) }}</button>
               <span class="bytes muted">{{ line.hex }}</span>
               <span class="mn" :title="tooltip(line.mnemonic, line.operands, line.target !== undefined)">{{ line.mnemonic }}</span>
               <span class="ops" :title="tooltip(line.mnemonic, line.operands, line.target !== undefined)">{{ line.operands }}<span v-if="line.target_symbol" class="muted"> &lt;{{ line.target_symbol }}&gt;</span></span>
+              <span class="fill" data-empty />
               <span class="actions">
-                <button v-if="line.target !== undefined" class="act" :title="t('debug.followTarget')" :aria-label="t('debug.followTarget')" @click="viewAt = line.target ?? null"><Icon name="right" :size="14" /></button>
-                <button v-if="line.target !== undefined" class="act" :title="t('debug.showInMemory')" :aria-label="t('debug.showInMemory')" @click="showInMemory(line.target as number)"><Icon name="chip" :size="14" /></button>
+                <button v-if="line.target !== undefined" class="act" tabindex="-1" :title="t('debug.followTarget')" :aria-label="t('debug.followTarget')" @click="go(line.target ?? 0)"><Icon name="right" :size="14" /></button>
+                <button v-if="line.target !== undefined" class="act" tabindex="-1" :title="t('debug.showInMemory')" :aria-label="t('debug.showInMemory')" @click="showInMemory(line.target as number)"><Icon name="chip" :size="14" /></button>
               </span>
             </div>
           </template>
+          <div v-if="sel.band.value" class="band" :style="{ left: sel.band.value.x + 'px', top: sel.band.value.y + 'px', width: sel.band.value.w + 'px', height: sel.band.value.h + 'px' }" />
           <p v-if="!lines.length" class="muted pad">{{ t("debug.unreadable") }}</p>
         </div>
       </div>
@@ -469,11 +562,11 @@ const flags = computed(() => {
       </p>
 
       <section>
-        <h3>{{ t("debug.trail.title") }}</h3>
+        <h3 class="subhead">{{ t("debug.trail.title") }}</h3>
         <p class="muted small">{{ t("debug.trail.help") }}</p>
         <div v-if="trail.length" class="trail mono">
           <div class="head muted" role="row"><span class="t-n">#</span><span class="t-addr">{{ t("debug.colAddress") }}</span><span>{{ t("debug.colInstruction") }}</span><span class="t-fn">{{ t("debug.trail.function") }}</span></div>
-          <div v-for="e in trail" :key="e.n" class="t-row" role="row" :title="t('debug.trail.show')" @click="viewAt = e.address">
+          <div v-for="e in trail" :key="e.n" class="t-row" role="row" :title="t('debug.trail.show')" @click="go(e.address)">
             <span class="t-n muted">{{ e.n }}</span><span class="t-addr" @click.stop><AddressLink :address="e.address" view="code" /></span><span class="t-text">{{ e.text }}</span><span class="t-fn muted">{{ e.symbol }}</span>
           </div>
         </div>
@@ -482,7 +575,7 @@ const flags = computed(() => {
       </section>
 
       <section>
-        <h3>{{ t("debug.stack") }}</h3>
+        <h3 class="subhead">{{ t("debug.stack") }}</h3>
         <p class="muted small">{{ t("debug.stackHelp") }}</p>
         <ol v-if="paused && frames.length" class="frames mono">
           <li v-for="(frame, i) in frames" :key="i">
@@ -494,7 +587,7 @@ const flags = computed(() => {
       </section>
 
       <section>
-        <h3>{{ t("debug.registers") }}</h3>
+        <h3 class="subhead">{{ t("debug.registers") }}</h3>
         <p class="muted small">{{ paused ? t("debug.registersHelp") : t("debug.registersRunning") }}</p>
         <div v-if="cpu" class="regs mono">
           <label v-for="name in NAMES" :key="name" :class="{ changed: changed(name) }">
@@ -516,7 +609,7 @@ const flags = computed(() => {
       </section>
 
       <section>
-        <h3>{{ t("debug.breakpoints") }}</h3>
+        <h3 class="subhead">{{ t("debug.breakpoints") }}</h3>
         <p class="muted small">{{ t("debug.breakpointsHelp") }}</p>
         <ul v-if="breaks.length" class="breaks mono">
           <li v-for="address in breaks" :key="address">
@@ -528,7 +621,7 @@ const flags = computed(() => {
       </section>
 
       <section>
-        <h3>{{ t("debug.faultRegisters") }}</h3>
+        <h3 class="subhead">{{ t("debug.faultRegisters") }}</h3>
         <p class="muted small">{{ t("debug.faultRegistersHelp") }}</p>
         <FaultRegisters />
       </section>
@@ -566,6 +659,13 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .row:hover { background: var(--accent-soft); }
 .row.zone { background: color-mix(in srgb, var(--warn) 14%, transparent); box-shadow: inset 3px 0 0 var(--warn); }
 .zone-chip { margin: 0; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--warn); }
+.row.selected { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.row.selected.pc { background: color-mix(in srgb, var(--warn) 30%, transparent); }
+.row.flash { animation: flash 1.6s ease-out; outline: 2px solid var(--accent); outline-offset: -2px; }
+@keyframes flash { 0% { outline-color: var(--accent); } 70% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .row.flash { animation: none; } }
+.rows:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.band { position: absolute; pointer-events: none; z-index: 1; background: color-mix(in srgb, var(--accent) 18%, transparent); border: 1px solid var(--accent); }
 .row.pc { background: color-mix(in srgb, var(--warn) 22%, transparent); font-weight: 600; }
 .arrow { width: 6px; font-size: 9px; color: var(--warn); }
 .dot { border: none; background: none; padding: 0 4px; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer; }
@@ -588,7 +688,8 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .act:hover { background: var(--accent-soft); border-color: var(--accent); }
 .bytes { min-width: 9ch; }
 .mn { min-width: 7ch; color: var(--syn-key); cursor: help; }
-.ops { color: var(--syn-num); flex: 1; cursor: help; }
+.ops { color: var(--syn-num); cursor: help; }
+.fill { flex: 1; min-height: 20px; }
 .label { padding: 3px 8px 0 82px; color: var(--accent-strong); font-weight: 600; }
 .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
 .overlay .line { fill: none; stroke: var(--accent-strong); stroke-width: 1.6; }
@@ -607,7 +708,6 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .t-fn { min-width: 12ch; }
 .legend { margin: 0; font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 section { display: grid; gap: 4px; }
-h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .small { margin: 0; font-size: 12px; }
 .frames { margin: 0; padding-left: 2.2em; display: grid; gap: 2px; }
 .frames li .muted { margin-left: 8px; }

@@ -3,7 +3,8 @@ import { useEmu } from "../../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
-import { hex0x, poll } from "../../util.js";
+import { hex0x } from "../../util.js";
+import { poll } from "../../poll.js";
 import { NAMES } from "../../svcNames.js";
 
 const { t, te, n } = useI18n();

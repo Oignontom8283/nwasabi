@@ -6,6 +6,7 @@ import CalculatorSvg from "./components/CalculatorSvg.vue";
 import AboutWindow from "./components/AboutWindow.vue";
 import InfoWindow from "./components/InfoWindow.vue";
 import FaultWindow from "./components/FaultWindow.vue";
+import ShortcutsWindow from "./components/ShortcutsWindow.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import type { Command } from "./components/CommandPalette.vue";
 import DialogHost from "./components/DialogHost.vue";
@@ -23,7 +24,7 @@ import { applyTheme, isNarrow, notice, panelPixels, recording, screenApi, TABS, 
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
-import { SHORTCUTS, shortcutOf } from "./shortcuts.js";
+import { SHORTCUTS, keyed, shortcutOf } from "./shortcuts.js";
 import type { ShortcutId } from "./shortcuts.js";
 import type { PickKind } from "./ui.js";
 import { readBytes } from "./util.js";
@@ -227,6 +228,12 @@ function onKeyCapture(event: KeyboardEvent) {
     if (event.type === "keydown") palette.value = !palette.value;
     return;
   }
+  // « ? » ouvre la liste des raccourcis (sauf dans un champ de saisie ou sur la calculatrice).
+  if (event.key === "?" && event.type === "keydown" && !event.altKey && !event.ctrlKey && !(event.target as Element | null)?.closest?.("input, textarea, select, [contenteditable], [data-calc-key], [data-keep-keys]")) {
+    event.preventDefault();
+    shortcutsOpen.value = !shortcutsOpen.value;
+    return;
+  }
   // Les raccourcis Ctrl + touche (voir `shortcuts.ts`).
   const shortcut = event.type === "keydown" ? shortcutOf(event) : null;
   if (shortcut && runShortcut(shortcut)) {
@@ -293,7 +300,15 @@ onBeforeUnmount(() => {
 
 const stageStyle = computed(() => ({ right: ui.panelOpen && !isNarrow() ? `${panelPixels()}px` : "0px" }));
 
+// Le titre de l'onglet du navigateur porte le nom de l'application : on retrouve la bonne parmi plusieurs onglets.
+watchValue(
+  () => (state.loaded && state.appName ? `${state.appName} — Nwasabi` : "Nwasabi"),
+  (title) => (document.title = title),
+  { immediate: true },
+);
+
 const palette = ref(false);
+const shortcutsOpen = ref(false);
 // La fenêtre de faute s'ouvre à chaque nouvel arrêt sur une faute (et pas quand on rouvre le même arrêt).
 const faultOpen = ref(false);
 watchValue(
@@ -327,6 +342,7 @@ const commands = computed((): Command[] => {
     { id: "quick-load", label: t("palette.quickLoad"), shortcut: SHORTCUTS.quickLoad, run: () => void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }) },
     { id: "panel", label: ui.panelOpen ? t("palette.panelClose") : t("palette.panelOpen"), shortcut: SHORTCUTS.panel, run: () => (ui.panelOpen = !ui.panelOpen) },
     ...TABS.map((id) => ({ id: `tab-${id}`, label: t("palette.goTab", { tab: t(`tabs.${id}`) }), run: go(id) })),
+    { id: "shortcuts", label: t("palette.shortcuts"), shortcut: "?", run: () => (shortcutsOpen.value = true) },
     { id: "theme", label: t("palette.theme"), run: () => (ui.theme = ui.theme === "dark" ? "light" : "dark") },
   ];
 });
@@ -355,10 +371,12 @@ provide("pick", pick);
       <div class="stage" :style="stageStyle">
         <div class="fit"><CalculatorSvg mode="play" /></div>
       </div>
-      <SidePanel v-if="ui.panelOpen" />
-      <button v-else-if="isNarrow()" class="tools-fab" :title="t('mini.openPanel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
-      <MiniBar v-else-if="ui.miniVisible" />
-      <button v-else class="peek icon" :title="t('mini.showHint')" :aria-label="t('mini.showHint')" @click="ui.miniVisible = true"><Icon name="left" /></button>
+      <SidePanel v-show="ui.panelOpen" />
+      <template v-if="!ui.panelOpen">
+        <button v-if="isNarrow()" class="tools-fab" :title="keyed(t('mini.openPanel'), 'panel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
+        <MiniBar v-else-if="ui.miniVisible" />
+        <button v-else class="peek icon" :title="t('mini.showHint')" :aria-label="t('mini.showHint')" @click="ui.miniVisible = true"><Icon name="left" /></button>
+      </template>
     </main>
 
     <div v-if="state.error" class="toast" role="alert">
@@ -370,6 +388,7 @@ provide("pick", pick);
     <AboutWindow v-if="about" @close="about = false" />
     <InfoWindow v-if="info" @close="info = false" />
     <FaultWindow v-if="faultOpen" @close="faultOpen = false" />
+    <ShortcutsWindow v-if="shortcutsOpen" @close="shortcutsOpen = false" />
     <CommandPalette v-if="palette" :commands="commands" @close="palette = false" />
     <DialogHost />
   </div>
