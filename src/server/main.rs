@@ -80,6 +80,47 @@ struct Options {
     /// Ouvre la page dans le navigateur
     #[arg(long)]
     open: bool,
+    /// Port d'un serveur GDB : un débogueur (GDB, LLDB, VS Code…) s'y branche pour déboguer l'application `--nwa`. C'est une
+    /// émulation à part de celle de la page : elle repart de zéro à chaque connexion, avec le fichier tel qu'il est sur le disque
+    #[arg(long, value_name = "PORT", requires = "nwa")]
+    gdb: Option<u16>,
+}
+
+/// Une session neuve, avec l'application `--nwa` telle qu'elle est sur le disque maintenant.
+fn gdb_session(served: &Served) -> Result<nwasabi::session::Session, String> {
+    let nwa = served.nwa.as_ref().ok_or("--gdb demande --nwa")?;
+    let bytes = std::fs::read(nwa).map_err(|e| format!("{} : {e}", nwa.display()))?;
+    let mut request = json!({
+        "cmd": "load",
+        "model": served.model,
+        "firmware": served.firmware,
+        "nwa": nwasabi::json::base64_encode(&bytes),
+    });
+    if let Some(path) = &served.data {
+        let data = std::fs::read(path).map_err(|e| format!("{} : {e}", path.display()))?;
+        request["data"] = json!(nwasabi::json::base64_encode(&data));
+    }
+    let mut session = nwasabi::session::Session::new();
+    let reply = session.handle_line(&request.to_string());
+    if reply.contains("\"ok\":true") {
+        Ok(session)
+    } else {
+        Err(format!("{} : {reply}", nwa.display()))
+    }
+}
+
+/// Le serveur GDB : un débogueur à la fois, chacun sur une émulation neuve de l'application.
+fn serve_gdb(served: Arc<Served>, listener: std::net::TcpListener) {
+    for stream in listener.incoming().flatten() {
+        match gdb_session(&served) {
+            Ok(mut session) => {
+                if let Err(e) = nwasabi::gdb::serve_connection(&mut session, stream) {
+                    eprintln!("GDB : connexion interrompue : {e}");
+                }
+            }
+            Err(message) => eprintln!("GDB : {message}"),
+        }
+    }
 }
 
 /// Les fichiers donnés au démarrage, relus à chaque requête.
@@ -294,6 +335,17 @@ async fn run(options: Options) -> Result<(), String> {
         load_nds(path)?;
     }
 
+    let served = Arc::new(served);
+    if let Some(gdb_port) = options.gdb {
+        gdb_session(&served)?; // le fichier doit être valide avant d'écouter
+        let listener = std::net::TcpListener::bind((options.host.as_str(), gdb_port))
+            .map_err(|e| format!("GDB {}:{gdb_port} : {e}", options.host))?;
+        let address = listener.local_addr().map_err(|e| e.to_string())?;
+        println!("GDB : {address} (target remote {address})");
+        let shared = Arc::clone(&served);
+        std::thread::spawn(move || serve_gdb(shared, listener));
+    }
+
     let app = Router::new()
         .route("/__nwasabi/health", get(health))
         .route("/__nwasabi/preload", get(preload))
@@ -302,7 +354,7 @@ async fn run(options: Options) -> Result<(), String> {
         .route("/__nwasabi/nfs", get(nfs))
         .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
-        .with_state(Arc::new(served));
+        .with_state(served);
 
     let (host, port) = (options.host.as_str(), options.port);
     let listener = tokio::net::TcpListener::bind((host, port))
