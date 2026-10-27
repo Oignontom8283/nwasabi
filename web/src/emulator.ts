@@ -115,6 +115,11 @@ export function useEmulator() {
   /** L'écran en image PNG (le Worker le dessine : la page n'a pas ses pixels). */
   const capture = (): Promise<Blob | null> => ask<Blob | null>((id) => ({ kind: "capture", id })).catch(() => null);
 
+  /** Commence l'enregistrement de l'écran en GIF ; `false` si c'est impossible. */
+  const startRecording = (): Promise<boolean> => ask<boolean>((id) => ({ kind: "record", id, action: "start" })).catch(() => false);
+  /** Termine l'enregistrement et rend le fichier GIF (`null` s'il est vide). */
+  const stopRecording = (): Promise<Uint8Array | null> => ask<Uint8Array | null>((id) => ({ kind: "record", id, action: "stop" })).catch(() => null);
+
   return {
     state,
     init,
@@ -127,6 +132,8 @@ export function useEmulator() {
     press,
     setKept,
     capture,
+    startRecording,
+    stopRecording,
     load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null) => player<boolean>("load", nwa, name, data),
     restart: () => player<boolean>("restart"),
     stepFrame: () => player<boolean>("stepFrame"),

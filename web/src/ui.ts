@@ -85,7 +85,12 @@ export const screenApi = {
   toggleFullscreen: () => {},
   exitFullscreen: () => {},
   capture: () => {},
+  copy: () => {},
+  toggleRecording: () => {},
 };
+
+/** Un GIF est en cours d'enregistrement ? */
+export const recording = reactive({ on: false, since: 0 });
 
 /** Un petit message qui s'efface (« État enregistré »…), affiché en bas de la page. */
 export const notice = reactive({ text: "", seq: 0 });

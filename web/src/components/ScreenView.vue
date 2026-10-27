@@ -2,7 +2,7 @@
 import { useEmu } from "../emulator.js";
 import { inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { screenApi, ui, usePick } from "../ui.js";
+import { notify, recording, screenApi, ui, usePick } from "../ui.js";
 import { download, stem } from "../util.js";
 import Icon from "./Icon.vue";
 
@@ -22,6 +22,8 @@ onMounted(() => {
   screenApi.toggleFullscreen = toggle;
   screenApi.exitFullscreen = exit;
   screenApi.capture = capture;
+  screenApi.copy = copy;
+  screenApi.toggleRecording = toggleRecording;
 });
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", onChange);
@@ -57,6 +59,29 @@ function onMove(event: PointerEvent) {
 async function capture() {
   const blob = await emulator.capture();
   if (blob) download(`${stem(state.appName || "nwasabi")}.png`, blob);
+}
+
+async function copy() {
+  const blob = await emulator.capture();
+  try {
+    if (!blob) throw new Error("vide");
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    notify(t("screen.copied"));
+  } catch {
+    notify(t("screen.copyFailed"));
+  }
+}
+
+async function toggleRecording() {
+  if (!recording.on) {
+    recording.on = await emulator.startRecording();
+    recording.since = Date.now();
+    return;
+  }
+  recording.on = false;
+  const gif = await emulator.stopRecording();
+  if (gif) download(`${stem(state.appName || "nwasabi")}.gif`, new Blob([gif as BlobPart], { type: "image/gif" }));
+  else notify(t("screen.recordEmpty"));
 }
 </script>
 

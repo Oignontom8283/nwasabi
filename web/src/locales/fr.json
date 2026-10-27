@@ -59,6 +59,9 @@
     "stepHint": "Avance d'une image (en pause) : l'application s'exécute jusqu'à la prochaine fin d'image et reçoit 1/60 s."
   },
   "screen": {
+    "copied": "Écran copié dans le presse-papiers",
+    "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
+    "recordEmpty": "Rien à enregistrer : l'écran n'a pas changé",
     "dropApp": "Glissez un fichier .nwa ici",
     "dropAppSub": "ou utilisez le menu en haut à gauche",
     "dropData": "Déposez les données annexes",
@@ -109,6 +112,12 @@
     "faultHint": "L'application a fait quelque chose d'interdit (accès mémoire invalide, instruction inconnue…) : elle s'est arrêtée.",
     "capture": "Capture",
     "captureHint": "Enregistre l'écran en image PNG.",
+    "copy": "Copier",
+    "copyHint": "Copie l'écran dans le presse-papiers, prêt à coller dans un message ou un document.",
+    "record": "GIF",
+    "recordHint": "Enregistre l'écran en image animée jusqu'au prochain clic.",
+    "recordStop": "Arrêter",
+    "recordStopHint": "Termine l'enregistrement et télécharge le GIF.",
     "fullscreen": "Plein écran",
     "fullscreenHint": "Affiche seulement l'écran, sans les touches. Espace ou Échap pour quitter.",
     "tools": "Outils",

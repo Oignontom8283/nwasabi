@@ -1,6 +1,7 @@
 // Le Worker qui fait tourner l'émulation (voir `worker-protocol.ts`). Il possède le lecteur de @nwasabi/js, le module
 // WebAssembly et l'écran (un OffscreenCanvas) ; la page ne voit de lui que ses réponses et les changements d'état.
 
+import { GifRecorder } from "./gif.js";
 import { Player } from "@nwasabi/js";
 import type { Scheduler } from "@nwasabi/js";
 import type { FromWorker, PlayerMethod, StatePatch, ToWorker } from "./worker-protocol.js";
@@ -48,6 +49,14 @@ const scheduler: Scheduler = {
 let player: Player | null = null;
 let canvas: OffscreenCanvas | null = null;
 let kept: unknown = null;
+let recorder: GifRecorder | null = null;
+
+/** Si un GIF est en cours, y ajoute l'écran tel qu'il est maintenant. */
+function record(): void {
+  if (!recorder || !canvas) return;
+  const context = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D | null;
+  if (context) recorder.add(context.getImageData(0, 0, canvas.width, canvas.height).data, performance.now());
+}
 let sent: Record<string, unknown> = {};
 
 /** Deux petits objets simples (l'arrêt, par exemple) ont-ils les mêmes champs ? */
@@ -129,7 +138,10 @@ async function handle(message: ToWorker): Promise<void> {
         player = await Player.create(wasm, { scheduler, slice: SLICE, maxWallMs: FRAME_MS });
         if (canvas) player.attach(canvas as never);
         restoreKept();
-        player.onFrame(() => flush());
+        player.onFrame(() => {
+          record();
+          flush();
+        });
         setInterval(flush, 250); // le temps de l'application continue de défiler même sans nouvelle image
         flush();
         scope.postMessage({ kind: "reply", id: message.id, result: true });
@@ -161,6 +173,18 @@ async function handle(message: ToWorker): Promise<void> {
         scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });
       }
       flush();
+      return;
+    }
+    case "record": {
+      if (message.action === "start") {
+        recorder = canvas ? new GifRecorder(canvas.width, canvas.height) : null;
+        record();
+        scope.postMessage({ kind: "reply", id: message.id, result: recorder !== null });
+      } else {
+        const gif = recorder && recorder.frames > 0 ? recorder.finish() : null;
+        recorder = null;
+        scope.postMessage({ kind: "reply", id: message.id, result: gif });
+      }
       return;
     }
     case "capture": {

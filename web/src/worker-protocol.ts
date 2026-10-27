@@ -36,7 +36,9 @@ export type ToWorker =
   | { kind: "request"; id: number; request: Request; quiet: boolean }
   /** Les fichiers à remettre dans chaque appareil neuf (`.nfs`), ou `null`. */
   | { kind: "kept"; document: unknown | null }
-  | { kind: "capture"; id: number };
+  | { kind: "capture"; id: number }
+  /** Enregistrement de l'écran en GIF : `start` le commence, `stop` le termine et rend le fichier (`Uint8Array`). */
+  | { kind: "record"; id: number; action: "start" | "stop" };
 
 /** Ce que le Worker répond. */
 export type FromWorker =

@@ -59,6 +59,9 @@
     "stepHint": "Advances one frame (while paused): the application runs to the end of the next frame and is given 1/60 s."
   },
   "screen": {
+    "copied": "Screen copied to the clipboard",
+    "copyFailed": "Could not copy (the browser refused access to the clipboard)",
+    "recordEmpty": "Nothing recorded: the screen did not change",
     "dropApp": "Drop a .nwa file here",
     "dropAppSub": "or use the menu at the top left",
     "dropData": "Drop the external data",
@@ -109,6 +112,12 @@
     "faultHint": "The application did something illegal (invalid memory access, unknown instruction…) and stopped.",
     "capture": "Screenshot",
     "captureHint": "Saves the screen as a PNG image.",
+    "copy": "Copy",
+    "copyHint": "Copies the screen to the clipboard, ready to paste into a message or document.",
+    "record": "GIF",
+    "recordHint": "Records the screen as an animated image until the next click.",
+    "recordStop": "Stop",
+    "recordStopHint": "Ends the recording and downloads the GIF.",
     "fullscreen": "Full screen",
     "fullscreenHint": "Shows only the screen, without the keys. Space or Escape to exit.",
     "tools": "Tools",
