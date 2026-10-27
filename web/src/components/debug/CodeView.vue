@@ -9,6 +9,7 @@ import { assignIfChanged, hex, hex0x, parseAddress, poll } from "../../util.js";
 import { jumpKind, tooltip } from "../../thumbDocs.js";
 import type { JumpKind } from "../../thumbDocs.js";
 import { points } from "../../pointsStore.js";
+import AddressLink from "../AddressLink.vue";
 import ContextMenu from "../ContextMenu.vue";
 import type { MenuItem } from "../ContextMenu.vue";
 import FaultRegisters from "../FaultRegisters.vue";
@@ -473,7 +474,7 @@ const flags = computed(() => {
         <div v-if="trail.length" class="trail mono">
           <div class="head muted" role="row"><span class="t-n">#</span><span class="t-addr">{{ t("debug.colAddress") }}</span><span>{{ t("debug.colInstruction") }}</span><span class="t-fn">{{ t("debug.trail.function") }}</span></div>
           <div v-for="e in trail" :key="e.n" class="t-row" role="row" :title="t('debug.trail.show')" @click="viewAt = e.address">
-            <span class="t-n muted">{{ e.n }}</span><span class="t-addr">{{ hex(e.address) }}</span><span class="t-text">{{ e.text }}</span><span class="t-fn muted">{{ e.symbol }}</span>
+            <span class="t-n muted">{{ e.n }}</span><span class="t-addr" @click.stop><AddressLink :address="e.address" view="code" /></span><span class="t-text">{{ e.text }}</span><span class="t-fn muted">{{ e.symbol }}</span>
           </div>
         </div>
         <p v-else class="muted small">{{ t("debug.trail.none") }}</p>
@@ -485,7 +486,7 @@ const flags = computed(() => {
         <p class="muted small">{{ t("debug.stackHelp") }}</p>
         <ol v-if="paused && frames.length" class="frames mono">
           <li v-for="(frame, i) in frames" :key="i">
-            <button class="link" :title="t('debug.followTarget')" @click="viewAt = frame.address">{{ frame.symbol ?? hex0x(frame.address) }}</button>
+            <AddressLink :address="frame.address" :label="frame.symbol ?? ''" view="code" />
             <span class="muted">{{ hex0x(frame.address) }}</span>
           </li>
         </ol>
@@ -519,7 +520,7 @@ const flags = computed(() => {
         <p class="muted small">{{ t("debug.breakpointsHelp") }}</p>
         <ul v-if="breaks.length" class="breaks mono">
           <li v-for="address in breaks" :key="address">
-            <button class="link" @click="viewAt = address">{{ hex0x(address) }}</button>
+            <AddressLink :address="address" view="code" />
             <button class="flat icon" :title="t('debug.removeBreak')" :aria-label="t('debug.removeBreak')" @click="toggleBreak(address)"><Icon name="trash" :size="14" /></button>
           </li>
         </ul>

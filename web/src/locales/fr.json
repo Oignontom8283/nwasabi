@@ -242,9 +242,10 @@
     "done": "{n} octet enregistré | {n} octets enregistrés"
   },
   "bookmarks": {
+    "type": "Type",
     "value": "Valeur",
     "title": "Signets",
-    "help": "Un signet est un raccourci nommé vers une zone de la mémoire de cette application (par exemple « score » ou « points de vie »). Il ne change rien à l'application : il sert à retrouver vite un endroit, et montre la valeur qu'il contient en ce moment. Cliquer l'adresse sélectionne la zone dans l'éditeur hexadécimal (clic droit : autres actions). Les signets sont gardés dans ce navigateur, pour cette application ; le bouton « Signet » de l'éditeur ajoute la sélection.",
+    "help": "Un signet est un raccourci nommé vers une zone de la mémoire de cette application (par exemple « score » ou « points de vie »). Il sert à retrouver vite un endroit et montre la valeur qu'il contient en ce moment ; vous pouvez la modifier sur place (choisissez son type, tapez, Entrée), comme dans la liste de la recherche de valeurs. Cliquer l'adresse sélectionne la zone dans l'éditeur hexadécimal (clic droit : autres actions). Les signets sont gardés dans ce navigateur, pour cette application ; le bouton « Signet » de l'éditeur ajoute la sélection.",
     "name": "Nom",
     "address": "Adresse",
     "size": "Octets",

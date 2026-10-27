@@ -242,9 +242,10 @@
     "done": "{n} byte saved | {n} bytes saved"
   },
   "bookmarks": {
+    "type": "Type",
     "value": "Value",
     "title": "Bookmarks",
-    "help": "A bookmark is a named shortcut to an area of this application's memory (for example “score” or “hit points”). It changes nothing in the application: it helps you get back to a place quickly, and shows the value it holds right now. Clicking the address selects the range in the hex editor (right click: more actions). Bookmarks are kept in this browser, for this application; the editor's “Bookmark” button adds the selection.",
+    "help": "A bookmark is a named shortcut to an area of this application's memory (for example “score” or “hit points”). It helps you get back to a place quickly and shows the value it holds right now; you can edit it in place (choose its type, type, Enter), as in the value search list. Clicking the address selects the range in the hex editor (right click: more actions). Bookmarks are kept in this browser, for this application; the editor's “Bookmark” button adds the selection.",
     "name": "Name",
     "address": "Address",
     "size": "Bytes",
