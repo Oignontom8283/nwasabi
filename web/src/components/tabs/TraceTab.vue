@@ -4,6 +4,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { hex0x, poll } from "../../util.js";
+import ProfileCard from "../ProfileCard.vue";
 
 const { t, te, n } = useI18n();
 const emulator = useEmu();
@@ -100,6 +101,11 @@ async function copyOutput() {
         </ul>
       </template>
       <p v-else class="muted">{{ t("trace.noDevice") }}</p>
+    </section>
+
+    <section class="card">
+      <h2>{{ t("profile.title") }}</h2>
+      <ProfileCard />
     </section>
 
     <section class="card">

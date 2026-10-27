@@ -14,7 +14,7 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod debug;
@@ -218,6 +218,7 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "profile",
                     "backtrace",
                     "symbol",
                     "symbols",
@@ -253,6 +254,31 @@ impl Session {
             }
             "run" => self.run(req),
             "key" => self.key(req),
+            "profile" => {
+                let action = req.get("action").and_then(Value::as_str).unwrap_or("get");
+                let top = req
+                    .get("top")
+                    .and_then(Value::as_u32)
+                    .unwrap_or(30)
+                    .min(200) as usize;
+                let emu = self.emu()?;
+                match action {
+                    "start" => {
+                        emu.start_profile();
+                        Ok(Value::object().with("running", true))
+                    }
+                    "stop" => {
+                        let samples = emu.stop_profile().unwrap_or_default();
+                        Ok(debug::profile_report(emu, &samples, top).with("running", false))
+                    }
+                    "get" => {
+                        let running = emu.profile_samples().is_some();
+                        let samples = emu.profile_samples().unwrap_or_default();
+                        Ok(debug::profile_report(emu, &samples, top).with("running", running))
+                    }
+                    other => Err(format!("action inconnue : {other} (start, stop, get)")),
+                }
+            }
             "backtrace" => {
                 let max = req
                     .get("max")

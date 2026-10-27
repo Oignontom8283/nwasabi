@@ -116,6 +116,18 @@
     "stoppedWatch": "Paused: the instruction at {pc} touched {address}.",
     "stoppedFault": "Paused on a fault: {fault}"
   },
+  "profile": {
+    "title": "Execution profile",
+    "help": "Regularly records the instruction being executed: the functions and addresses that come up most often are where the application spends its time. Recording goes on until you stop it.",
+    "start": "Start",
+    "stop": "Stop",
+    "samples": "{n} sample | {n} samples",
+    "waiting": "Waiting for samples: is the application running?",
+    "function": "Function",
+    "address": "Address",
+    "share": "Share of time",
+    "show": "Show in the debugger"
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
