@@ -19,11 +19,10 @@ export const CROSS = [
   { x: 231, y: 886, width: 87, height: 280, radius: 43 },
 ];
 
-const GLYPHS = {
-  home: "M3 11l9-8 9 8 M5 10v10h5v-6h4v6h5V10",
-  power: "M12 3v9 M6.3 7a8 8 0 1 0 11.4 0",
-  back: "M9 14l-4-4 4-4 M5 10h9a5 5 0 0 1 0 10h-3",
-};
+// Les dessins des touches home, on/off et retour sont des fichiers de `assets/icons/` : on en lit le tracé (l'attribut `d`).
+const ICONS = import.meta.glob("../../assets/icons/*.svg", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const pathOf = (name: string): string => /\sd="([^"]+)"/.exec(ICONS[`../../assets/icons/${name}.svg`] ?? "")?.[1] ?? "";
+const GLYPHS = { home: pathOf("home"), power: pathOf("power"), back: pathOf("back") };
 
 export interface CalcKey {
   /** Nom EADK de la touche. */
