@@ -4,6 +4,7 @@ import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { PANEL_MIN, PANEL_ROOM, panelPixels, TABS, ui } from "../ui.js";
 import Icon from "./Icon.vue";
+import DebugTab from "./tabs/DebugTab.vue";
 import FilesTab from "./tabs/FilesTab.vue";
 import KeysTab from "./tabs/KeysTab.vue";
 import MemoryTab from "./tabs/MemoryTab.vue";
@@ -12,8 +13,8 @@ import StructuresTab from "./tabs/StructuresTab.vue";
 import TraceTab from "./tabs/TraceTab.vue";
 
 const { t } = useI18n();
-const COMPONENTS: Record<string, Component> = { files: FilesTab, memory: MemoryTab, structures: StructuresTab, keys: KeysTab, settings: SettingsTab, trace: TraceTab };
-const ICONS: Record<string, string> = { files: "folder", memory: "chip", structures: "layers", keys: "keyboard", settings: "sliders", trace: "activity" };
+const COMPONENTS: Record<string, Component> = { files: FilesTab, memory: MemoryTab, structures: StructuresTab, keys: KeysTab, settings: SettingsTab, debug: DebugTab, trace: TraceTab };
+const ICONS: Record<string, string> = { files: "folder", memory: "chip", structures: "layers", keys: "keyboard", settings: "sliders", debug: "bug", trace: "activity" };
 
 const width = computed(() => panelPixels());
 
