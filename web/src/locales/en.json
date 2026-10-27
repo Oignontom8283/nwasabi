@@ -468,6 +468,12 @@
   "keys": {
     "name": "Mapping name",
     "unnamed": "(unnamed)",
+    "ownOn": "This application (“{app}”) uses its own mapping.",
+    "ownOff": "This application (“{app}”) uses the general mapping. Keep the current mapping so it comes back each time it opens.",
+    "ownNone": "Load an application to give it its own mapping.",
+    "ownKeep": "Keep for this application",
+    "ownKeepHint": "Stores the current mapping in this browser, under the application's name.",
+    "ownForget": "Back to the general mapping",
     "load": "Load a .nmk",
     "export": "Export",
     "reset": "Default mapping",

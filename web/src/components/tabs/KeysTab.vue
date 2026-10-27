@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { GESTURES, KEYS as CALC_KEYS, KeyMap } from "@nwasabi/js";
 import type { GestureName, KeyName, TouchRule, TouchSettings } from "@nwasabi/js";
 import { checkedOf, download, stem, valueOf } from "../../util.js";
+import { forgetAppKeymap, hasAppKeymap, saveAppKeymap } from "../../appKeymaps.js";
 import Icon from "../Icon.vue";
 import CalculatorSvg from "../CalculatorSvg.vue";
 
@@ -123,6 +124,11 @@ function exportMap() {
   const name = current.name || "keys";
   download(`${stem(name).replace(/[^\w.-]+/g, "_")}.nmk`, JSON.stringify(current.toNmk(), null, 2), "application/json");
 }
+const appName = computed(() => (emulator.state.loaded ? emulator.state.appName : ""));
+const own = computed(() => hasAppKeymap(appName.value));
+function keepForApp() {
+  if (map.value) saveAppKeymap(appName.value, map.value);
+}
 const nameValue = computed(() => map.value?.name ?? "");
 </script>
 
@@ -136,6 +142,11 @@ const nameValue = computed(() => map.value?.name ?? "");
       <button @click="exportMap"><Icon name="download" /> {{ t("keys.export") }}</button>
       <button @click="emulator.setKeyMap(KeyMap.default())"><Icon name="refresh" /> {{ t("keys.reset") }}</button>
       <input ref="fileInput" type="file" accept=".nmk,application/json" hidden @change="load" />
+    </div>
+    <div class="own">
+      <p class="muted">{{ appName ? (own ? t("keys.ownOn", { app: appName }) : t("keys.ownOff", { app: appName })) : t("keys.ownNone") }}</p>
+      <button :disabled="!appName" :title="t('keys.ownKeepHint')" @click="keepForApp">{{ t("keys.ownKeep") }}</button>
+      <button v-if="own" @click="(forgetAppKeymap(appName), emulator.setKeyMap(KeyMap.default()))">{{ t("keys.ownForget") }}</button>
     </div>
     <p v-if="message" class="error" role="alert">{{ message }}</p>
     <p class="muted hint">{{ t("keys.help") }}</p>
@@ -244,6 +255,8 @@ const nameValue = computed(() => map.value?.name ?? "");
 
 <style scoped>
 .keys { display: grid; gap: 20px; }
+.own { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.own p { margin: 0; font-size: 12px; flex: 1 1 100%; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 .grow { flex: 1; min-width: 160px; }
 .hint { margin: 0 0 10px; font-size: 12px; }

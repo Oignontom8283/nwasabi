@@ -17,6 +17,7 @@ import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } f
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
 import { applyTheme, notice, panelPixels, screenApi, ui } from "./ui.js";
+import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
 import type { PickKind } from "./ui.js";
@@ -28,6 +29,9 @@ provide("emulator", emulator);
 const { state } = emulator;
 
 let dataBytes: Uint8Array | null = null;
+/** Le mapping en vigueur est celui d'une application, et le mapping général à rétablir ensuite. */
+let appMap = false;
+let generalMap: KeyMap | null = null;
 let lastApp: { bytes: Uint8Array; name: string } | null = null;
 
 // ---- ce que l'on charge ----------------------------------------------------------------------------
@@ -38,6 +42,16 @@ function fail(message: string) {
 
 async function loadApp(bytes: Uint8Array, name: string) {
   lastApp = { bytes, name };
+  // Le mapping propre à l'application, s'il existe ; en le quittant on revient au mapping général.
+  const own = loadAppKeymap(name);
+  if (own) {
+    if (!appMap) generalMap = emulator.keymap();
+    appMap = true;
+    emulator.setKeyMap(own);
+  } else if (appMap) {
+    appMap = false;
+    emulator.setKeyMap(generalMap ?? KeyMap.default());
+  }
   await emulator.load(bytes, name, dataBytes);
   if (keep.enabled) void rememberApp(name, bytes);
 }
