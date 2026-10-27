@@ -18,14 +18,14 @@ const docs = location.pathname.includes("/emulator/")
     <FloatingWindow :width="520" :title="t('debugInfo.title')" @close="emit('close')">
       <div class="info">
         <p>{{ t("debugInfo.intro") }}</p>
-        <h3>{{ t("debugInfo.tools") }}</h3>
+        <h3 class="subhead">{{ t("debugInfo.tools") }}</h3>
         <table>
           <thead><tr><th>{{ t("debugInfo.colView") }}</th><th>{{ t("debugInfo.colRole") }}</th></tr></thead>
           <tbody>
             <tr v-for="v in VIEWS" :key="v"><th scope="row">{{ t(`debug.views.${v}`) }}</th><td>{{ t(`debugInfo.${v}`) }}</td></tr>
           </tbody>
         </table>
-        <h3>{{ t("debugInfo.limits") }}</h3>
+        <h3 class="subhead">{{ t("debugInfo.limits") }}</h3>
         <ul>
           <li>{{ t("debugInfo.limit1") }}</li>
           <li>{{ t("debugInfo.limit2") }}</li>
@@ -47,5 +47,4 @@ th, td { text-align: left; vertical-align: top; padding: 5px 8px; border: 1px so
 thead th { background: var(--surface-2); font-size: 12px; }
 tbody th { white-space: nowrap; font-weight: 600; }
 a { color: var(--accent-strong); }
-h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 </style>

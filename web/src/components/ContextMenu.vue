@@ -13,6 +13,8 @@ const props = defineProps<{ items: MenuItem[]; x: number; y: number }>();
 const emit = defineEmits<{ close: [] }>();
 const menu = ref<HTMLElement | null>(null);
 const pos = ref({ left: props.x, top: props.y });
+// Le focus revient à l'élément d'où le menu a été ouvert quand il se ferme.
+const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
 onMounted(async () => {
   await nextTick();
@@ -23,7 +25,10 @@ onMounted(async () => {
   addEventListener("pointerdown", outside, true);
   addEventListener("blur", () => emit("close"));
 });
-onBeforeUnmount(() => removeEventListener("pointerdown", outside, true));
+onBeforeUnmount(() => {
+  removeEventListener("pointerdown", outside, true);
+  if (opener?.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true });
+});
 watch(() => [props.x, props.y], () => (pos.value = { left: props.x, top: props.y }));
 
 function outside(event: Event) {

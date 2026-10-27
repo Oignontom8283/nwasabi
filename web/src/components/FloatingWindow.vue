@@ -28,6 +28,8 @@ const place = () => {
   if (win.value) win.value.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 };
 
+// Le focus revient à l'élément qui avait ouvert la fenêtre quand elle se ferme.
+const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 onMounted(async () => {
   await nextTick();
   if (!win.value) return;
@@ -37,7 +39,10 @@ onMounted(async () => {
   place();
   (win.value.querySelector<HTMLElement>("[data-autofocus]") ?? win.value).focus({ preventScroll: true });
 });
-onBeforeUnmount(() => cancelAnimationFrame(frame));
+onBeforeUnmount(() => {
+  cancelAnimationFrame(frame);
+  if (opener?.isConnected) opener.focus({ preventScroll: true });
+});
 
 function begin(kind: "move" | "size", event: PointerEvent) {
   if (!win.value || event.button !== 0 || (event.target as Element).closest("button, input, select, textarea, a")) return;

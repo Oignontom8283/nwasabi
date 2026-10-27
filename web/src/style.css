@@ -123,6 +123,8 @@ label.field > :is(input, select, textarea) { color: var(--text); font-size: 13px
 code, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
 h2 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
 h3 { font-size: 14px; margin: 12px 0 4px; }
+/* Petit titre de section, en capitales grises : les vues du débogage, les fenêtres d'aide… */
+h3.subhead { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
 .ok { color: var(--ok); }

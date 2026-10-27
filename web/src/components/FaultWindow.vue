@@ -80,7 +80,7 @@ async function restart() {
       <p class="what"><strong>{{ title }}</strong></p>
       <p class="detail">{{ detail }}</p>
       <section v-if="line" class="instr">
-        <h3>{{ t("fault.instruction") }}</h3>
+        <h3 class="subhead">{{ t("fault.instruction") }}</h3>
         <p class="mono code">
           <AddressLink :address="line.address" view="code" /> <span class="muted">{{ line.hex }}</span>
           <strong> {{ line.mnemonic }}</strong> {{ line.operands }}
@@ -88,13 +88,13 @@ async function restart() {
         <p v-if="where" class="muted small">{{ t("fault.in", { where }) }}</p>
       </section>
       <section v-if="regs.length">
-        <h3>{{ t("fault.registers") }}</h3>
+        <h3 class="subhead">{{ t("fault.registers") }}</h3>
         <div class="regs mono">
           <span v-for="[name, value] in regs" :key="name"><span class="muted">{{ name }}</span> {{ hex(value) }}</span>
         </div>
       </section>
       <section>
-        <h3>{{ t("fault.faultRegisters") }}</h3>
+        <h3 class="subhead">{{ t("fault.faultRegisters") }}</h3>
         <FaultRegisters />
       </section>
       <p class="muted small">{{ t("fault.note") }}</p>
@@ -111,7 +111,6 @@ async function restart() {
 .fault { display: grid; gap: 10px; }
 .fault p { margin: 0; }
 .what { color: var(--danger); }
-h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .code { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
 .addr { color: var(--accent-strong); }
 .regs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 12px; font-size: 12.5px; }
