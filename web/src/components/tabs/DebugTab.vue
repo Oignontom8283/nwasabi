@@ -19,6 +19,14 @@ interface Line {
   mnemonic: string;
   operands: string;
   target?: number;
+  target_symbol?: string;
+  label?: string;
+}
+interface Frame {
+  address: number;
+  symbol?: string;
+  return?: number;
+  target_symbol?: string;
 }
 interface Cpu {
   r: number[];
@@ -32,6 +40,7 @@ const cpu = ref<Cpu | null>(null);
 const previous = ref<Cpu | null>(null);
 const lines = ref<Line[]>([]);
 const breaks = ref<number[]>([]);
+const frames = ref<Frame[]>([]);
 /** Adresse affichée ; `null` : on suit l'instruction en cours. */
 const viewAt = ref<number | null>(null);
 const gotoText = ref("");
@@ -51,6 +60,10 @@ async function refresh() {
   if (cpu.value && JSON.stringify(cpu.value) !== JSON.stringify(next)) previous.value = cpu.value;
   assignIfChanged(cpu, next);
   assignIfChanged(breaks, ((await quiet({ cmd: "breaks" })).breakpoints as number[] | undefined) ?? []);
+  if (!state.running) {
+    const trace = await quiet({ cmd: "backtrace" });
+    if (trace.ok) assignIfChanged(frames, trace.frames as Frame[]);
+  }
   // Pendant l'exécution le code défile trop vite pour être lu : on ne le relit qu'à l'arrêt.
   if (state.running && lines.value.length > 0) return;
   const follow = viewAt.value === null;
@@ -113,11 +126,17 @@ async function toggleBreak(address: number) {
   await refresh();
 }
 
-function goto() {
-  const address = parseAddress(gotoText.value);
+async function goto() {
+  let address = parseAddress(gotoText.value);
+  if (address === undefined) {
+    // Pas une adresse : un nom de fonction.
+    const found = (await quiet({ cmd: "symbols", query: gotoText.value.trim() })).symbols as Array<{ name: string; address: number }> | undefined;
+    const exact = found?.find((s) => s.name === gotoText.value.trim()) ?? found?.[0];
+    address = exact?.address;
+  }
   if (address === undefined) return void (message.value = t("debug.badAddress"));
   message.value = "";
-  viewAt.value = address & ~1;
+  viewAt.value = (address & ~1) >>> 0;
 }
 
 const NAMES = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "sp", "lr", "pc", "xpsr"];
@@ -170,9 +189,9 @@ const flags = computed(() => {
       <p v-if="message" class="error" role="alert">{{ message }}</p>
 
       <div class="code mono" role="table" :aria-label="t('debug.code')">
+        <template v-for="line in lines" :key="line.address">
+        <div v-if="line.label" class="label">{{ line.label }}:</div>
         <div
-          v-for="line in lines"
-          :key="line.address"
           class="row"
           :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address) }"
           role="row"
@@ -183,12 +202,23 @@ const flags = computed(() => {
           <button class="addr" :title="t('debug.runTo')" :disabled="!paused" @click="runTo(line.address)">{{ hex(line.address) }}</button>
           <span class="bytes muted">{{ line.hex }}</span>
           <span class="mn">{{ line.mnemonic }}</span>
-          <span class="ops">{{ line.operands }}</span>
+          <span class="ops">{{ line.operands }}<span v-if="line.target_symbol" class="muted"> &lt;{{ line.target_symbol }}&gt;</span></span>
           <button v-if="line.target !== undefined" class="target" :title="t('debug.followTarget')" @click="viewAt = line.target ?? null">→</button>
           <button v-if="line.target !== undefined" class="target" :title="t('debug.showInMemory')" @click="showInMemory(line.target as number)">⌗</button>
         </div>
+        </template>
         <p v-if="!lines.length" class="muted pad">{{ t("debug.unreadable") }}</p>
       </div>
+
+      <h3>{{ t("debug.stack") }}</h3>
+      <p class="muted small">{{ t("debug.stackHelp") }}</p>
+      <ol v-if="paused && frames.length" class="frames mono">
+        <li v-for="(frame, i) in frames" :key="i">
+          <button class="link" :title="t('debug.followTarget')" @click="viewAt = frame.address">{{ frame.symbol ?? hex0x(frame.address) }}</button>
+          <span class="muted">{{ hex0x(frame.address) }}</span>
+        </li>
+      </ol>
+      <p v-else class="muted small">{{ t("debug.stackRunning") }}</p>
 
       <h3>{{ t("debug.registers") }}</h3>
       <p class="muted small">{{ paused ? t("debug.registersHelp") : t("debug.registersRunning") }}</p>
@@ -243,6 +273,10 @@ const flags = computed(() => {
 .bytes { min-width: 9ch; }
 .mn { min-width: 7ch; color: var(--syn-key); }
 .ops { color: var(--syn-num); flex: 1; }
+.label { padding: 3px 8px 0 28px; color: var(--accent-strong); font-weight: 600; }
+.frames { margin: 0; padding-left: 2.2em; display: grid; gap: 2px; }
+.frames li { padding-left: 2px; }
+.frames li .muted { margin-left: 8px; }
 .pad { padding: 10px; margin: 0; }
 h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .small { margin: 0; font-size: 12px; }
