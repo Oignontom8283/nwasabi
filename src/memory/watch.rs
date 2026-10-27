@@ -91,6 +91,21 @@ impl Watchpoints {
         self.pc = pc;
     }
 
+    pub fn list(&self) -> Vec<(WatchId, u32, u32, WatchKind, bool)> {
+        self.watches
+            .iter()
+            .map(|w| {
+                (
+                    w.id,
+                    w.start,
+                    (w.end - u64::from(w.start)) as u32,
+                    w.kind,
+                    w.stop,
+                )
+            })
+            .collect()
+    }
+
     pub fn has_stopping(&self) -> bool {
         self.watches.iter().any(|w| w.stop)
     }

@@ -278,6 +278,11 @@ impl Memory {
         self.watches.remove(id)
     }
 
+    /// Les points d'observation posés : identifiant, début, longueur, sorte et arrêt.
+    pub fn watch_list(&self) -> Vec<(WatchId, u32, u32, WatchKind, bool)> {
+        self.watches.list()
+    }
+
     /// Les accès observés depuis le dernier appel (les plus anciens sont perdus au-delà de 4096).
     pub fn take_watch_hits(&mut self) -> Vec<WatchHit> {
         self.watches.take_hits()
