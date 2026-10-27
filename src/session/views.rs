@@ -220,6 +220,14 @@ fn fault(f: &Fault) -> Value {
             .with("fault", "bus")
             .with("address", b.address)
             .with("write", b.write)
+            .with(
+                "width",
+                match b.width {
+                    crate::cpu::Width::U8 => 1u32,
+                    crate::cpu::Width::U16 => 2,
+                    crate::cpu::Width::U32 => 4,
+                },
+            )
             .with("access", format!("{:?}", b.kind).to_lowercase()),
         Fault::Unimplemented { pc, halfword } => Value::object()
             .with("fault", "unimplemented")

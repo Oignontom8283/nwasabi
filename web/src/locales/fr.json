@@ -209,6 +209,41 @@
     "none": "Aucun appel pour l'instant.",
     "argsNote": "Les quatre registres sont montrés tels quels : tous ne sont pas des arguments, selon l'appel. Les valeurs sont en hexadécimal."
   },
+  "fault": {
+    "title": "Faute de l'application",
+    "kinds": {
+      "bus": "Accès mémoire invalide",
+      "unimplemented": "Instruction non gérée par l'émulateur",
+      "usage": "Instruction ou état interdit",
+      "breakpoint": "Instruction d'arrêt (bkpt)",
+      "unknown_svc": "Appel système inconnu",
+      "wait_for_interrupt": "Attente d'interruption sans fin",
+      "other": "Faute"
+    },
+    "read": "lecture",
+    "write": "écriture",
+    "bus": {
+      "unmapped": "L'application a tenté une {access} de {size} octet(s) à {address}, où il n'y a aucune mémoire. C'est typiquement un pointeur nul ou corrompu.",
+      "accessdenied": "L'application a tenté une {access} de {size} octet(s) à {address}, une zone où cet accès est interdit (écrire dans la flash, exécuter des données…).",
+      "exclusiveunsupported": "L'application a utilisé une instruction d'accès exclusif (ldrex, strex) sur de la mémoire partagée : la vraie calculatrice la refuse aussi."
+    },
+    "unimplemented": "L'émulateur ne sait pas (encore) exécuter l'instruction {word}. Si l'application fonctionne sur une vraie calculatrice, c'est une limite de l'émulateur.",
+    "usage": {
+      "UndefinedInstruction": "L'application a exécuté une instruction indéfinie (udf) : le plus souvent, elle a sauté dans des données.",
+      "InvalidState": "L'application a sauté vers une adresse paire : un Cortex-M n'exécute que du Thumb, dont les adresses de saut sont impaires.",
+      "Unaligned": "L'application a fait un accès mémoire non aligné avec une instruction qui l'interdit (ldm, stm, ldrd, strd).",
+      "other": "L'application a fait quelque chose d'interdit pour le processeur."
+    },
+    "breakpoint": "L'application a exécuté une instruction d'arrêt (bkpt #{imm}).",
+    "unknownSvc": "L'application a fait l'appel système {number}, que le noyau simulé ne connaît pas.",
+    "waitForInterrupt": "L'application attend une interruption que rien ne peut déclencher.",
+    "instruction": "Instruction fautive",
+    "in": "Dans {where}",
+    "registers": "Registres",
+    "note": "L'application est arrêtée : vous pouvez examiner la mémoire et les registres, ou la relancer.",
+    "debug": "Ouvrir dans le débogueur",
+    "restart": "Relancer"
+  },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",

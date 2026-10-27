@@ -75,6 +75,8 @@ pub struct Cpu {
     pub basepri: u8,
     /// Adresse suivie par le moniteur d'exclusivité local (posée par `ldrex`, lue par `strex`).
     pub exclusive: Option<u32>,
+    /// Adresse de la dernière instruction dont un accès mémoire a été refusé (`pc` a déjà passé à la suivante).
+    pub fault_pc: u32,
     /// Instructions déjà décodées (voir `cache`).
     cache: cache::DecodeCache,
 }

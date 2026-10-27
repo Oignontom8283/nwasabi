@@ -339,7 +339,7 @@ impl Session {
                     stop = emu.step();
                 }
                 Ok(Value::object()
-                    .with("stop", views::stop(&stop))
+                    .with("stop", debug::stop_json(emu, &stop))
                     .with("instructions", emu.cpu.cycles - start)
                     .with("time_ms", emu.time_us() / 1000))
             }
@@ -856,7 +856,7 @@ impl Session {
         self.frames += seen;
         let emu = self.emu()?;
         Ok(Value::object()
-            .with("stop", views::stop(&stop))
+            .with("stop", debug::stop_json(emu, &stop))
             .with("frames", seen)
             .with("instructions", emu.cpu.cycles - start_cycles)
             .with("time_ms", emu.time_us() / 1000))
