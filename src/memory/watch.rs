@@ -61,11 +61,19 @@ pub(super) struct Watchpoints {
     pub dropped: u64,
     stop_hit: Option<WatchHit>,
     pc: u32,
+    /// Les points sont ignorés (pendant un rejeu de l'historique) sans être retirés.
+    suspended: bool,
 }
 
 impl Watchpoints {
     pub fn is_empty(&self) -> bool {
-        self.watches.is_empty()
+        self.watches.is_empty() || self.suspended
+    }
+
+    pub fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+        self.hits.clear();
+        self.stop_hit = None;
     }
 
     pub fn add(&mut self, start: u32, len: u32, kind: WatchKind, stop: bool) -> WatchId {
@@ -107,7 +115,7 @@ impl Watchpoints {
     }
 
     pub fn has_stopping(&self) -> bool {
-        self.watches.iter().any(|w| w.stop)
+        !self.suspended && self.watches.iter().any(|w| w.stop)
     }
 
     /// Note un accès du programme.

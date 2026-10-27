@@ -198,6 +198,8 @@ pub struct Emulator {
     profile: Option<HashMap<u32, u64>>,
     /// Adresse de l'instruction fautive de la dernière faute.
     pub last_fault_pc: u32,
+    /// Points d'arrêt et d'observation ignorés (pendant un rejeu de l'historique).
+    debugging_suspended: bool,
 }
 
 /// Le fichier `.nwa` installé et ses données externes, tels que donnés.
@@ -231,6 +233,7 @@ impl Emulator {
             resume_from: None,
             profile: None,
             last_fault_pc: 0,
+            debugging_suspended: false,
         })
     }
 
@@ -327,6 +330,20 @@ impl Emulator {
         best.map(|(name, start)| (name, start, address - start))
     }
 
+    /// Ignore (ou reprend) les points d'arrêt, les points d'observation et le profil : un rejeu de l'historique ne doit ni
+    /// s'arrêter dessus ni les compter.
+    pub fn suspend_debugging(&mut self, suspended: bool) {
+        self.debugging_suspended = suspended;
+        self.device.memory.suspend_watches(suspended);
+        self.resume_from = None;
+    }
+
+    /// Indique que l'exécution est arrêtée sur le point d'arrêt de `pc` : la reprise exécute cette instruction au lieu de
+    /// s'y arrêter de nouveau.
+    pub fn stopped_at_breakpoint(&mut self) {
+        self.resume_from = Some(self.cpu.regs.pc);
+    }
+
     /// Pose un point d'arrêt : `run` s'interrompt avant d'exécuter l'instruction à cette adresse.
     pub fn add_breakpoint(&mut self, address: u32) {
         self.add_conditional_breakpoint(address, None);
@@ -417,7 +434,8 @@ impl Emulator {
         }
         // Avec un point d'observation, on avance instruction par instruction : pour s'arrêter juste après
         // l'accès (point qui interrompt) et pour savoir quelle instruction l'a fait (adresse notée).
-        let stepwise = self.device.memory.is_watching() || !self.breakpoints.is_empty();
+        let breaks = !self.debugging_suspended && !self.breakpoints.is_empty();
+        let stepwise = self.device.memory.is_watching() || breaks;
         if !stepwise {
             self.resume_from = None;
         }
@@ -428,7 +446,7 @@ impl Emulator {
             // quelques unités : une longueur fixe retomberait toujours au même endroit d'une boucle).
             let chunk = if stepwise {
                 1
-            } else if self.profile.is_some() {
+            } else if self.profile.is_some() && !self.debugging_suspended {
                 left.min(PROFILE_SLICE + (self.cpu.cycles >> 3) % 31)
             } else {
                 left
@@ -436,7 +454,7 @@ impl Emulator {
             if stepwise {
                 let pc = self.cpu.regs.pc;
                 // Le point d'arrêt où l'on s'est arrêté ne s'applique pas deux fois de suite à la même instruction.
-                if self.resume_from.take() != Some(pc) && self.breakpoint_hits(pc) {
+                if self.resume_from.take() != Some(pc) && breaks && self.breakpoint_hits(pc) {
                     self.resume_from = Some(pc);
                     return RunStop::Breakpoint { pc };
                 }
@@ -447,6 +465,7 @@ impl Emulator {
                 .run(&mut self.device.memory, &mut self.kernel, chunk);
             left -= chunk;
             if stop == Stop::Budget
+                && !self.debugging_suspended
                 && let Some(samples) = &mut self.profile
             {
                 *samples.entry(self.cpu.regs.pc & !1).or_insert(0) += 1;

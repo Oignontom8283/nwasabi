@@ -536,6 +536,162 @@ fn a_conditional_breakpoint_only_stops_when_its_condition_holds() {
     );
 }
 
+/// (r0 à r12, sp, lr, pc, xpsr) et l'empreinte de l'écran : tout ce qu'une remontée dans le temps doit rétablir.
+fn snapshot(s: &mut Session) -> (Vec<i64>, i64, String) {
+    let cpu = ok(s, r#"{"cmd":"cpu"}"#);
+    let mut regs: Vec<i64> = cpu
+        .get("r")
+        .and_then(Value::as_array)
+        .unwrap()
+        .iter()
+        .map(|v| v.as_i64().unwrap())
+        .collect();
+    for name in ["sp", "lr", "pc", "xpsr"] {
+        regs.push(cpu.get(name).and_then(Value::as_i64).unwrap());
+    }
+    let cycles = cpu.get("instructions").and_then(Value::as_i64).unwrap();
+    let screen = ok(s, r#"{"cmd":"screen"}"#);
+    (
+        regs,
+        cycles,
+        screen
+            .get("crc32")
+            .and_then(Value::as_str)
+            .unwrap()
+            .to_owned(),
+    )
+}
+
+#[test]
+fn history_goes_back_in_time_and_replays_keys_and_time_exactly() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    assert_eq!(
+        ok(&mut s, r#"{"cmd":"history"}"#).get("recording"),
+        Some(&Value::Bool(false))
+    );
+    assert!(error(&mut s, r#"{"cmd":"step_back"}"#).contains("historique"));
+    ok(
+        &mut s,
+        r#"{"cmd":"history","action":"start","interval":1000,"capacity":50}"#,
+    );
+    // Un parcours instruction par instruction, avec une touche et du temps qui passe : l'état de chaque instant est noté.
+    let mut seen = vec![snapshot(&mut s)];
+    for i in 0..4000 {
+        if i == 1200 {
+            ok(&mut s, r#"{"cmd":"key","key":"ok","action":"press"}"#);
+        }
+        if i == 2500 {
+            ok(&mut s, r#"{"cmd":"advance","ms":20}"#);
+            ok(&mut s, r#"{"cmd":"key","key":"ok","action":"release"}"#);
+        }
+        ok(&mut s, r#"{"cmd":"step"}"#);
+        seen.push(snapshot(&mut s));
+    }
+    let status = ok(&mut s, r#"{"cmd":"history"}"#);
+    assert!(
+        status.get("checkpoints").and_then(Value::as_i64).unwrap() >= 4,
+        "{status}"
+    );
+    // Revenir à des instants variés (dans le même intervalle de reprise ou plusieurs plus tôt) rétablit exactement l'état noté.
+    for target in [3999usize, 3000, 2501, 2499, 1201, 1000, 7, 1] {
+        ok(
+            &mut s,
+            &format!(r#"{{"cmd":"history_goto","cycles":{target}}}"#),
+        );
+        let (regs, cycles, screen) = snapshot(&mut s);
+        let (want_regs, want_cycles, want_screen) = &seen[target];
+        assert_eq!(cycles, *want_cycles, "instants à {target}");
+        assert_eq!(&regs, want_regs, "registres à {target}");
+        assert_eq!(&screen, want_screen, "écran à {target}");
+    }
+    // Un pas en arrière, puis un pas en avant : l'état est celui d'avant.
+    ok(&mut s, r#"{"cmd":"history_goto","cycles":3000}"#);
+    ok(&mut s, r#"{"cmd":"step_back"}"#);
+    assert_eq!(snapshot(&mut s).0, seen[2999].0);
+    ok(&mut s, r#"{"cmd":"step"}"#);
+    assert_eq!(snapshot(&mut s).0, seen[3000].0);
+    // Modifier la mémoire repart d'un historique neuf : on ne remonte plus avant ce moment.
+    ok(
+        &mut s,
+        r#"{"cmd":"memory_write","address":"0x20020000","hex":"00"}"#,
+    );
+    let status = ok(&mut s, r#"{"cmd":"history"}"#);
+    assert_eq!(status.get("checkpoints").and_then(Value::as_i64), Some(1));
+    assert!(error(&mut s, r#"{"cmd":"history_goto","cycles":10}"#).contains("pas d'historique"));
+    ok(&mut s, r#"{"cmd":"history","action":"stop"}"#);
+    assert_eq!(
+        ok(&mut s, r#"{"cmd":"history"}"#).get("recording"),
+        Some(&Value::Bool(false))
+    );
+}
+
+#[test]
+fn reverse_continue_stops_at_the_previous_breakpoint() {
+    let nwa = include_bytes!("apps/bin/keys.nwa");
+    let mut s = Session::new();
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"load","nwa":"{}"}}"#, json::base64_encode(nwa)),
+    );
+    ok(
+        &mut s,
+        r#"{"cmd":"history","action":"start","interval":1000,"capacity":50}"#,
+    );
+    let mut pcs = vec![snapshot(&mut s).0[15]];
+    for _ in 0..3000 {
+        ok(&mut s, r#"{"cmd":"step"}"#);
+        pcs.push(snapshot(&mut s).0[15]);
+    }
+    // Un point d'arrêt sur une instruction passée plusieurs fois : on attend la dernière avant la fin.
+    let target_pc = pcs[2000];
+    let last_before_end = pcs
+        .iter()
+        .rposition(|&p| p == target_pc && p != pcs[3000])
+        .unwrap_or(0);
+    let last = (0..3000).rev().find(|&i| pcs[i] == target_pc).unwrap();
+    assert!(last_before_end <= last);
+    ok(
+        &mut s,
+        &format!(r#"{{"cmd":"break","address":{target_pc}}}"#),
+    );
+    let back = ok(&mut s, r#"{"cmd":"reverse_continue"}"#);
+    let stop = back.get("stop").unwrap();
+    assert_eq!(
+        stop.get("kind").and_then(Value::as_str),
+        Some("breakpoint"),
+        "{back}"
+    );
+    assert_eq!(
+        back.get("cycles").and_then(Value::as_i64),
+        Some(last as i64),
+        "{back}"
+    );
+    assert_eq!(snapshot(&mut s).0[15], target_pc);
+    // En remontant encore : l'occurrence précédente, ou le début de l'historique.
+    let again = ok(&mut s, r#"{"cmd":"reverse_continue"}"#);
+    let earlier = (0..last).rev().find(|&i| pcs[i] == target_pc);
+    match earlier {
+        Some(i) => assert_eq!(
+            again.get("cycles").and_then(Value::as_i64),
+            Some(i as i64),
+            "{again}"
+        ),
+        None => assert_eq!(
+            again
+                .get("stop")
+                .and_then(|s| s.get("kind"))
+                .and_then(Value::as_str),
+            Some("history_start"),
+            "{again}"
+        ),
+    }
+}
+
 #[test]
 fn watchpoints_are_listed_and_removed() {
     let mut s = Session::new();

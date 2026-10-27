@@ -14,10 +14,11 @@
 //!
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
-//! `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `svc_log`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
+//! `history`, `step_back`, `reverse_continue`, `history_goto`, `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `svc_log`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
 //! `fs_rename`, `settings_get`, `settings_set`, `help`.
 
 mod debug;
+mod history;
 mod views;
 
 use crate::checksum;
@@ -48,6 +49,8 @@ pub struct Session {
     frames: u64,
     /// Disposition du firmware de l'appareil (`"24"` ou `"26.4.0"`), pour enregistrer son état.
     firmware: String,
+    /// Points de reprise pour remonter le temps, quand l'historique est lancé (voir `history`).
+    history: Option<history::History>,
 }
 
 fn text<'a>(req: &'a Value, key: &str) -> Result<&'a str, String> {
@@ -194,7 +197,22 @@ impl Session {
 
     /// Traite une requête et rend la réponse.
     pub fn handle(&mut self, request: &Value) -> Value {
-        let mut reply = match self.dispatch(request) {
+        let result = self.dispatch(request);
+        if result.is_ok() && self.history.is_some() {
+            let cmd = request.get("cmd").and_then(Value::as_str).unwrap_or("");
+            let tap = cmd == "key"
+                && request
+                    .get("action")
+                    .and_then(Value::as_str)
+                    .unwrap_or("tap")
+                    == "tap";
+            match history::effect_of(cmd) {
+                history::Effect::Input if !tap => self.history_record(request),
+                history::Effect::Reset | history::Effect::Input => self.history_reset(),
+                history::Effect::None | history::Effect::Forward => {}
+            }
+        }
+        let mut reply = match result {
             Ok(v) => merged(Value::object().with("ok", true), v),
             Err(e) => Value::object().with("ok", false).with("error", e),
         };
@@ -240,6 +258,10 @@ impl Session {
                     "changes",
                     "watch",
                     "unwatch",
+                    "history",
+                    "step_back",
+                    "reverse_continue",
+                    "history_goto",
                     "profile",
                     "backtrace",
                     "symbol",
@@ -346,24 +368,38 @@ impl Session {
                     None => Ok(Value::object()),
                 }
             }
+            "history" => self.history_command(req),
+            "step_back" => self.step_back(),
+            "reverse_continue" => self.reverse_continue(),
+            "history_goto" => self.history_goto(req),
             "step" => {
                 let emu = self.emu()?;
                 if emu.app().is_none() {
                     return Err("aucune application installée".to_owned());
                 }
                 let start = emu.cpu.cycles;
+                self.history_fork();
+                let emu = self.emu()?;
                 let mut stop = emu.step();
                 // Une instruction qui endort l'application (`usleep`…) se refait tant que le temps n'a pas passé :
                 // pour qu'un pas la fasse vraiment avancer, on laisse passer le temps demandé et on la refait.
+                let mut advanced = Vec::new();
                 for _ in 0..8 {
                     let RunStop::Sleep { ms } = stop else { break };
                     emu.kernel.advance_time(u64::from(ms) * 1000);
+                    advanced.push(ms);
                     stop = emu.step();
                 }
-                Ok(Value::object()
+                let reply = Value::object()
                     .with("stop", debug::stop_json(emu, &stop))
                     .with("instructions", emu.cpu.cycles - start)
-                    .with("time_ms", emu.time_us() / 1000))
+                    .with("time_ms", emu.time_us() / 1000);
+                // Le temps passé ainsi est une décision de l'hôte : l'historique le garde pour le rejeu.
+                for ms in advanced {
+                    self.history_record(&Value::object().with("cmd", "advance").with("ms", ms));
+                }
+                self.history_tick();
+                Ok(reply)
             }
             "break" => {
                 let address = number(req, "address")?;
@@ -893,13 +929,18 @@ impl Session {
         }
         let start_cycles = emu.cpu.cycles;
         let host_clock = emu.kernel.config.clock == ClockMode::Host;
+        self.history_fork();
         let mut seen = 0u64;
         let stop = loop {
+            // Avec un historique, les tranches sont assez courtes pour ne pas manquer l'heure d'un point de reprise.
+            let chunk = CHUNK.min(self.history_slice().unwrap_or(CHUNK));
+            let emu = self.emu.as_mut().ok_or("aucun appareil")?;
             let used = emu.cpu.cycles - start_cycles;
             if used >= budget {
                 break RunStop::Budget;
             }
-            let stop = emu.run(CHUNK.min(budget - used));
+            let stop = emu.run(chunk.min(budget - used));
+            self.history_tick();
             match stop {
                 RunStop::Frame => {
                     seen += 1;

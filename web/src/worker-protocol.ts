@@ -26,6 +26,7 @@ export type PlayerMethod =
   | "stop"
   | "key"
   | "bump"
+  | "draw"
   | "dump"
   | "restore";
 

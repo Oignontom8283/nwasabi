@@ -76,7 +76,10 @@ fn a_debugger_can_break_step_read_and_write() {
     // Négociation : taille des paquets, description des registres.
     assert!(d.ask("qSupported:multiprocess+").contains("PacketSize="));
     let xml = d.ask("qXfer:features:read:target.xml:0,fff");
-    assert!(xml.starts_with('l') && xml.contains(r#"name="pc""#), "{xml}");
+    assert!(
+        xml.starts_with('l') && xml.contains(r#"name="pc""#),
+        "{xml}"
+    );
     assert_eq!(d.ask("?"), "T05");
 
     // Registres : 17 mots (r0 à r12, sp, lr, pc, xpsr) ; pc est au début du programme.
@@ -115,6 +118,22 @@ fn a_debugger_can_break_step_read_and_write() {
     let stop = d.ask("c");
     assert!(stop.starts_with("T05watch:20025000;"), "{stop}");
     assert_eq!(d.ask("z2,20025000,4"), "OK");
+    // Remonter le temps : un pas en arrière rétablit le pc d'avant ; reverse-continue jusqu'au point d'arrêt précédent.
+    assert!(
+        d.ask("qSupported")
+            .contains("ReverseStep+;ReverseContinue+")
+    );
+    assert_eq!(d.ask("Pf=00000220"), "OK");
+    let before = word(&d.ask("g"), 15);
+    assert!(d.ask("s").starts_with("T05"));
+    let after = word(&d.ask("g"), 15);
+    assert_ne!(before, after);
+    assert!(d.ask("bs").starts_with("T05"));
+    assert_eq!(
+        word(&d.ask("g"), 15),
+        before,
+        "un pas en arrière revient au pc d'avant"
+    );
     assert_eq!(d.ask("vCont?"), "vCont;c;s;t");
     assert_eq!(d.ask("D"), "OK");
     server.join().unwrap();

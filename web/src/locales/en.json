@@ -104,6 +104,18 @@
       "fault": "Stopped on a fault",
       "exited": "Application finished (code {code})"
     },
+    "history": {
+      "record": "Record to go back in time",
+      "hint": "Keeps regular restore points: you will be able to step back, instruction by instruction.",
+      "help": "Once recording, the history lets you step back one instruction, go back to the previous breakpoint, or return to an exact moment. Editing memory or registers by hand resets it.",
+      "back": "Step back",
+      "backHint": "Goes back one instruction.",
+      "reverse": "Reverse continue",
+      "reverseHint": "Goes back to the previous breakpoint or watchpoint.",
+      "slider": "Go to a moment of the history",
+      "stats": "{n} instructions of history, {mb} MB",
+      "atStart": "Start of the history reached: it cannot go back any further."
+    },
     "hereHint": "Function of the current instruction",
     "controls": "Execution controls",
     "pause": "Pause",
