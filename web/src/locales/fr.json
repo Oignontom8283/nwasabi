@@ -92,7 +92,7 @@
     "zoneClear": "Effacer",
     "shiftF11": "Maj + F11",
     "noApp": "Chargez une application pour la déboguer.",
-    "views": { "label": "Outils de débogage", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système" },
+    "views": { "label": "Outils de débogage", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système", "gdb": "GDB" },
     "intro": {
       "points": "Tous vos points d'arrêt et d'observation : posez-en (avec une condition si besoin), désactivez-les sans les perdre, retirez-les.",
       "console": "Les mêmes actions au clavier, avec des commandes à la GDB (break, x, bt, stepi…). Tapez help pour la liste.",
@@ -212,6 +212,7 @@
     "watch": "quelle instruction lit ou écrit une zone de mémoire.",
     "console": "les mêmes actions au clavier, avec des commandes à la GDB.",
     "profile": "où l'application passe son temps (fonctions et adresses les plus visitées).",
+    "gdb": "le débogueur externe (GDB, LLDB, VS Code…) branché sur cette émulation, avec le serveur lancé en --gdb.",
     "calls": "les appels de l'application au système de la calculatrice, avec leurs arguments.",
     "limits": "À savoir",
     "limit1": "Nwasabi émule le processeur, pas toute la calculatrice : le système (Epsilon), les périphériques et les temps d'accès de la vraie puce sont remplacés par des versions simplifiées. Vous déboguez votre code face à ce système simulé, pas face à la puce exacte.",
@@ -432,6 +433,19 @@
       "debug": { "resume": "Reprendre ou pause", "over": "Pas par-dessus", "step": "Pas", "out": "Sortir de la fonction" },
       "lists": { "move": "Ligne précédente ou suivante", "extend": "Étendre la sélection", "all": "Tout sélectionner", "copy": "Copier la sélection", "menu": "Ouvrir le menu d'une ligne ou d'une adresse", "clear": "Désélectionner", "breakpoint": "Point d'arrêt sur la ligne active (code)", "follow": "Suivre le saut de la ligne active (code)" }
     }
+  },
+  "gdb": {
+    "driven": "Un débogueur GDB est connecté : c'est lui qui conduit l'émulation.",
+    "intro": "Branche un débogueur externe (GDB, LLDB, VS Code…) sur l'émulation de cette page : celle que vous voyez et que vous commandez. Points d'arrêt, pas à pas, registres et mémoire se pilotent depuis le débogueur, et la page suit.",
+    "unavailable": "Serveur GDB non lancé",
+    "howToStart": "Le débogueur se branche sur le serveur Nwasabi, qui doit être lancé avec l'option --gdb (rien n'écoute sans elle) :",
+    "enable": "Accepter un débogueur GDB",
+    "enableHelp": "Désactivé au départ et jamais retenu d'une visite à l'autre. L'activer arrête l'exécution de la page : c'est le débogueur qui la conduit.",
+    "connect": "Se connecter",
+    "statusOff": "Désactivé : le serveur refuse les débogueurs.",
+    "statusWaiting": "En attente d'un débogueur…",
+    "statusConnected": "{n} débogueur connecté | {n} débogueurs connectés",
+    "note": "Les touches de la calculatrice restent utilisables pendant le débogage. GDB ne lit pas les informations de débogage du code source : il travaille sur les adresses et le désassemblage."
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",

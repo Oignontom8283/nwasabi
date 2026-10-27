@@ -92,7 +92,7 @@
     "zoneClear": "Clear",
     "shiftF11": "Shift + F11",
     "noApp": "Load an application to debug it.",
-    "views": { "label": "Debugging tools", "code": "Code", "points": "Breakpoints", "watch": "Watch", "console": "Console", "profile": "Profile", "calls": "System calls" },
+    "views": { "label": "Debugging tools", "code": "Code", "points": "Breakpoints", "watch": "Watch", "console": "Console", "profile": "Profile", "calls": "System calls", "gdb": "GDB" },
     "intro": {
       "points": "All your breakpoints and watchpoints: set some (with a condition if needed), disable them without losing them, remove them.",
       "console": "The same actions from the keyboard, with GDB-style commands (break, x, bt, stepi…). Type help for the list.",
@@ -212,6 +212,7 @@
     "watch": "which instruction reads or writes a memory range.",
     "console": "the same actions from the keyboard, with GDB-style commands.",
     "profile": "where the application spends its time (the most visited functions and addresses).",
+    "gdb": "an external debugger (GDB, LLDB, VS Code…) connected to this emulation, with the server started with --gdb.",
     "calls": "the application's calls to the calculator's system, with their arguments.",
     "limits": "Good to know",
     "limit1": "Nwasabi emulates the processor, not the whole calculator: the system (Epsilon), the peripherals and the real chip's access times are replaced by simplified versions. You debug your code against this simulated system, not against the exact chip.",
@@ -432,6 +433,19 @@
       "debug": { "resume": "Resume or pause", "over": "Step over", "step": "Step", "out": "Step out of the function" },
       "lists": { "move": "Previous or next row", "extend": "Extend the selection", "all": "Select all", "copy": "Copy the selection", "menu": "Open the menu of a row or an address", "clear": "Clear the selection", "breakpoint": "Breakpoint on the active line (code)", "follow": "Follow the jump of the active line (code)" }
     }
+  },
+  "gdb": {
+    "driven": "A GDB debugger is connected: it drives the emulation.",
+    "intro": "Connects an external debugger (GDB, LLDB, VS Code…) to this page's emulation: the one you see and control. Breakpoints, stepping, registers and memory are driven from the debugger, and the page follows.",
+    "unavailable": "GDB server not started",
+    "howToStart": "The debugger connects to the Nwasabi server, which must be started with the --gdb option (nothing listens without it):",
+    "enable": "Accept a GDB debugger",
+    "enableHelp": "Off at the start and never remembered between visits. Turning it on stops the page's own execution: the debugger drives it.",
+    "connect": "Connect",
+    "statusOff": "Off: the server refuses debuggers.",
+    "statusWaiting": "Waiting for a debugger…",
+    "statusConnected": "{n} debugger connected | {n} debuggers connected",
+    "note": "The calculator keys stay usable while debugging. GDB does not read source-level debug information: it works on addresses and disassembly."
   },
   "screen": {
     "copied": "Screen copied to the clipboard",

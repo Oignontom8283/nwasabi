@@ -4,6 +4,8 @@ import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ui } from "../../ui.js";
 import type { DebugView } from "../../ui.js";
+import { gdb } from "../../gdbBridge.js";
+import GdbView from "../debug/GdbView.vue";
 import CodeView from "../debug/CodeView.vue";
 import ConsoleView from "../debug/ConsoleView.vue";
 import PointsView from "../debug/PointsView.vue";
@@ -13,7 +15,7 @@ import SvcLogCard from "../SvcLogCard.vue";
 import WatchPoints from "../WatchPoints.vue";
 
 const { t } = useI18n();
-const VIEWS: DebugView[] = ["code", "points", "watch", "console", "profile", "calls"];
+const VIEWS: DebugView[] = ["code", "points", "watch", "console", "profile", "calls", "gdb"];
 const info = ref(false);
 </script>
 
@@ -28,6 +30,7 @@ const info = ref(false);
       <button class="icon about" :title="t('debugInfo.open')" :aria-label="t('debugInfo.open')" @click="info = true">i</button>
     </header>
 
+    <p v-if="gdb.enabled && gdb.clients > 0" class="banner" role="status">{{ t("gdb.driven") }}</p>
     <p v-if="['code', 'points', 'watch', 'console'].includes(ui.debugView)" class="intro muted">{{ t(`debug.intro.${ui.debugView}`) }}</p>
 
     <CodeView v-if="ui.debugView === 'code'" />
@@ -35,7 +38,8 @@ const info = ref(false);
     <WatchPoints v-else-if="ui.debugView === 'watch'" />
     <ConsoleView v-else-if="ui.debugView === 'console'" />
     <ProfileCard v-else-if="ui.debugView === 'profile'" />
-    <SvcLogCard v-else />
+    <SvcLogCard v-else-if="ui.debugView === 'calls'" />
+    <GdbView v-else />
 
     <DebugInfo v-if="info" @close="info = false" />
   </div>
@@ -50,5 +54,6 @@ header { display: flex; align-items: center; gap: 8px; }
 .view.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
 .about { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-weight: 700; font-family: Georgia, serif; font-style: italic; flex: none; display: inline-grid; place-items: center; line-height: 1; }
 .about::first-line { line-height: 1; }
+.banner { margin: 0; padding: 6px 10px; border: 1px solid var(--warn); border-radius: 8px; background: color-mix(in srgb, var(--warn) 14%, transparent); font-size: 12.5px; }
 .intro { margin: 0; font-size: 12.5px; }
 </style>
