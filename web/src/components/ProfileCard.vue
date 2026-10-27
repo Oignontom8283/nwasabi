@@ -81,7 +81,7 @@ async function stop() {
 </template>
 
 <style scoped>
-.profile { display: grid; gap: 8px; }
+.profile { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
 .head p { margin: 0; }
 .help, .small { font-size: 12px; margin: 0; }

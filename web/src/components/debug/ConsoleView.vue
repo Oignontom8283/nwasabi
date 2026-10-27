@@ -94,7 +94,7 @@ const consoleHistory: string[] = [];
 </template>
 
 <style scoped>
-.console { display: grid; gap: 8px; align-content: start; }
+.console { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .empty { padding: 24px 8px; text-align: center; margin: 0; }
 .screen { height: 380px; overflow: auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px; white-space: pre; tab-size: 8; }
 .line { min-width: max-content; }

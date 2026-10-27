@@ -106,7 +106,7 @@ const argsText = (c: Call) => c.args.map((a) => hex(a, 1)).join(", ");
 </template>
 
 <style scoped>
-.log { display: grid; gap: 8px; }
+.log { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
 .head p, .help, .small { margin: 0; font-size: 12px; }
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

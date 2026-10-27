@@ -42,7 +42,7 @@ const info = ref(false);
 </template>
 
 <style scoped>
-.debug { display: grid; gap: 10px; align-content: start; }
+.debug { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; }
 header { display: flex; align-items: center; gap: 8px; }
 .views { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); flex: 1; overflow-x: auto; scrollbar-width: none; }
 .view { border: none; background: transparent; padding: 4px 12px; border-radius: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }

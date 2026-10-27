@@ -142,7 +142,7 @@ const kindText = (kind: string) => t(`watch.kinds.${kind}`);
 </template>
 
 <style scoped>
-.points { display: grid; gap: 8px; align-content: start; }
+.points { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .empty { padding: 24px 8px; text-align: center; margin: 0; }
 .small { margin: 0; font-size: 12px; }
 .form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }

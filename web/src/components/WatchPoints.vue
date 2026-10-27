@@ -99,7 +99,7 @@ const KIND_LETTER: Record<string, string> = { read: "L", write: "É" };
 </template>
 
 <style scoped>
-.watch { display: grid; gap: 10px; }
+.watch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .form label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
 .form label.check { display: flex; align-items: center; gap: 4px; color: inherit; }
