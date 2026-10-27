@@ -87,6 +87,9 @@
     "clear": "Clear the log"
   },
   "debug": {
+    "zone": "Marked range: {address}, {n} byte | Marked range: {address}, {n} bytes",
+    "zoneClear": "Clear",
+    "shiftF11": "Shift + F11",
     "noApp": "Load an application to debug it.",
     "views": { "label": "Debugging tools", "code": "Code", "points": "Breakpoints", "watch": "Watch", "console": "Console", "profile": "Profile", "calls": "System calls" },
     "intro": {
@@ -239,8 +242,9 @@
     "done": "{n} byte saved | {n} bytes saved"
   },
   "bookmarks": {
+    "value": "Value",
     "title": "Bookmarks",
-    "help": "Memory ranges you name, kept for this application in this browser. The editor's “Bookmark” button adds the selection.",
+    "help": "A bookmark is a named shortcut to an area of this application's memory (for example “score” or “hit points”). It changes nothing in the application: it helps you get back to a place quickly, and shows the value it holds right now. Clicking the address selects the range in the hex editor (right click: more actions). Bookmarks are kept in this browser, for this application; the editor's “Bookmark” button adds the selection.",
     "name": "Name",
     "address": "Address",
     "size": "Bytes",
@@ -362,6 +366,14 @@
     }
   },
   "points": {
+    "colType": "Type",
+    "colWhere": "Where",
+    "colSize": "Bytes",
+    "colDetail": "Detail",
+    "colStop": "Break",
+    "colStopHint": "Checked: the application stops at this access. Unchecked: the access is only logged in the list of accesses. A breakpoint always stops.",
+    "colActions": "Actions",
+    "alwaysStops": "A breakpoint always stops the application",
     "add": "Set a breakpoint",
     "where": "Where",
     "wherePlaceholder": "0x90570398 or main",
@@ -394,6 +406,17 @@
     "hint": "Up and down arrows: history.",
     "help": "Help",
     "clear": "Clear"
+  },
+  "link": {
+    "hintMemory": "Click: see in memory. Right click: more actions (disassembled code, copy, breakpoint, watch, bookmark).",
+    "hintCode": "Click: see in the disassembled code. Right click: more actions (memory, copy, breakpoint, watch, bookmark).",
+    "rangeHint": "Range of {n} byte | Range of {n} bytes",
+    "inMemory": "See in the hex editor",
+    "inCode": "See in the code (assembly)",
+    "copyRange": "Copy the range ({range})",
+    "break": "Set a breakpoint here",
+    "watch": "Watch for writes",
+    "bookmark": "Add to the bookmarks"
   },
   "screen": {
     "copied": "Screen copied to the clipboard",
@@ -597,6 +620,7 @@
     "listHint": "Click to open the structure."
   },
   "hex": {
+    "menu": { "copyHex": "Copy as hexadecimal", "copyAscii": "Copy as ASCII", "break": "Set a breakpoint at this address", "watchWrite": "Watch for writes", "watchBoth": "Watch for reads and writes", "export": "Export…" },
     "label": "Hex editor",
     "toolbar": "Hex editor tools",
     "region": "Region",

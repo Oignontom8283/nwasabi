@@ -224,7 +224,9 @@ async function refresh() {
     here.value = list[0]?.symbol ?? "";
   }
   const follow = viewAt.value === null;
-  const d = await quiet({ cmd: "disasm", address: follow ? next.pc : (viewAt.value as number), count: 28, before: follow ? 8 : 0 });
+  // Une zone demandée : assez d'instructions pour la couvrir (deux octets au moins chacune), plus un peu de contexte.
+  const count = zone.value && !follow ? Math.min(256, Math.ceil(zone.value.length / 2) + 6) : 28;
+  const d = await quiet({ cmd: "disasm", address: follow ? next.pc : (viewAt.value as number), count, before: follow ? 8 : 0 });
   if (d.ok) assignIfChanged(lines, d.lines as Line[]);
 }
 
@@ -237,11 +239,18 @@ onBeforeUnmount(() => {
   removeEventListener("keydown", onKey);
 });
 watch(() => [state.revision, viewAt.value], refresh);
+/** Plage d'octets à repérer dans le code (venue d'un lien « zone ») : ses instructions sont surlignées. */
+const zone = ref<{ address: number; length: number } | null>(null);
 watch(
   () => ui.debugGoto,
-  (goto) => goto && (viewAt.value = (goto.address & ~1) >>> 0),
+  (goto) => {
+    if (!goto) return;
+    viewAt.value = (goto.address & ~1) >>> 0;
+    zone.value = goto.length > 1 ? { address: goto.address, length: goto.length } : null;
+  },
   { immediate: true },
 );
+const inZone = (address: number) => zone.value !== null && address >= zone.value.address && address < zone.value.address + zone.value.length;
 watch(
   () => state.running,
   async (running) => {
@@ -395,6 +404,10 @@ const flags = computed(() => {
         <p v-else class="muted small">{{ t("debug.history.help") }}</p>
       </section>
 
+      <p v-if="zone" class="zone-chip">
+        <span>{{ t("debug.zone", { address: hex0x(zone.address), n: zone.length }, zone.length) }}</span>
+        <button class="link" @click="zone = null">{{ t("debug.zoneClear") }}</button>
+      </p>
       <div class="code mono" role="table" :aria-label="t('debug.code')">
         <div class="head muted" role="row">
           <span class="c-dot" :title="t('debug.colBreakHint')">{{ t("debug.colBreak") }}</span>
@@ -417,7 +430,7 @@ const flags = computed(() => {
             <div v-if="line.label" class="label">{{ line.label }}:</div>
             <div
               class="row"
-              :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address) }"
+              :class="{ pc: line.address === cpu?.pc, hit: breaks.includes(line.address), zone: inZone(line.address) }"
               role="row"
               :data-addr="line.address"
               @mouseenter="showArrow(line)"
@@ -450,7 +463,7 @@ const flags = computed(() => {
         </div>
       </div>
       <p class="legend muted">
-        <button v-if="viewAt !== null" class="link" @click="viewAt = null">{{ t("debug.follow") }}</button>
+        <button v-if="viewAt !== null" class="link" @click="(viewAt = null), (zone = null)">{{ t("debug.follow") }}</button>
         <span>{{ t("debug.legend") }}</span>
       </p>
 
@@ -550,6 +563,8 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .rows { position: relative; min-width: max-content; }
 .row { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 18px; white-space: nowrap; min-height: 26px; position: relative; }
 .row:hover { background: var(--accent-soft); }
+.row.zone { background: color-mix(in srgb, var(--warn) 14%, transparent); box-shadow: inset 3px 0 0 var(--warn); }
+.zone-chip { margin: 0; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--warn); }
 .row.pc { background: color-mix(in srgb, var(--warn) 22%, transparent); font-weight: 600; }
 .arrow { width: 6px; font-size: 9px; color: var(--warn); }
 .dot { border: none; background: none; padding: 0 4px; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer; }

@@ -28,11 +28,11 @@ export const ui = reactive({
   /** Largeur de la fenêtre (suivie par l'application). */
   winWidth: innerWidth,
   /** Demande de l'onglet Mémoire : adresse à montrer dans l'éditeur hexadécimal. */
-  hexGoto: null as { address: number; seq: number } | null,
+  hexGoto: null as { address: number; length: number; seq: number } | null,
   /** Outil montré dans l'onglet Débogage. */
   debugView: remember.get<DebugView>("nwasabi.debugView", "code"),
   /** Demande de l'onglet Débogueur : adresse à montrer dans le code. */
-  debugGoto: null as { address: number; seq: number } | null,
+  debugGoto: null as { address: number; length: number; seq: number } | null,
   /** Demande de l'onglet Structures : section à montrer. */
   structureGoto: null as { section: string; seq: number } | null,
 });
@@ -81,15 +81,16 @@ export function applyTheme(theme: Theme = ui.theme): void {
 }
 
 /** Va à l'onglet Mémoire, à cette adresse. */
-export function showInMemory(address: number): void {
-  ui.hexGoto = { address, seq: Date.now() };
+/** Va à l'onglet Mémoire, à cette adresse ; avec `length` > 1, la plage est sélectionnée dans l'éditeur hexadécimal. */
+export function showInMemory(address: number, length = 1): void {
+  ui.hexGoto = { address, length, seq: Date.now() };
   ui.tab = "memory";
   ui.panelOpen = true;
 }
 
 /** Va à l'onglet Débogueur, à cette adresse. */
-export function showInDebugger(address: number): void {
-  ui.debugGoto = { address, seq: Date.now() };
+export function showInDebugger(address: number, length = 1): void {
+  ui.debugGoto = { address, length, seq: Date.now() };
   ui.debugView = "code";
   ui.tab = "debug";
   ui.panelOpen = true;

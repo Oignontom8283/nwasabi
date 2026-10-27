@@ -3,11 +3,14 @@ import { useEmu } from "../emulator.js";
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { confirmDialog } from "../dialogs.js";
-import { notify, ui } from "../ui.js";
+import { notify, showInDebugger, ui } from "../ui.js";
+import { addBreak } from "../pointsStore.js";
 import { addWatch } from "../watchStore.js";
 import { addBookmark } from "../bookmarks.js";
 import { SCAN_TYPES, SIZE, tile } from "../scan.js";
 import type { Base, ScanType } from "../scan.js";
+import ContextMenu from "./ContextMenu.vue";
+import type { MenuItem } from "./ContextMenu.vue";
 import ExportDialog from "./ExportDialog.vue";
 import HexValueDialog from "./HexValueDialog.vue";
 import Icon from "./Icon.vue";
@@ -77,6 +80,45 @@ function bookmarkSelection() {
   const address = s?.start ?? cursor.value;
   if (address === null || address === undefined) return;
   if (addBookmark(address, s ? s.end - s.start + 1 : 1)) notify(t("bookmarks.added", { address: hex0x(address) }));
+}
+
+// Clic droit : les actions qui valent pour la sélection (ou pour l'octet visé, s'il est hors de la sélection).
+const menu = ref<{ x: number; y: number; items: MenuItem[] } | null>(null);
+async function watchKind(kind: "write" | "readwrite") {
+  const s = selection.value;
+  if (!s) return;
+  const failure = await addWatch(emulator, s.start, s.end - s.start + 1, kind, false);
+  if (failure) error.value = failure;
+  else notify(t("hex.watching", { address: hex0x(s.start) }));
+}
+function openMenu(event: MouseEvent, address: number) {
+  if (!inSelection(address)) {
+    cursor.value = anchor.value = address;
+    pending.value = "";
+  }
+  const s = selection.value;
+  if (!s) return;
+  const length = s.end - s.start + 1;
+  const range = length > 1 ? `${hex0x(s.start)}-${hex0x(s.end)}` : hex0x(s.start, 8);
+  const items: MenuItem[] = [
+    { label: t("hex.menu.copyHex"), action: () => void copy("hex") },
+    { label: t("hex.menu.copyAscii"), action: () => void copy("ascii") },
+    { label: length > 1 ? t("link.copyRange", { range }) : t("debug.menu.copyAddress"), action: () => void navigator.clipboard?.writeText(range) },
+    { separator: true },
+    { label: t("link.inCode"), action: () => showInDebugger(s.start, length) },
+    { label: t("hex.menu.break"), action: () => void addBreak(emulator, s.start & ~1) },
+    { label: t("hex.menu.watchWrite"), action: () => void watchKind("write") },
+    { label: t("hex.menu.watchBoth"), action: () => void watchKind("readwrite") },
+    { label: t("link.bookmark"), action: () => bookmarkSelection() },
+    { separator: true },
+    { label: t("hex.fill"), disabled: !canEdit.value, action: () => openFill() },
+    { label: t("hex.menu.export"), action: () => openExport() },
+  ];
+  // Un fichier ouvert dans l'éditeur n'a ni code, ni points, ni signets : seules les copies et le remplissage s'appliquent.
+  if (props.read) items.splice(3, items.length - 3, { separator: true }, { label: t("hex.fill"), disabled: !canEdit.value, action: () => openFill() });
+  const target = props.read ? null : pointer.value;
+  if (target !== null) items.splice(4, 0, { label: t("hex.follow", { address: hex0x(target) }), action: () => void followPointer() });
+  menu.value = { x: event.clientX, y: event.clientY, items };
 }
 
 /** Observe en écriture la plage sélectionnée (le détail se règle dans « Points d'observation »). */
@@ -164,8 +206,15 @@ function regionOf(address: number) {
 // Une demande venue d'ailleurs (clic sur une adresse de la recherche, de la carte…) : on s'y rend, puis on ramène l'éditeur
 // dans la fenêtre : la page remonte vers lui, où qu'on ait cliqué.
 let handledSeq = 0;
-async function followRequest(request: { address: number; seq: number }) {
+async function followRequest(request: { address: number; length: number; seq: number }) {
   if (!(await goTo(request.address))) return;
+  // Une plage (signet, point d'observation…) arrive présélectionnée, dans la limite de sa zone de mémoire.
+  if (request.length > 1) {
+    const r = props.regions[regionIndex.value];
+    const last = Math.min(request.address + request.length - 1, r ? r.base + r.size - 1 : request.address);
+    cursor.value = last;
+    anchor.value = request.address;
+  }
   handledSeq = request.seq;
   root.value?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -223,6 +272,8 @@ let dragging = false;
 function pointerDown(address: number, event: PointerEvent, where: "hex" | "ascii" = "hex") {
   column.value = where;
   (event.currentTarget as Element).closest<HTMLElement>(".grid")?.focus({ preventScroll: true });
+  // Le clic droit ouvre un menu (`openMenu`) : il ne change pas la sélection quand il tombe dedans.
+  if (event.button === 2) return;
   cursor.value = address;
   if (!event.shiftKey) anchor.value = address;
   pending.value = "";
@@ -635,6 +686,7 @@ const beyond = (c: Column, length: number) => c.size > length;
                   role="gridcell"
                   :class="['cell', gap(j), { sel: inSelection(cell.address), cur: cell.address === cursor && column === 'hex', mark: cell.address === cursor && column === 'ascii', chg: changed.has(cell.address), zero: cell.value === 0 }]"
                   @pointerdown.prevent="pointerDown(cell.address, $event, 'hex')"
+                  @contextmenu.prevent="openMenu($event, cell.address)"
                   @pointerenter="pointerEnter(cell.address)"
                 >{{ cell.address === cursor && pending ? pending + "_" : hex(cell.value ?? 0, 2) }}</span>
               </span>
@@ -644,6 +696,7 @@ const beyond = (c: Column, length: number) => c.size > length;
                   :key="cell.address"
                   :class="['ch', { sel: inSelection(cell.address), cur: cell.address === cursor && column === 'ascii', mark: cell.address === cursor && column === 'hex', chg: changed.has(cell.address) }]"
                   @pointerdown.prevent="pointerDown(cell.address, $event, 'ascii')"
+                  @contextmenu.prevent="openMenu($event, cell.address)"
                   @pointerenter="pointerEnter(cell.address)"
                 >{{ printable(cell.value) }}</span>
               </span>
@@ -654,6 +707,7 @@ const beyond = (c: Column, length: number) => c.size > length;
     </div>
 
     <p class="muted hint">{{ t("hex.help") }}</p>
+    <ContextMenu v-if="menu" :items="menu.items" :x="menu.x" :y="menu.y" @close="menu = null" />
     <ExportDialog v-if="exportDialog" v-bind="exportDialog" @close="exportDialog = null" />
     <HexValueDialog v-if="valueDialog" v-bind="valueDialog" :big-endian="bigEndian" @close="valueDialog = null" @apply="applyValue" />
   </section>

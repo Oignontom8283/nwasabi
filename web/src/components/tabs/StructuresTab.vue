@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import type { Reply } from "@nwasabi/js";
 import { showInMemory, ui } from "../../ui.js";
 import { hex0x, poll } from "../../util.js";
+import AddressLink from "../AddressLink.vue";
 
 const { t } = useI18n();
 const emulator = useEmu();
@@ -114,7 +115,7 @@ const textOf = (f: Field) => (f.kind === "range" ? `${hex0x(f.value.start)}-${he
         <tbody>
           <tr v-for="a in appsRows" :key="a.address">
             <td class="str">"{{ a.name }}"</td>
-            <td><button class="link" @click="showInMemory(a.address)">{{ hex0x(a.address) }}</button></td>
+            <td><AddressLink :address="a.address" /></td>
             <td class="num">{{ a.api_level }}</td><td class="num">{{ a.size }}</td>
           </tr>
         </tbody>
@@ -126,9 +127,9 @@ const textOf = (f: Field) => (f.kind === "range" ? `${hex0x(f.value.start)}-${he
           <tr v-for="f in shown" :key="f.name" @dblclick="copy(textOf(f))" :title="t('structures.copyHint')">
             <td class="key">{{ f.name }}</td>
             <td class="eq" aria-hidden="true">:</td>
-            <td v-if="f.kind === 'address'" class="num"><button class="link" :title="t('structures.showInMemory')" @click="showInMemory(f.value)">{{ hex0x(f.value) }}</button> <span class="muted">({{ f.value }})</span></td>
+            <td v-if="f.kind === 'address'" class="num"><AddressLink :address="f.value" /> <span class="muted">({{ f.value }})</span></td>
             <td v-else-if="f.kind === 'range'" class="num">
-              <button class="link" @click="showInMemory(f.value.start)">{{ hex0x(f.value.start) }}</button> – {{ hex0x(f.value.end) }}
+              <AddressLink :address="f.value.start" :length="f.value.end - f.value.start" /> – {{ hex0x(f.value.end) }}
               <span class="muted">({{ f.value.end - f.value.start }} {{ t("structures.bytes") }})</span>
             </td>
             <td v-else-if="f.kind === 'number'" class="num">{{ f.value }} <span class="muted">({{ hex0x(f.value, 1) }})</span></td>

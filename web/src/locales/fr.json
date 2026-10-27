@@ -87,6 +87,9 @@
     "clear": "Effacer le relevé"
   },
   "debug": {
+    "zone": "Zone repérée : {address}, {n} octet | Zone repérée : {address}, {n} octets",
+    "zoneClear": "Effacer",
+    "shiftF11": "Maj + F11",
     "noApp": "Chargez une application pour la déboguer.",
     "views": { "label": "Outils de débogage", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système" },
     "intro": {
@@ -239,8 +242,9 @@
     "done": "{n} octet enregistré | {n} octets enregistrés"
   },
   "bookmarks": {
+    "value": "Valeur",
     "title": "Signets",
-    "help": "Des zones de la mémoire que vous nommez, retenues pour cette application dans ce navigateur. Le bouton « Signet » de l'éditeur ajoute la sélection.",
+    "help": "Un signet est un raccourci nommé vers une zone de la mémoire de cette application (par exemple « score » ou « points de vie »). Il ne change rien à l'application : il sert à retrouver vite un endroit, et montre la valeur qu'il contient en ce moment. Cliquer l'adresse sélectionne la zone dans l'éditeur hexadécimal (clic droit : autres actions). Les signets sont gardés dans ce navigateur, pour cette application ; le bouton « Signet » de l'éditeur ajoute la sélection.",
     "name": "Nom",
     "address": "Adresse",
     "size": "Octets",
@@ -362,6 +366,14 @@
     }
   },
   "points": {
+    "colType": "Type",
+    "colWhere": "Où",
+    "colSize": "Octets",
+    "colDetail": "Détail",
+    "colStop": "Interrompre",
+    "colStopHint": "Coché : l'application s'arrête à cet accès. Décoché : l'accès est seulement relevé dans la liste des accès. Un point d'arrêt interrompt toujours.",
+    "colActions": "Actions",
+    "alwaysStops": "Un point d'arrêt interrompt toujours l'application",
     "add": "Poser un point d'arrêt",
     "where": "Où",
     "wherePlaceholder": "0x90570398 ou main",
@@ -394,6 +406,17 @@
     "hint": "Flèches haut et bas : historique.",
     "help": "Aide",
     "clear": "Effacer"
+  },
+  "link": {
+    "hintMemory": "Clic : voir dans la mémoire. Clic droit : autres actions (code désassemblé, copier, point d'arrêt, observer, signet).",
+    "hintCode": "Clic : voir dans le code désassemblé. Clic droit : autres actions (mémoire, copier, point d'arrêt, observer, signet).",
+    "rangeHint": "Zone de {n} octet | Zone de {n} octets",
+    "inMemory": "Voir dans l'éditeur hexadécimal",
+    "inCode": "Voir dans le code (assembleur)",
+    "copyRange": "Copier la plage ({range})",
+    "break": "Poser un point d'arrêt ici",
+    "watch": "Observer en écriture",
+    "bookmark": "Ajouter aux signets"
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
@@ -597,6 +620,7 @@
     "listHint": "Cliquer pour ouvrir la structure."
   },
   "hex": {
+    "menu": { "copyHex": "Copier en hexadécimal", "copyAscii": "Copier en ASCII", "break": "Poser un point d'arrêt à cette adresse", "watchWrite": "Observer en écriture", "watchBoth": "Observer en lecture et en écriture", "export": "Exporter…" },
     "label": "Éditeur hexadécimal",
     "toolbar": "Outils de l'éditeur hexadécimal",
     "region": "Zone",
