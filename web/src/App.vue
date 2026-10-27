@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, provide, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch as watchValue } from "vue";
 import { useI18n } from "vue-i18n";
 import { KeyMap } from "@nwasabi/js";
 import CalculatorSvg from "./components/CalculatorSvg.vue";
 import AboutWindow from "./components/AboutWindow.vue";
 import InfoWindow from "./components/InfoWindow.vue";
+import FaultWindow from "./components/FaultWindow.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import type { Command } from "./components/CommandPalette.vue";
 import DialogHost from "./components/DialogHost.vue";
@@ -276,6 +277,15 @@ onBeforeUnmount(() => {
 const stageStyle = computed(() => ({ right: ui.panelOpen && !isNarrow() ? `${panelPixels()}px` : "0px" }));
 
 const palette = ref(false);
+// La fenêtre de faute s'ouvre à chaque nouvel arrêt sur une faute (et pas quand on rouvre le même arrêt).
+const faultOpen = ref(false);
+watchValue(
+  () => state.stop,
+  (stop) => {
+    if (stop?.kind === "fault" && !state.running) faultOpen.value = true;
+    else if (stop?.kind !== "fault") faultOpen.value = false;
+  },
+);
 const commands = computed((): Command[] => {
   const loaded = state.loaded;
   const go = (tab: string) => () => {
@@ -342,6 +352,7 @@ provide("pick", pick);
     <p class="sr-only" role="status" aria-live="polite">{{ state.running ? t("mini.states.running") : t("mini.states.paused") }}</p>
     <AboutWindow v-if="about" @close="about = false" />
     <InfoWindow v-if="info" @close="info = false" />
+    <FaultWindow v-if="faultOpen" @close="faultOpen = false" />
     <CommandPalette v-if="palette" :commands="commands" @close="palette = false" />
     <DialogHost />
   </div>

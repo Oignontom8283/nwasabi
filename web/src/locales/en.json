@@ -209,6 +209,41 @@
     "none": "No calls yet.",
     "argsNote": "The four registers are shown as they are: not all of them are arguments, depending on the call. Values are in hexadecimal."
   },
+  "fault": {
+    "title": "Application fault",
+    "kinds": {
+      "bus": "Invalid memory access",
+      "unimplemented": "Instruction not handled by the emulator",
+      "usage": "Forbidden instruction or state",
+      "breakpoint": "Break instruction (bkpt)",
+      "unknown_svc": "Unknown system call",
+      "wait_for_interrupt": "Endless wait for an interrupt",
+      "other": "Fault"
+    },
+    "read": "read",
+    "write": "write",
+    "bus": {
+      "unmapped": "The application tried a {access} of {size} byte(s) at {address}, where there is no memory. This is typically a null or corrupted pointer.",
+      "accessdenied": "The application tried a {access} of {size} byte(s) at {address}, an area where that access is forbidden (writing to flash, executing data…).",
+      "exclusiveunsupported": "The application used an exclusive-access instruction (ldrex, strex) on shared memory: the real calculator refuses it too."
+    },
+    "unimplemented": "The emulator cannot (yet) run the instruction {word}. If the application works on a real calculator, this is a limit of the emulator.",
+    "usage": {
+      "UndefinedInstruction": "The application ran an undefined instruction (udf): most often it jumped into data.",
+      "InvalidState": "The application jumped to an even address: a Cortex-M only runs Thumb, whose jump addresses are odd.",
+      "Unaligned": "The application made an unaligned memory access with an instruction that forbids it (ldm, stm, ldrd, strd).",
+      "other": "The application did something the processor forbids."
+    },
+    "breakpoint": "The application ran a break instruction (bkpt #{imm}).",
+    "unknownSvc": "The application made system call {number}, which the simulated kernel does not know.",
+    "waitForInterrupt": "The application waits for an interrupt that nothing can trigger.",
+    "instruction": "Faulting instruction",
+    "in": "In {where}",
+    "registers": "Registers",
+    "note": "The application is stopped: you can examine its memory and registers, or restart it.",
+    "debug": "Open in the debugger",
+    "restart": "Restart"
+  },
   "screen": {
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
