@@ -188,6 +188,9 @@ pub struct LinkArgs {
     /// Ajoute les sections et les symboles
     #[arg(long)]
     pub map: bool,
+    /// Écrit l'application liée au format ELF (symboles, sections, DWARF) : à donner à GDB avec `file`
+    #[arg(long, value_name = "FICHIER.elf")]
+    pub elf: Option<PathBuf>,
     /// Sortie en JSON
     #[arg(long)]
     pub json: bool,

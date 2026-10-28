@@ -305,6 +305,7 @@ impl Session {
                     "globals",
                     "ptype",
                     "step_source",
+                    "export_elf",
                 ],
             )),
             "new" => self.new_device(req),

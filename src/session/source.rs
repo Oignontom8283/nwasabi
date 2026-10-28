@@ -24,6 +24,7 @@ pub(super) const COMMANDS: &[&str] = &[
     "globals",
     "ptype",
     "step_source",
+    "export_elf",
 ];
 
 /// Au plus ce nombre d'instructions pour un pas à la ligne (une boucle sans fin ne bloque pas l'hôte).
@@ -189,6 +190,13 @@ impl Session {
                     .with("globals", info.globals.len())
                     .with("lines", info.rows().len()),
             });
+        }
+        if cmd == "export_elf" {
+            let emu = self.emu()?;
+            let app = emu.app().ok_or("aucune application installée")?;
+            return Ok(Value::object()
+                .with("name", app.name.as_str())
+                .with("elf", crate::json::base64_encode(&app.to_elf())));
         }
         let (emu, info) = self.debug_of()?;
         let file_of = |req: &Value| -> Result<u32, String> {

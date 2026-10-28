@@ -312,3 +312,17 @@ fn a_program_runs_to_the_end_with_the_debugger_attached() {
         "toutes les vérifications de l'application ont réussi"
     );
 }
+
+#[test]
+fn the_linked_application_exports_as_an_elf_for_gdb() {
+    let mut s = debugme();
+    let reply = call(&mut s, cmd("export_elf"));
+    let elf = json::base64_decode(reply["elf"].as_str().unwrap()).unwrap();
+    assert_eq!(&elf[..4], b"\x7fELF");
+    assert_eq!(u16::from_le_bytes([elf[16], elf[17]]), 2, "ET_EXEC");
+    assert_eq!(u16::from_le_bytes([elf[18], elf[19]]), 40, "EM_ARM");
+    let contains = |needle: &str| elf.windows(needle.len()).any(|w| w == needle.as_bytes());
+    for name in ["factorial", "global_counter", ".debug_info", ".debug_line", ".debug_frame", ".symtab"] {
+        assert!(contains(name), "{name} absent de l'ELF");
+    }
+}

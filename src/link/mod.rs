@@ -10,6 +10,7 @@
 //! 5. écrire l'en-tête d'application et assembler l'image.
 
 mod error;
+mod export;
 mod linker;
 pub mod relocate;
 pub mod runtime;
