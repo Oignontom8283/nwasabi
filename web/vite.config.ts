@@ -31,5 +31,6 @@ export default defineConfig({
   // `import "nwasabi.wasm?url"` désigne le module construit (la requête `?url` est conservée).
   resolve: { alias: [{ find: /^nwasabi\.wasm(\?.*)?$/, replacement: `${wasm}$1` }] },
   server: { fs: { allow: [here(".."), here("../target")] } },
-  build: { outDir, emptyOutDir: true, assetsInlineLimit: 0 },
+  // L'émulateur est une seule page : son code (Vue, les traductions, l'interface) tient dans un fichier d'environ 600 Kio.
+  build: { outDir, emptyOutDir: true, assetsInlineLimit: 0, chunkSizeWarningLimit: 700 },
 });
