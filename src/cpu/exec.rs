@@ -5,8 +5,8 @@ use super::alu::{
 };
 use super::decode::{decode16, decode32, is_32bit};
 use super::instr::{
-    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg,
-    RevKind, Rhs, ShiftAmount, SysReg,
+    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelKind,
+    ParallelOp, ParallelPrefix, Reg, RevKind, Rhs, SaturatingKind, ShiftAmount, SysReg,
 };
 use super::{Bus, Cpu, Hooks, Stop, SvcAction, UsageFault, Width};
 
@@ -358,14 +358,165 @@ impl Cpu {
                 rm,
                 ra,
                 round,
+                subtract,
             } => {
                 let product =
                     i64::from(self.read(ctx, rn) as i32) * i64::from(self.read(ctx, rm) as i32);
                 let acc = ra.map_or(0, |ra| i64::from(self.read(ctx, ra) as i32) << 32);
-                let total =
+                let total = if subtract {
+                    acc.wrapping_sub(product)
+                } else {
                     acc.wrapping_add(product)
-                        .wrapping_add(if round { 0x8000_0000 } else { 0 });
+                }
+                .wrapping_add(if round { 0x8000_0000 } else { 0 });
                 self.write(rd, (total >> 32) as u32);
+            }
+            Instr::Saturating { kind, rd, rm, rn } => {
+                let (m, n) = (
+                    i64::from(self.read(ctx, rm) as i32),
+                    i64::from(self.read(ctx, rn) as i32),
+                );
+                let mut saturated = false;
+                let mut n = n;
+                if matches!(kind, SaturatingKind::DoubleAdd | SaturatingKind::DoubleSub) {
+                    let (doubled, s) = signed_saturate(n * 2, 32);
+                    saturated |= s;
+                    n = i64::from(doubled);
+                }
+                let sum = if matches!(kind, SaturatingKind::Add | SaturatingKind::DoubleAdd) {
+                    m + n
+                } else {
+                    m - n
+                };
+                let (result, s) = signed_saturate(sum, 32);
+                if saturated | s {
+                    self.regs.set_q();
+                }
+                self.write(rd, result as u32);
+            }
+            Instr::Dual16 {
+                rd,
+                rn,
+                rm,
+                ra,
+                subtract,
+                exchange,
+            } => {
+                let (n, mut m) = (self.read(ctx, rn), self.read(ctx, rm));
+                if exchange {
+                    m = m.rotate_right(16);
+                }
+                let half =
+                    |v: u32, high: bool| i64::from((if high { v >> 16 } else { v }) as u16 as i16);
+                let (p1, p2) = (
+                    half(n, false) * half(m, false),
+                    half(n, true) * half(m, true),
+                );
+                let mut sum = if subtract { p1 - p2 } else { p1 + p2 };
+                if let Some(ra) = ra {
+                    sum += i64::from(self.read(ctx, ra) as i32);
+                }
+                if sum != i64::from(sum as i32) {
+                    self.regs.set_q();
+                }
+                self.write(rd, sum as u32);
+            }
+            Instr::Smulw {
+                rd,
+                rn,
+                rm,
+                ra,
+                m_high,
+            } => {
+                let m = self.read(ctx, rm);
+                let half = i64::from((if m_high { m >> 16 } else { m }) as u16 as i16);
+                let mut product = i64::from(self.read(ctx, rn) as i32) * half;
+                if let Some(ra) = ra {
+                    product += i64::from(self.read(ctx, ra) as i32) << 16;
+                    let result = (product >> 16) as i32;
+                    if i64::from(result) != product >> 16 {
+                        self.regs.set_q();
+                    }
+                    self.write(rd, result as u32);
+                } else {
+                    self.write(rd, (product >> 16) as u32);
+                }
+            }
+            Instr::Smlalxy {
+                rdlo,
+                rdhi,
+                rn,
+                rm,
+                n_high,
+                m_high,
+            } => {
+                let half =
+                    |v: u32, high: bool| i64::from((if high { v >> 16 } else { v }) as u16 as i16);
+                let product = half(self.read(ctx, rn), n_high) * half(self.read(ctx, rm), m_high);
+                let acc = (u64::from(self.read(ctx, rdhi)) << 32) | u64::from(self.read(ctx, rdlo));
+                let total = (acc as i64).wrapping_add(product) as u64;
+                self.write(rdlo, total as u32);
+                self.write(rdhi, (total >> 32) as u32);
+            }
+            Instr::Dual16Long {
+                rdlo,
+                rdhi,
+                rn,
+                rm,
+                subtract,
+                exchange,
+            } => {
+                let (n, mut m) = (self.read(ctx, rn), self.read(ctx, rm));
+                if exchange {
+                    m = m.rotate_right(16);
+                }
+                let half =
+                    |v: u32, high: bool| i64::from((if high { v >> 16 } else { v }) as u16 as i16);
+                let (p1, p2) = (
+                    half(n, false) * half(m, false),
+                    half(n, true) * half(m, true),
+                );
+                let acc = (u64::from(self.read(ctx, rdhi)) << 32) | u64::from(self.read(ctx, rdlo));
+                let products = if subtract { p1 - p2 } else { p1 + p2 };
+                let total = (acc as i64).wrapping_add(products) as u64;
+                self.write(rdlo, total as u32);
+                self.write(rdhi, (total >> 32) as u32);
+            }
+            Instr::Usad8 { rd, rn, rm, ra } => {
+                let (a, b) = (
+                    self.read(ctx, rn).to_le_bytes(),
+                    self.read(ctx, rm).to_le_bytes(),
+                );
+                let mut sum = ra.map_or(0, |ra| self.read(ctx, ra));
+                for i in 0..4 {
+                    sum = sum.wrapping_add(u32::from(a[i].abs_diff(b[i])));
+                }
+                self.write(rd, sum);
+            }
+            Instr::Sat16 {
+                signed,
+                rd,
+                rn,
+                bits,
+            } => {
+                let v = self.read(ctx, rn);
+                let mut result = 0u32;
+                let mut saturated = false;
+                for i in 0..2 {
+                    let lane = i64::from((v >> (16 * i)) as u16 as i16);
+                    let (r, s) = if signed {
+                        let (r, s) = signed_saturate(lane, u32::from(bits));
+                        (r as u32, s)
+                    } else {
+                        unsigned_saturate(lane, u32::from(bits))
+                    };
+                    saturated |= s;
+                    result |= (r & 0xffff) << (16 * i);
+                }
+                if saturated {
+                    self.regs.set_q();
+                }
+                self.write(rd, result);
             }
             Instr::Bfi { rd, rn, lsb, width } => {
                 let source = rn.map_or(0, |rn| self.read(ctx, rn));
@@ -970,76 +1121,64 @@ fn extend(kind: ExtKind, rotated: u32, base: Option<u32>) -> u32 {
 }
 
 /// Opération sur quatre octets ou deux demi-mots : résultat et indicateurs `GE` (`None` si
-/// l'opération ne les modifie pas).
+/// l'opération ne les modifie pas : seules les formes `s` et `u` le font).
 fn parallel(op: ParallelOp, a: u32, b: u32) -> (u32, Option<u8>) {
-    let bytes = |v: u32| [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
-    let halves = |v: u32| [v as u16, (v >> 16) as u16];
-    let pack8 = |r: [u8; 4]| u32::from_le_bytes(r);
-    let pack16 = |r: [u16; 2]| u32::from(r[0]) | (u32::from(r[1]) << 16);
-    match op {
-        ParallelOp::Uadd8 | ParallelOp::Usub8 | ParallelOp::Sadd8 | ParallelOp::Ssub8 => {
-            let (x, y) = (bytes(a), bytes(b));
-            let mut out = [0u8; 4];
-            let mut ge = 0u8;
-            for i in 0..4 {
-                let value: i32 = match op {
-                    ParallelOp::Uadd8 => i32::from(x[i]) + i32::from(y[i]),
-                    ParallelOp::Usub8 => i32::from(x[i]) - i32::from(y[i]),
-                    ParallelOp::Sadd8 => i32::from(x[i] as i8) + i32::from(y[i] as i8),
-                    _ => i32::from(x[i] as i8) - i32::from(y[i] as i8),
-                };
-                out[i] = value as u8;
-                let flag = match op {
-                    ParallelOp::Uadd8 => value >= 0x100,
-                    _ => value >= 0,
-                };
-                ge |= u8::from(flag) << i;
+    let signed = matches!(
+        op.prefix,
+        ParallelPrefix::S | ParallelPrefix::Q | ParallelPrefix::Sh
+    );
+    let halves = matches!(
+        op.kind,
+        ParallelKind::Add16 | ParallelKind::Asx | ParallelKind::Sax | ParallelKind::Sub16
+    );
+    let (width, lanes) = if halves { (16, 2) } else { (8, 4) };
+    let mask = (1u32 << width) - 1;
+    let (mut out, mut ge) = (0u32, 0u8);
+    for i in 0..lanes {
+        let shift = i * width;
+        let x = (a >> shift) & mask;
+        // `asx` et `sax` prennent le demi-mot opposé du second opérande.
+        let y = match op.kind {
+            ParallelKind::Asx | ParallelKind::Sax => (b >> (width * (1 - i))) & mask,
+            _ => (b >> shift) & mask,
+        };
+        let value = |v: u32| {
+            if signed {
+                i64::from(sign_extend(v, width))
+            } else {
+                i64::from(v)
             }
-            (pack8(out), Some(ge))
-        }
-        ParallelOp::Uqadd8 | ParallelOp::Uqsub8 => {
-            let (x, y) = (bytes(a), bytes(b));
-            let mut out = [0u8; 4];
-            for i in 0..4 {
-                out[i] = if op == ParallelOp::Uqadd8 {
-                    x[i].saturating_add(y[i])
-                } else {
-                    x[i].saturating_sub(y[i])
-                };
+        };
+        let subtract = match op.kind {
+            ParallelKind::Add16 | ParallelKind::Add8 => false,
+            ParallelKind::Sub16 | ParallelKind::Sub8 => true,
+            ParallelKind::Asx => i == 0,
+            ParallelKind::Sax => i == 1,
+        };
+        let sum = if subtract {
+            value(x) - value(y)
+        } else {
+            value(x) + value(y)
+        };
+        let lane = match op.prefix {
+            ParallelPrefix::S | ParallelPrefix::U => sum as u32 & mask,
+            ParallelPrefix::Q => {
+                sum.clamp(-(1i64 << (width - 1)), (1i64 << (width - 1)) - 1) as u32 & mask
             }
-            (pack8(out), None)
-        }
-        ParallelOp::Uadd16 | ParallelOp::Usub16 | ParallelOp::Sadd16 | ParallelOp::Ssub16 => {
-            let (x, y) = (halves(a), halves(b));
-            let mut out = [0u16; 2];
-            let mut ge = 0u8;
-            for i in 0..2 {
-                let value: i32 = match op {
-                    ParallelOp::Uadd16 => i32::from(x[i]) + i32::from(y[i]),
-                    ParallelOp::Usub16 => i32::from(x[i]) - i32::from(y[i]),
-                    ParallelOp::Sadd16 => i32::from(x[i] as i16) + i32::from(y[i] as i16),
-                    _ => i32::from(x[i] as i16) - i32::from(y[i] as i16),
-                };
-                out[i] = value as u16;
-                let flag = match op {
-                    ParallelOp::Uadd16 => value >= 0x1_0000,
-                    _ => value >= 0,
-                };
-                ge |= u8::from(flag) * (0b11 << (2 * i));
+            ParallelPrefix::Uq => sum.clamp(0, i64::from(mask)) as u32,
+            ParallelPrefix::Sh | ParallelPrefix::Uh => (sum >> 1) as u32 & mask,
+        };
+        out |= lane << shift;
+        if matches!(op.prefix, ParallelPrefix::S | ParallelPrefix::U) {
+            let flag = match (signed, subtract) {
+                (false, false) => sum > i64::from(mask),
+                _ => sum >= 0,
+            };
+            if flag {
+                ge |= if halves { 0b11 << (2 * i) } else { 1 << i };
             }
-            (pack16(out), Some(ge))
-        }
-        ParallelOp::Uqadd16 | ParallelOp::Uqsub16 => {
-            let (x, y) = (halves(a), halves(b));
-            let mut out = [0u16; 2];
-            for i in 0..2 {
-                out[i] = if op == ParallelOp::Uqadd16 {
-                    x[i].saturating_add(y[i])
-                } else {
-                    x[i].saturating_sub(y[i])
-                };
-            }
-            (pack16(out), None)
         }
     }
+    let sets_ge = matches!(op.prefix, ParallelPrefix::S | ParallelPrefix::U);
+    (out, sets_ge.then_some(ge))
 }

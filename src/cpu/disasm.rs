@@ -7,8 +7,8 @@ use super::alu::ShiftKind;
 use super::decode::{decode16, decode32, is_32bit};
 use super::fpu::{FpArith, FpInstr, FpUnary};
 use super::instr::{
-    Addr, DpOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg, RevKind, Rhs,
-    ShiftAmount,
+    Addr, DpOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelKind, ParallelPrefix, Reg,
+    RevKind, Rhs, SaturatingKind, ShiftAmount,
 };
 
 /// Une instruction désassemblée.
@@ -292,11 +292,12 @@ fn render(instr: &Instr, pc: u32, size: u32, in_it: bool) -> (String, String, Op
             rm,
             ra,
             round,
+            subtract,
         } => {
             let r = if round { "r" } else { "" };
             match ra {
                 Some(ra) => m(
-                    &format!("smmla{r}"),
+                    &format!("{}{r}", if subtract { "smmls" } else { "smmla" }),
                     format!("{}, {}, {}, {}", reg(rd), reg(rn), reg(rm), reg(ra)),
                 ),
                 None => m(
@@ -305,6 +306,100 @@ fn render(instr: &Instr, pc: u32, size: u32, in_it: bool) -> (String, String, Op
                 ),
             }
         }
+        Instr::Saturating { kind, rd, rm, rn } => m(
+            match kind {
+                SaturatingKind::Add => "qadd",
+                SaturatingKind::Sub => "qsub",
+                SaturatingKind::DoubleAdd => "qdadd",
+                SaturatingKind::DoubleSub => "qdsub",
+            },
+            format!("{}, {}, {}", reg(rd), reg(rm), reg(rn)),
+        ),
+        Instr::Dual16 {
+            rd,
+            rn,
+            rm,
+            ra,
+            subtract,
+            exchange,
+        } => {
+            let x = if exchange { "x" } else { "" };
+            match (ra, subtract) {
+                (Some(ra), _) => m(
+                    &format!("{}{x}", if subtract { "smlsd" } else { "smlad" }),
+                    format!("{}, {}, {}, {}", reg(rd), reg(rn), reg(rm), reg(ra)),
+                ),
+                (None, _) => m(
+                    &format!("{}{x}", if subtract { "smusd" } else { "smuad" }),
+                    format!("{}, {}, {}", reg(rd), reg(rn), reg(rm)),
+                ),
+            }
+        }
+        Instr::Smulw {
+            rd,
+            rn,
+            rm,
+            ra,
+            m_high,
+        } => {
+            let t = if m_high { "t" } else { "b" };
+            match ra {
+                Some(ra) => m(
+                    &format!("smlaw{t}"),
+                    format!("{}, {}, {}, {}", reg(rd), reg(rn), reg(rm), reg(ra)),
+                ),
+                None => m(
+                    &format!("smulw{t}"),
+                    format!("{}, {}, {}", reg(rd), reg(rn), reg(rm)),
+                ),
+            }
+        }
+        Instr::Smlalxy {
+            rdlo,
+            rdhi,
+            rn,
+            rm,
+            n_high,
+            m_high,
+        } => m(
+            &format!(
+                "smlal{}{}",
+                if n_high { 't' } else { 'b' },
+                if m_high { 't' } else { 'b' }
+            ),
+            format!("{}, {}, {}, {}", reg(rdlo), reg(rdhi), reg(rn), reg(rm)),
+        ),
+        Instr::Dual16Long {
+            rdlo,
+            rdhi,
+            rn,
+            rm,
+            subtract,
+            exchange,
+        } => m(
+            &format!(
+                "{}{}",
+                if subtract { "smlsld" } else { "smlald" },
+                if exchange { "x" } else { "" }
+            ),
+            format!("{}, {}, {}, {}", reg(rdlo), reg(rdhi), reg(rn), reg(rm)),
+        ),
+        Instr::Usad8 { rd, rn, rm, ra } => match ra {
+            Some(ra) => m(
+                "usada8",
+                format!("{}, {}, {}, {}", reg(rd), reg(rn), reg(rm), reg(ra)),
+            ),
+            None => m("usad8", format!("{}, {}, {}", reg(rd), reg(rn), reg(rm))),
+        },
+        Instr::Sat16 {
+            signed,
+            rd,
+            rn,
+            bits,
+        } => m(
+            if signed { "ssat16" } else { "usat16" },
+            format!("{}, {}, {}", reg(rd), imm(u32::from(bits)), reg(rn)),
+        ),
         Instr::Bfi { rd, rn, lsb, width } => match rn {
             Some(rn) => m(
                 "bfi",
@@ -402,21 +497,26 @@ fn render(instr: &Instr, pc: u32, size: u32, in_it: bool) -> (String, String, Op
             m(name, ops)
         }
         Instr::Parallel { op, rd, rn, rm } => {
-            let name = match op {
-                ParallelOp::Uadd8 => "uadd8",
-                ParallelOp::Uqadd8 => "uqadd8",
-                ParallelOp::Uqsub8 => "uqsub8",
-                ParallelOp::Uqadd16 => "uqadd16",
-                ParallelOp::Uqsub16 => "uqsub16",
-                ParallelOp::Sadd8 => "sadd8",
-                ParallelOp::Ssub8 => "ssub8",
-                ParallelOp::Usub8 => "usub8",
-                ParallelOp::Uadd16 => "uadd16",
-                ParallelOp::Usub16 => "usub16",
-                ParallelOp::Sadd16 => "sadd16",
-                ParallelOp::Ssub16 => "ssub16",
+            let prefix = match op.prefix {
+                ParallelPrefix::S => "s",
+                ParallelPrefix::Q => "q",
+                ParallelPrefix::Sh => "sh",
+                ParallelPrefix::U => "u",
+                ParallelPrefix::Uq => "uq",
+                ParallelPrefix::Uh => "uh",
             };
-            m(name, format!("{}, {}, {}", reg(rd), reg(rn), reg(rm)))
+            let kind = match op.kind {
+                ParallelKind::Add16 => "add16",
+                ParallelKind::Asx => "asx",
+                ParallelKind::Sax => "sax",
+                ParallelKind::Sub16 => "sub16",
+                ParallelKind::Add8 => "add8",
+                ParallelKind::Sub8 => "sub8",
+            };
+            m(
+                &format!("{prefix}{kind}"),
+                format!("{}, {}, {}", reg(rd), reg(rn), reg(rm)),
+            )
         }
         Instr::Sel { rd, rn, rm } => m("sel", format!("{}, {}, {}", reg(rd), reg(rn), reg(rm))),
         Instr::Pkh {

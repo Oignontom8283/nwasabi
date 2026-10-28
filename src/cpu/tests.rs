@@ -520,3 +520,136 @@ fn a_refused_memory_access_remembers_the_faulting_instruction() {
         "l'exécution reprendrait à l'instruction suivante"
     );
 }
+
+// --- Extension DSP d'ARMv7E-M et indices réservés -----------------------------------------------------
+
+/// Le texte de l'instruction qui code `hw1 hw2` (désassemblage).
+fn text32(hw1: u16, hw2: u16) -> String {
+    assert!(
+        decode32(hw1, hw2).is_some(),
+        "{hw1:04x} {hw2:04x} non décodée"
+    );
+    let lines = disassemble(
+        &mut |a| {
+            let words = [hw1, hw2];
+            words.get(((a & !1) / 2) as usize).copied()
+        },
+        0,
+        1,
+    );
+    format!("{} {}", lines[0].mnemonic, lines[0].operands)
+}
+
+#[test]
+fn dsp_instructions_are_decoded() {
+    for (hw1, hw2, name) in [
+        (0xfa90, 0xf011, "qadd16"),
+        (0xfaa0, 0xf011, "qasx"),
+        (0xfae0, 0xf011, "qsax"),
+        (0xfad0, 0xf011, "qsub16"),
+        (0xfa80, 0xf011, "qadd8"),
+        (0xfac0, 0xf011, "qsub8"),
+        (0xfa90, 0xf021, "shadd16"),
+        (0xfaa0, 0xf061, "uhasx"),
+        (0xfae0, 0xf041, "usax"),
+        (0xfa80, 0xf051, "uqadd8"),
+        (0xfb20, 0x0001, "smlad"),
+        (0xfb20, 0x0011, "smladx"),
+        (0xfb20, 0xf001, "smuad"),
+        (0xfb40, 0x0001, "smlsd"),
+        (0xfb40, 0xf011, "smusdx"),
+        (0xfb30, 0x0001, "smlawb"),
+        (0xfb30, 0xf011, "smulwt"),
+        (0xfb60, 0x0001, "smmls"),
+        (0xfb60, 0x0011, "smmlsr"),
+        (0xfb70, 0xf001, "usad8"),
+        (0xfb70, 0x0001, "usada8"),
+        (0xfbc0, 0x0081, "smlalbb"),
+        (0xfbc0, 0x00b1, "smlaltt"),
+        (0xfbc0, 0x00c1, "smlald"),
+        (0xfbd0, 0x00d1, "smlsldx"),
+        (0xf320, 0x0003, "ssat16"),
+        (0xf3a0, 0x0003, "usat16"),
+    ] {
+        let text = text32(hw1, hw2);
+        assert!(
+            text.starts_with(name),
+            "{hw1:04x} {hw2:04x} : {text} (attendu {name})"
+        );
+    }
+}
+
+#[test]
+fn reserved_hints_behave_as_nop() {
+    // Indices 5 à 15 des hints de 16 bits, `dbg` et `csdb` sur 32 bits.
+    for hw in (5..16).map(|n| 0xbf00 | (n << 4)) {
+        assert_eq!(decode16(hw), Some(Instr::Nop), "{hw:04x}");
+    }
+    for hint in [5u16, 0x14, 0xf0, 0xff] {
+        assert_eq!(
+            decode32(0xf3af, 0x8000 | hint),
+            Some(Instr::Nop),
+            "hint {hint:#x}"
+        );
+    }
+}
+
+#[test]
+fn udf_w_is_decoded() {
+    assert_eq!(decode32(0xf7f0, 0xa123), Some(Instr::Udf { imm: 0x123 }));
+    assert_eq!(decode32(0xf7ff, 0xa000), Some(Instr::Udf { imm: 0xf000 }));
+}
+
+/// `r0` et `r1` reçoivent des valeurs, on exécute `code` et l'on rend le processeur.
+fn run_dsp(code: &[u16], r0: u32, r1: u32, r2: u32) -> Cpu {
+    let (cpu, _, _) = run(
+        code,
+        |cpu| {
+            cpu.regs.r[0] = r0;
+            cpu.regs.r[1] = r1;
+            cpu.regs.r[2] = r2;
+        },
+        code.len() as u64,
+    );
+    cpu
+}
+
+#[test]
+fn saturating_arithmetic_sets_q() {
+    // qadd r3, r0, r1
+    let cpu = run_dsp(&[0xfa81, 0xf380], 0x7fff_ffff, 1, 0);
+    assert_eq!(cpu.regs.r[3], 0x7fff_ffff);
+    assert!(cpu.regs.q());
+    // qdsub r3, r0, r1 : r0 - sat(2 * r1)
+    let cpu = run_dsp(&[0xfa81, 0xf3b0], 100, 20, 0);
+    assert_eq!(cpu.regs.r[3] as i32, 60);
+    assert!(!cpu.regs.q());
+}
+
+#[test]
+fn parallel_halving_and_exchange_operations() {
+    // shadd16 r3, r0, r1 : (a + b) / 2 sur chaque demi-mot signé.
+    let cpu = run_dsp(&[0xfa90, 0xf321], 0xfffe_0004, 0x0002_fffc, 0);
+    assert_eq!(cpu.regs.r[3], 0x0000_0000);
+    // uasx r3, r0, r1 : le demi-mot bas soustrait le demi-mot haut de r1, le haut additionne le bas de r1.
+    let cpu = run_dsp(&[0xfaa0, 0xf341], 0x0003_0005, 0x0002_0001, 0);
+    assert_eq!(cpu.regs.r[3], 0x0004_0003);
+    // Les indicateurs GE : voie basse 5 - 2 = 3 ≥ 0 (GE 1:0 levés) ; voie haute 3 + 1 sans retenue (GE 3:2 baissés).
+    assert_eq!(cpu.regs.ge(), 0b0011);
+}
+
+#[test]
+fn dual_multiplies_and_sad() {
+    // smlad r3, r0, r1, r2 : r0.lo * r1.lo + r0.hi * r1.hi + r2
+    let cpu = run_dsp(&[0xfb20, 0x2301], 0x0003_0002, 0x0005_0004, 10);
+    assert_eq!(cpu.regs.r[3], 2 * 4 + 3 * 5 + 10);
+    // smladx : les demi-mots de r1 sont échangés
+    let cpu = run_dsp(&[0xfb20, 0x2311], 0x0003_0002, 0x0005_0004, 10);
+    assert_eq!(cpu.regs.r[3], 2 * 5 + 3 * 4 + 10);
+    // smlsd : différence des produits
+    let cpu = run_dsp(&[0xfb40, 0x2301], 0x0003_0002, 0x0005_0004, 0);
+    assert_eq!(cpu.regs.r[3] as i32, 2 * 4 - 3 * 5);
+    // usad8 r3, r0, r1
+    let cpu = run_dsp(&[0xfb70, 0xf301], 0x0a14_1e28, 0x0c12_2026, 0);
+    assert_eq!(cpu.regs.r[3], 2 + 2 + 2 + 2);
+}

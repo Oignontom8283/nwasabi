@@ -6,8 +6,8 @@
 use super::alu::{ShiftKind, decode_imm_shift, sign_extend, thumb_expand_imm};
 use super::fpu;
 use super::instr::{
-    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelOp, Reg,
-    RevKind, Rhs, ShiftAmount, SysReg,
+    Addr, DpOp, ExclusiveOp, ExtKind, FlagMode, IndexMode, Instr, MemSize, ParallelKind,
+    ParallelOp, ParallelPrefix, Reg, RevKind, Rhs, SaturatingKind, ShiftAmount, SysReg,
 };
 
 /// Une instruction de 32 bits commence par un demi-mot dont les 5 premiers bits valent 0b11101,
@@ -370,10 +370,10 @@ fn decode16_misc(h: u32) -> Option<Instr> {
         0b1111 => {
             if bits(h, 3, 0) == 0 {
                 match bits(h, 7, 4) {
-                    0 | 1 | 4 => Instr::Nop, // nop, yield, sev
                     2 => Instr::Wfe,
                     3 => Instr::Wfi,
-                    _ => return None,
+                    // nop, yield, sev, et les indices réservés (5 à 15), qui se comportent comme `nop`.
+                    _ => Instr::Nop,
                 }
             } else {
                 Instr::It {
@@ -671,10 +671,19 @@ fn decode_dp_plain_immediate(a: u32, b: u32) -> Option<Instr> {
             rd,
             imm: imm16 as u16,
         },
-        // ssat (sh = bit 5 : décalage arithmétique ; sans décalage et sh = 1 : ssat16, non géré).
+        // ssat (sh = bit 5 : décalage arithmétique ; sans décalage et sh = 1 : ssat16).
         0b10000 | 0b10010 => {
             if op == 0b10010 && imm5 == 0 {
-                return None;
+                // `ssat16` : ni décalage ni bits 5-4 du second mot.
+                if bits(b, 5, 4) != 0 {
+                    return None;
+                }
+                return Some(Instr::Sat16 {
+                    signed: true,
+                    rd,
+                    rn,
+                    bits: (bits(b, 3, 0) + 1) as u8,
+                });
             }
             let (kind, amount) = decode_imm_shift(bits(a, 5, 5) << 1, imm5);
             Instr::Sat {
@@ -707,7 +716,15 @@ fn decode_dp_plain_immediate(a: u32, b: u32) -> Option<Instr> {
         }
         0b11000 | 0b11010 => {
             if op == 0b11010 && imm5 == 0 {
-                return None;
+                if bits(b, 5, 4) != 0 {
+                    return None;
+                }
+                return Some(Instr::Sat16 {
+                    signed: false,
+                    rd,
+                    rn,
+                    bits: bits(b, 3, 0) as u8,
+                });
             }
             let (kind, amount) = decode_imm_shift(bits(a, 5, 5) << 1, imm5);
             Instr::Sat {
@@ -741,16 +758,8 @@ fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
         (true, true) => Some(Instr::Bl {
             offset: branch_offset25(a, b),
         }),
-        (true, false) => {
-            // `udf.w` : 1111 0111 1111 imm4 / 1010 imm12.
-            if bits(a, 11, 4) == 0b0111_1111 && bits(b, 15, 12) == 0b1010 {
-                Some(Instr::Udf {
-                    imm: ((bits(a, 3, 0) << 12) | bits(b, 11, 0)) as u16,
-                })
-            } else {
-                None
-            }
-        }
+        // `blx` vers du code ARM : n'existe pas sur Cortex-M.
+        (true, false) => None,
         (false, false) => {
             let cond = bits(a, 9, 6);
             if cond < 0b1110 {
@@ -767,19 +776,27 @@ fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
                 });
             }
             match bits(a, 10, 4) {
+                // `udf.w` : 1111 0111 1111 imm4 / 1010 imm12.
+                0b1111111 if bits(a, 12, 11) == 0b10 && bits(b, 15, 12) == 0b1010 => {
+                    Some(Instr::Udf {
+                        imm: ((bits(a, 3, 0) << 12) | bits(b, 11, 0)) as u16,
+                    })
+                }
                 // msr
                 0b0111000 if bits(b, 15, 12) == 0b1000 => Some(Instr::Msr {
                     rn: bits(a, 3, 0) as Reg,
                     sysreg: SysReg(bits(b, 7, 0) as u8),
                     mask: bits(b, 11, 10) as u8,
                 }),
-                // hints : nop.w, yield, wfe, wfi, sev
-                0b0111010 => match bits(b, 7, 0) {
-                    0 | 1 | 4 => Some(Instr::Nop),
-                    2 => Some(Instr::Wfe),
-                    3 => Some(Instr::Wfi),
-                    _ => None,
-                },
+                // hints : nop.w, yield, wfe, wfi, sev ; les autres indices (dont `dbg` et `csdb`) sont réservés et
+                // se comportent comme `nop`.
+                0b0111010 if bits(a, 3, 0) == 0xf && bits(b, 15, 8) == 0x80 => {
+                    match bits(b, 7, 0) {
+                        2 => Some(Instr::Wfe),
+                        3 => Some(Instr::Wfi),
+                        _ => Some(Instr::Nop),
+                    }
+                }
                 // clrex, puis les barrières dsb, dmb, isb
                 0b0111011 => match bits(b, 7, 4) {
                     2 => Some(Instr::Clrex),
@@ -951,6 +968,17 @@ fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
                     rm,
                 }),
                 (0b1010, 0) => Some(Instr::Sel { rd, rn, rm }),
+                (0b1000, op) => Some(Instr::Saturating {
+                    kind: match op {
+                        0 => SaturatingKind::Add,
+                        1 => SaturatingKind::DoubleAdd,
+                        2 => SaturatingKind::Sub,
+                        _ => SaturatingKind::DoubleSub,
+                    },
+                    rd,
+                    rm,
+                    rn,
+                }),
                 (0b1011, 0) if rm == rn => Some(Instr::Clz { rd, rm }),
                 _ => None,
             }
@@ -977,12 +1005,34 @@ fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
                     n_high: bit(op2, 1),
                     m_high: bit(op2, 0),
                 }),
-                (5, 0 | 1) => Some(Instr::Smmul {
+                (5 | 6, 0 | 1) => Some(Instr::Smmul {
                     rd,
                     rn,
                     rm,
                     ra: if ra == 15 { None } else { Some(ra) },
                     round: bit(op2, 0),
+                    subtract: op1 == 6,
+                }),
+                (2 | 4, 0 | 1) => Some(Instr::Dual16 {
+                    rd,
+                    rn,
+                    rm,
+                    ra: if ra == 15 { None } else { Some(ra) },
+                    subtract: op1 == 4,
+                    exchange: bit(op2, 0),
+                }),
+                (3, 0 | 1) => Some(Instr::Smulw {
+                    rd,
+                    rn,
+                    rm,
+                    ra: if ra == 15 { None } else { Some(ra) },
+                    m_high: bit(op2, 0),
+                }),
+                (7, 0) => Some(Instr::Usad8 {
+                    rd,
+                    rn,
+                    rm,
+                    ra: if ra == 15 { None } else { Some(ra) },
                 }),
                 _ => None,
             }
@@ -1038,6 +1088,22 @@ fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
                     rm,
                 }),
                 (6, 6) => Some(Instr::Umaal { rdlo, rdhi, rn, rm }),
+                (4, 8..=11) => Some(Instr::Smlalxy {
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                    n_high: bit(op2, 1),
+                    m_high: bit(op2, 0),
+                }),
+                (4 | 5, 0xc | 0xd) => Some(Instr::Dual16Long {
+                    rdlo,
+                    rdhi,
+                    rn,
+                    rm,
+                    subtract: op1 == 5,
+                    exchange: bit(op2, 0),
+                }),
                 _ => None,
             }
         }
@@ -1045,23 +1111,25 @@ fn decode_register_and_multiply(a: u32, b: u32) -> Option<Instr> {
     }
 }
 
-/// Opérations parallèles (`uadd8`, `uqsub16`…).
+/// Opérations parallèles (`uadd8`, `uqsub16`, `shasx`…).
 fn decode_parallel(a: u32, b: u32) -> Option<ParallelOp> {
-    let width_op = bits(a, 6, 4); // 000 ADD8, 001 ADD16, 100 SUB8, 101 SUB16
-    let prefix = bits(b, 6, 4); // 000 S, 001 Q, 010 SH, 100 U, 101 UQ, 110 UH
-    Some(match (prefix, width_op) {
-        (0b100, 0b000) => ParallelOp::Uadd8,
-        (0b101, 0b000) => ParallelOp::Uqadd8,
-        (0b101, 0b100) => ParallelOp::Uqsub8,
-        (0b101, 0b001) => ParallelOp::Uqadd16,
-        (0b101, 0b101) => ParallelOp::Uqsub16,
-        (0b000, 0b000) => ParallelOp::Sadd8,
-        (0b000, 0b100) => ParallelOp::Ssub8,
-        (0b100, 0b100) => ParallelOp::Usub8,
-        (0b100, 0b001) => ParallelOp::Uadd16,
-        (0b100, 0b101) => ParallelOp::Usub16,
-        (0b000, 0b001) => ParallelOp::Sadd16,
-        (0b000, 0b101) => ParallelOp::Ssub16,
+    let prefix = match bits(b, 6, 4) {
+        0b000 => ParallelPrefix::S,
+        0b001 => ParallelPrefix::Q,
+        0b010 => ParallelPrefix::Sh,
+        0b100 => ParallelPrefix::U,
+        0b101 => ParallelPrefix::Uq,
+        0b110 => ParallelPrefix::Uh,
         _ => return None,
-    })
+    };
+    let kind = match bits(a, 6, 4) {
+        0b000 => ParallelKind::Add8,
+        0b001 => ParallelKind::Add16,
+        0b010 => ParallelKind::Asx,
+        0b100 => ParallelKind::Sub8,
+        0b101 => ParallelKind::Sub16,
+        0b110 => ParallelKind::Sax,
+        _ => return None,
+    };
+    Some(ParallelOp { prefix, kind })
 }

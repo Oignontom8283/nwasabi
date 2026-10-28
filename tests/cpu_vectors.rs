@@ -171,4 +171,5 @@ batches! {
     fp_double_precision_matches_qemu => "13_fp_double",
     fp_half_precision_and_fixed_point_match_qemu => "14_fp_half_and_fixed",
     exclusive_accesses_match_qemu => "15_exclusive",
+    dsp_extension_matches_qemu => "16_dsp",
 }

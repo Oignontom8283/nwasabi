@@ -112,21 +112,44 @@ pub enum ExtKind {
     Uxtb16,
 }
 
-/// Opérations arithmétiques sur plusieurs petites valeurs à la fois (SIMD sur 32 bits).
+/// Ce qui est fait de chaque voie d'une opération parallèle : arithmétique signée (`s`), signée saturée (`q`), signée
+/// divisée par deux (`sh`), non signée (`u`), non signée saturée (`uq`), non signée divisée par deux (`uh`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParallelOp {
-    Uadd8,
-    Uqadd8,
-    Uqsub8,
-    Uqadd16,
-    Uqsub16,
-    Sadd8,
-    Ssub8,
-    Usub8,
-    Uadd16,
-    Usub16,
-    Sadd16,
-    Ssub16,
+pub enum ParallelPrefix {
+    S,
+    Q,
+    Sh,
+    U,
+    Uq,
+    Uh,
+}
+
+/// Les voies d'une opération parallèle : deux demi-mots (`add16`, `sub16`, `asx`, `sax`) ou quatre octets (`add8`, `sub8`).
+/// `asx` soustrait dans la voie basse et additionne dans la haute, avec les demi-mots du second opérande échangés ; `sax` l'inverse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParallelKind {
+    Add16,
+    Asx,
+    Sax,
+    Sub16,
+    Add8,
+    Sub8,
+}
+
+/// Opérations arithmétiques sur plusieurs petites valeurs à la fois (SIMD sur 32 bits) : `sadd16`, `uqsub8`, `shasx`…
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParallelOp {
+    pub prefix: ParallelPrefix,
+    pub kind: ParallelKind,
+}
+
+/// Additions et soustractions saturées sur 32 bits : `qadd`, `qsub`, `qdadd`, `qdsub`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SaturatingKind {
+    Add,
+    Sub,
+    DoubleAdd,
+    DoubleSub,
 }
 
 /// Réorganisations d'octets.
@@ -259,13 +282,70 @@ pub enum Instr {
         n_high: bool,
         m_high: bool,
     },
-    /// `smmul` / `smmla` : mot de poids fort du produit signé 32×32.
+    /// `smmul` / `smmla` / `smmls` : mot de poids fort du produit signé 32×32 (`subtract` : `ra` moins le produit).
     Smmul {
         rd: Reg,
         rn: Reg,
         rm: Reg,
         ra: Option<Reg>,
         round: bool,
+        subtract: bool,
+    },
+    /// `qadd`, `qsub`, `qdadd`, `qdsub` : `rd = sat(rm ± rn)`, avec `rn` doublé (et saturé) pour les formes `d`.
+    Saturating {
+        kind: SaturatingKind,
+        rd: Reg,
+        rm: Reg,
+        rn: Reg,
+    },
+    /// `smuad`, `smusd`, `smlad`, `smlsd` (et leurs formes `x`) : somme ou différence des deux produits de demi-mots.
+    Dual16 {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Option<Reg>,
+        subtract: bool,
+        exchange: bool,
+    },
+    /// `smulwb`, `smulwt`, `smlawb`, `smlawt` : 32 bits × demi-mot, 16 bits de poids fort du produit sur 48.
+    Smulw {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Option<Reg>,
+        m_high: bool,
+    },
+    /// `smlalbb`, `smlalbt`, `smlaltb`, `smlaltt` : produit de demi-mots ajouté à un total de 64 bits.
+    Smlalxy {
+        rdlo: Reg,
+        rdhi: Reg,
+        rn: Reg,
+        rm: Reg,
+        n_high: bool,
+        m_high: bool,
+    },
+    /// `smlald`, `smlsld` (et leurs formes `x`) : comme `Dual16`, avec un total de 64 bits.
+    Dual16Long {
+        rdlo: Reg,
+        rdhi: Reg,
+        rn: Reg,
+        rm: Reg,
+        subtract: bool,
+        exchange: bool,
+    },
+    /// `usad8`, `usada8` : somme des différences absolues des quatre octets.
+    Usad8 {
+        rd: Reg,
+        rn: Reg,
+        rm: Reg,
+        ra: Option<Reg>,
+    },
+    /// `ssat16`, `usat16` : saturation de chacun des deux demi-mots sur `bits` bits.
+    Sat16 {
+        signed: bool,
+        rd: Reg,
+        rn: Reg,
+        bits: u8,
     },
 
     /// `bfi` (insertion) ; `rn` à `None` : `bfc` (mise à zéro).

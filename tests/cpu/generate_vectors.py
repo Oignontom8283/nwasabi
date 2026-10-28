@@ -586,6 +586,44 @@ def cases_exclusive():
     return out
 
 
+def cases_dsp():
+    """Les instructions de l'extension DSP d'ARMv7E-M : arithmétique parallèle complète, saturations, doubles produits."""
+    out = []
+    parallel = [p + k for p in ['s', 'q', 'sh', 'u', 'uq', 'uh']
+                for k in ['add16', 'asx', 'sax', 'sub16', 'add8', 'sub8']]
+    for op in parallel:
+        for _ in range(6):
+            rd, rn, rm = reg(), reg(), reg()
+            out.append(f"{op} {rd}, {rn}, {rm}")
+    for _ in range(80):
+        rd, rn, rm = reg(), reg(), reg()
+        op = random.choice(['sadd8', 'uadd8', 'ssub16', 'usub16', 'sasx', 'uasx', 'ssax', 'usax', 'sadd16', 'uadd16'])
+        out.append(f"{op} {rd}, {rn}, {rm}\nsel {reg()}, {reg()}, {reg()}")
+    for _ in range(90):
+        a, b, c, d = regs_distinct(4)
+        out.append(random.choice([
+            f"qadd {a}, {b}, {c}",
+            f"qsub {a}, {b}, {c}",
+            f"qdadd {a}, {b}, {c}",
+            f"qdsub {a}, {b}, {c}",
+            f"ssat16 {a}, #{random.randrange(1, 17)}, {b}",
+            f"usat16 {a}, #{random.randrange(0, 16)}, {b}",
+            f"usad8 {a}, {b}, {c}",
+            f"usada8 {a}, {b}, {c}, {d}",
+            f"smuad{random.choice(['', 'x'])} {a}, {b}, {c}",
+            f"smusd{random.choice(['', 'x'])} {a}, {b}, {c}",
+            f"smlad{random.choice(['', 'x'])} {a}, {b}, {c}, {d}",
+            f"smlsd{random.choice(['', 'x'])} {a}, {b}, {c}, {d}",
+            f"smulw{random.choice(['b', 't'])} {a}, {b}, {c}",
+            f"smlaw{random.choice(['b', 't'])} {a}, {b}, {c}, {d}",
+            f"smlal{random.choice(['bb', 'bt', 'tb', 'tt'])} {a}, {b}, {c}, {d}",
+            f"smlald{random.choice(['', 'x'])} {a}, {b}, {c}, {d}",
+            f"smlsld{random.choice(['', 'x'])} {a}, {b}, {c}, {d}",
+            f"smmls{random.choice(['', 'r'])} {a}, {b}, {c}, {d}",
+        ]))
+    return out
+
+
 FAMILIES = [
     ('thumb16', cases_thumb16),
     ('it_blocks', cases_it_blocks),
@@ -603,6 +641,7 @@ FAMILIES = [
     ('fp_double', cases_fp_double),
     ('fp_half_and_fixed', cases_fp_half_and_fixed),
     ('exclusive', cases_exclusive),
+    ('dsp', cases_dsp),
 ]
 
 # ---------------------------------------------------------------------------------------------
