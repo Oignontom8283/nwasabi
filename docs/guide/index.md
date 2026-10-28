@@ -24,6 +24,11 @@ Les trois premières se servent du même cœur ; ce qu'elles font se pilote par 
 
 Une application peut aussi s'ouvrir par l'adresse : `…/emulator/?nwa=https://exemple.org/jeu.nwa`.
 
+## Des applications qui demandent plus qu'un `.nwa`
+
+Certaines applications lisent, à une adresse de la flash, un programme ou des données flashés à part : c'est le cas de KhiCAS. Un
+fichier [`.nfd`](../format/nfd.md) les rassemble : voir [Exécuter KhiCAS](./khicas.md).
+
 ## Installer le serveur
 
 ```sh

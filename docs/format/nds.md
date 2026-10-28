@@ -49,7 +49,7 @@ touché que quelques pages de RAM donne quelques ko, pas les 256 Kio de la SRAM.
 
 ## Détails
 
-- **`app`** : `name` est le nom que l'application déclare ; `file_name` (facultatif, ajouté par les hôtes qui le connaissent, comme l'émulateur web) est le nom du fichier `.nwa` d'origine ; il n'est pas lu par le cœur.
+- **`app`** : `name` est le nom que l'application déclare ; `file_name` (facultatif, ajouté par les hôtes qui le connaissent, comme l'émulateur web) est le nom du fichier `.nwa` d'origine ; il n'est pas lu par le cœur. `flash` (facultatif) est le document [`.nfd`](./nfd.md) des octets placés en flash à côté de l'application, rechargés avec elle.
 - **`memory.pages`** : `address` est un multiple de 4096 ; `content` couvre une ou plusieurs pages
   consécutives. L'« appareil neuf » de référence est construit comme à la restauration : modèle,
   firmware, réglages de `device`, puis le `.nwa` de la partie `app` **si elle est présente**.

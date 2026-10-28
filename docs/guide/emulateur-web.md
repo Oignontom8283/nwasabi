@@ -11,6 +11,7 @@ L'extension d'un fichier fourni à la page décide de ce qui est chargé :
 | `.nwa` | l'application | — |
 | `.nmk` | les touches (clavier et gestes) | [`nmk`](../format/nmk.md) |
 | `.nfs` | les fichiers de la calculatrice | [`nfs`](../format/nfs.md) |
+| `.nfd` | des octets à placer en flash, à côté de l'application (KhiCAS…) ; l'application est relancée | [`nfd`](../format/nfd.md) |
 | `.nds` | un état d'émulation à reprendre | [`nds`](../format/nds.md) |
 
 ## Paramètres de l'adresse
@@ -24,16 +25,17 @@ doit autoriser leur lecture (CORS).
 | `data=` | données externes de l'application |
 | `nmk=` | mapping des touches |
 | `nfs=` | fichiers de la calculatrice |
+| `flash=` | octets à placer en flash à côté de l'application |
 | `nds=` | état à reprendre (il contient son application : il remplace `nwa=`) |
 | `lang=` | langue de l'interface : `fr` ou `en` (sinon le dernier choix, puis la langue du navigateur) |
 
 Exemple : `…/emulator/?nwa=https://exemple.org/jeu.nwa&nmk=https://exemple.org/jeu.nmk&lang=fr`.
 
-Avec le serveur : `nwasabi --nwa jeu.nwa --nmk jeu.nmk --nfs fichiers.nfs --nds etat.nds`.
+Avec le serveur : `nwasabi --nwa jeu.nwa --nmk jeu.nmk --nfs fichiers.nfs --flash morceaux.nfd --nds etat.nds`.
 
 ### Fichiers du serveur qui changent
 
-Le serveur relit ses fichiers (`--nwa`, `--data`, `--nmk`, `--nfs`, `--nds`) à chaque requête et donne leur empreinte sur
+Le serveur relit ses fichiers (`--nwa`, `--data`, `--nmk`, `--nfs`, `--flash`, `--nds`) à chaque requête et donne leur empreinte sur
 `/__nwasabi/version`. La page la compare une fois par seconde : quand un fichier change sur le disque, la page propose de recharger (raccourci **Ctrl + R**). Un réglage (désactivé par défaut) permet de les recharger sans rien demander. Un fichier devenu invalide n'arrête pas le
 serveur : la page affiche l'erreur.
 

@@ -17,6 +17,7 @@ Il affiche l'adresse à ouvrir (`http://127.0.0.1:8080/` par défaut). Avec les 
 | `--data FICHIER` | données externes de l'application (ROM, script…) ; demande `--nwa` |
 | `--nmk FICHIER.nmk` | mapping des touches ([format](../format/nmk.md)), vérifié au démarrage |
 | `--nfs FICHIER.nfs` | fichiers de la calculatrice à charger ([format](../format/nfs.md)) |
+| `--flash FICHIER.nfd` | octets à placer en flash à côté de l'application (KhiCAS…) ([format](../format/nfd.md)), vérifié au démarrage |
 | `--nds FICHIER.nds` | état à reprendre ([format](../format/nds.md)) ; il contient son application |
 | `--model n0110\|n0115\|n0120` | modèle émulé (défaut `n0110`) |
 | `--firmware 24\|26.4.0` | disposition du firmware (défaut `24`) ; voir [Modèles et mémoire](../reference/modeles-memoire.md) |

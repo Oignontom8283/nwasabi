@@ -25,6 +25,24 @@ Les numéros sont ceux de la bibliothèque officielle.
 
 Les autres emplacements de la table officielle répondent `0` ou sont ignorés.
 
+## Appels du noyau d'Epsilon utilisés par KhiCAS
+
+Le lanceur de [KhiCAS](../guide/khicas.md) s'en sert, en plus de ceux de l'EADK (que le système officiel ne propose pas à une
+application ordinaire).
+
+| N° | Rôle |
+|---|---|
+| 26 | règle l'état de `shift` et d'`alpha` (r0 : 0 rien, 1 shift, 2 alpha, 3 shift et alpha, 4 alpha verrouillé, 5 shift et alpha verrouillé) |
+| 28 | lit cet état (même codage) |
+| 30 | efface un secteur de la flash externe (r0 : numéro du secteur ; rend 1 si fait, 0 si refusé) |
+| 32 | écrit dans la flash externe (r0 : destination, r1 : source, r2 : longueur ; rend 1 si fait, 0 si refusé) |
+
+Les secteurs sont numérotés comme dans le noyau : 0 à 7 de 4 Kio (`0x90000000` à `0x90008000`), 8 de 32 Kio, puis 9 et suivants de
+64 Kio (`0x90010000` à `0x907f0000`). Écrire ne peut que passer des bits à 0 : seul l'effacement d'un secteur les remet à 1, comme
+pour la vraie flash. Ces deux appels sont **refusés** (retour 0) sur le firmware et sur les applications installées ; le reste de la
+flash externe est ouvert. Les écritures font partie de l'état de l'appareil (un [`.nds`](../format/nds.md) les garde) et remettent à
+zéro l'[historique du débogage](../debug/index.md#remonter-le-temps).
+
 ## Appels facultatifs
 
 Le système officiel ne les propose pas aux applications ; Nwasabi peut les fournir en option : `eadk_battery_is_charging` (3),

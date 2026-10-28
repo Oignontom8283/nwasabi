@@ -7,7 +7,8 @@ chacun avec un champ de version obligatoire. Les fichiers invalides sont refusé
 |---|---|---|
 | [`.nmk`](./nmk.md) | Nwasabi Mapping Key | liaisons du clavier de l'ordinateur et des gestes tactiles vers les touches de la calculatrice |
 | [`.nfs`](./nfs.md) | Nwasabi File System | les fichiers de la calculatrice (scripts Python, réglages…) |
+| [`.nfd`](./nfd.md) | Nwasabi Flash Data | des octets à placer à des adresses de la flash externe, à côté de l'application (KhiCAS…) |
 | [`.nds`](./nds.md) | Nwasabi Dump State | l'état d'une émulation en pause, à reprendre plus tard |
 
-Chaque format peut être chargé par un paramètre de l'adresse de l'émulateur web (`?nmk=`, `?nfs=`, `?nds=`),
+Chaque format peut être chargé par un paramètre de l'adresse de l'émulateur web (`?nmk=`, `?nfs=`, `?flash=`, `?nds=`),
 une option du serveur `nwasabi` et de l'outil `nwasabi-cli`, comme `?nwa=` pour l'application.
