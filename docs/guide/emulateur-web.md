@@ -27,6 +27,7 @@ doit autoriser leur lecture (CORS).
 | `nfs=` | fichiers de la calculatrice |
 | `flash=` | données auxiliaires en flash de l'application |
 | `model=` | modèle émulé : `n0110`, `n0115` ou `n0120` |
+| `firmware=` | disposition du firmware : `24` (appareils relevés, par défaut) ou `26.4.0` (voir [Modèles et mémoire](../reference/modeles-memoire.md)) |
 | `nds=` | état à reprendre (il contient son application : il remplace `nwa=`) |
 | `lang=` | langue de l'interface : `fr` ou `en` (sinon le dernier choix, puis la langue du navigateur) |
 

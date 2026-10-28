@@ -1,4 +1,4 @@
-// Ce que la page charge toute seule au démarrage : `?nwa=`, `?data=`, `?flash=`, `?nmk=`, `?nfs=`, `?nds=` ; et `?model=` pour le modèle émulé.
+// Ce que la page charge toute seule au démarrage : `?nwa=`, `?data=`, `?flash=`, `?nmk=`, `?nfs=`, `?nds=` ; `?model=` pour le modèle émulé et `?firmware=` pour la disposition du firmware.
 // Les adresses sont relatives à la page ou absolues ; un autre site doit autoriser la lecture (CORS).
 
 export const FILE_PARAMS = ["nwa", "data", "flash", "nmk", "nfs", "nds"] as const;
@@ -14,6 +14,12 @@ export function launchParams(search = location.search): Record<FileParam, string
 export function launchModel(search = location.search): "n0110" | "n0115" | "n0120" | null {
   const value = new URLSearchParams(search).get("model")?.toLowerCase();
   return value === "n0110" || value === "n0115" || value === "n0120" ? value : null;
+}
+
+/** La disposition du firmware demandée par `?firmware=` (`24` ou `26.4.0`), si elle est valide. */
+export function launchFirmware(search = location.search): "24" | "26.4.0" | null {
+  const value = new URLSearchParams(search).get("firmware");
+  return value === "24" || value === "26.4.0" ? value : null;
 }
 
 /** Erreur de téléchargement : `url` dit laquelle des adresses a échoué. */

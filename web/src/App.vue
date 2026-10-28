@@ -16,7 +16,7 @@ import SidePanel from "./components/SidePanel.vue";
 import TopBar from "./components/TopBar.vue";
 import { confirmDialog } from "./dialogs.js";
 import { useEmulator } from "./emulator.js";
-import { FetchError, fetchFile, fileNameOf, launchModel, launchParams } from "./launch.js";
+import { FetchError, fetchFile, fileNameOf, launchFirmware, launchModel, launchParams } from "./launch.js";
 import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
@@ -168,8 +168,11 @@ function describe(error: unknown): string {
 async function loadFromAddress() {
   const params = launchParams();
   const model = launchModel();
+  const firmware = launchFirmware();
   try {
-    if (model && model !== state.model) await emulator.changeModel(model);
+    if ((model && model !== state.model) || (firmware && firmware !== state.firmware)) {
+      await emulator.changeModel(model ?? state.model, firmware ?? state.firmware);
+    }
     if (params.flash) flashDoc = parseJson(await (await fetchFile(params.flash)).text(), params.flash);
     if (params.data) await loadData(new Uint8Array(await (await fetchFile(params.data)).arrayBuffer()), fileNameOf(params.data));
     if (params.nds) await loadStateText(await (await fetchFile(params.nds)).text(), params.nds);
