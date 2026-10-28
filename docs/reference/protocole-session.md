@@ -21,7 +21,7 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 
 | Commande | Effet |
 |---|---|
-| `new`, `load` | crée un appareil, ou en charge un avec une application (`nwa` et `data` en base64). Options : `model`, `firmware`, `clock` (`virtual` ou `host`), `speed`, `mhz` ; avec `load`, `nfd` : un document [`.nfd`](../format/nfd.md) d'octets à placer en flash |
+| `new`, `load` | crée un appareil, ou en charge un avec une application (`nwa` et `data` en base64). Options : `model`, `firmware`, `clock` (`virtual` ou `host`), `speed`, `mhz` ; avec `load`, `nfd` : un document [`.nfd`](../format/nfd.md) de [données auxiliaires en flash](./donnees-flash.md) |
 | `launch` | lance l'application |
 | `dump`, `restore` | exporte ou restaure l'état (`parts` : `app`, `memory`, `fs`, `state`) |
 | `settings_get`, `settings_set` | lit ou modifie les réglages (`settings_get` donne les noms) |
@@ -66,5 +66,5 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 
 ## Octets en flash
 
-`flash_load` (`nfd` : un document [`.nfd`](../format/nfd.md)) place des octets à des adresses de la flash externe, `flash_export` rend ceux
+`flash_load` (`nfd` : un document [`.nfd`](../format/nfd.md)) place des [données auxiliaires](./donnees-flash.md) à des adresses de la flash externe, `flash_export` rend celles
 qui sont placés. Ils ne peuvent pas recouvrir le firmware ni les applications installées.

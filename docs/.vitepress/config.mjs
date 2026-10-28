@@ -13,7 +13,7 @@ import { defineConfig } from "vitepress";
 const base = process.env.SITE_BASE ?? "/";
 
 // Les paramètres d'adresse qui désignent un fichier à ouvrir dans l'émulateur (voir docs/guide/emulateur-web.md). `lang` n'en fait pas partie : sur une page de la documentation, il appartiendra à la langue de la documentation.
-const EMULATOR_PARAMS = ["nwa", "data", "nmk", "nfs", "nds", "flash"];
+const EMULATOR_PARAMS = ["nwa", "data", "nmk", "nfs", "nds", "flash", "model"];
 
 // En développement, le serveur de VitePress répond à `/emulator/` avec sa propre application (donc sa
 // page 404) : il ne sert que les fichiers exacts de `public/`, pas l'`index.html` d'un dossier. Ce plugin
@@ -81,6 +81,7 @@ export default defineConfig({
             { text: "Compatibilité et limites", link: "/reference/compatibilite" },
             { text: "Modèles et mémoire", link: "/reference/modeles-memoire" },
             { text: "Appels système", link: "/reference/appels-systeme" },
+            { text: "Données auxiliaires en flash", link: "/reference/donnees-flash" },
             { text: "Protocole de session", link: "/reference/protocole-session" },
             { text: "Bibliothèque JavaScript", link: "/reference/bibliotheque-js" },
           ],

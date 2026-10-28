@@ -27,6 +27,9 @@ const nextTheme = () => (ui.theme = THEMES[(THEMES.indexOf(ui.theme) + 1) % THEM
 
 // Le menu des imports : trois traits à gauche ; il se ferme en cliquant ailleurs ou avec Échap.
 const open = ref(false);
+// Le logo ramène à l'accueil du site : la documentation quand l'émulateur est servi dans le site (`…/emulator/`), sinon (serveur
+// local) l'émulateur lui-même. Sans paramètres ni ancre.
+const home = new URL(location.pathname.includes("/emulator/") ? "../" : "./", location.href).pathname;
 const root = ref<HTMLElement | null>(null);
 const ITEMS: Array<[PickKind, string, boolean]> = [
   ["app", "top.openApp", true],
@@ -75,7 +78,7 @@ onBeforeUnmount(() => {
       </ul>
     </div>
 
-    <a class="brand" href="." :title="t('top.about')"><Logo :size="34" /> Nwasabi</a>
+    <a class="brand" :href="home" :title="t('top.about')"><Logo :size="34" /> Nwasabi</a>
 
     <select :value="state.model" :title="t('top.modelHint')" :aria-label="t('top.model')" @change="(e: Event) => emulator.changeModel(valueOf(e) as Model)">
       <option value="n0110">N0110</option>

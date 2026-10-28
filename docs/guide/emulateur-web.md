@@ -11,7 +11,7 @@ L'extension d'un fichier fourni à la page décide de ce qui est chargé :
 | `.nwa` | l'application | — |
 | `.nmk` | les touches (clavier et gestes) | [`nmk`](../format/nmk.md) |
 | `.nfs` | les fichiers de la calculatrice | [`nfs`](../format/nfs.md) |
-| `.nfd` | des octets à placer en flash, à côté de l'application (KhiCAS…) ; l'application est relancée | [`nfd`](../format/nfd.md) |
+| `.nfd` | des [données auxiliaires en flash](../reference/donnees-flash.md) ; l'application est relancée | [`nfd`](../format/nfd.md) |
 | `.nds` | un état d'émulation à reprendre | [`nds`](../format/nds.md) |
 
 ## Paramètres de l'adresse
@@ -25,7 +25,8 @@ doit autoriser leur lecture (CORS).
 | `data=` | données externes de l'application |
 | `nmk=` | mapping des touches |
 | `nfs=` | fichiers de la calculatrice |
-| `flash=` | octets à placer en flash à côté de l'application |
+| `flash=` | données auxiliaires en flash de l'application |
+| `model=` | modèle émulé : `n0110`, `n0115` ou `n0120` |
 | `nds=` | état à reprendre (il contient son application : il remplace `nwa=`) |
 | `lang=` | langue de l'interface : `fr` ou `en` (sinon le dernier choix, puis la langue du navigateur) |
 
