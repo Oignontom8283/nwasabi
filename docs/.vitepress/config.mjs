@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 
 // Site vitrine de nwasabi : documentation et tutoriels (pour l'instant, seulement l'accueil), avec
 // l'émulateur dans le même site statique, à l'adresse /emulator/.
@@ -32,13 +33,18 @@ const emulatorIndex = {
   },
 };
 
-export default defineConfig({
+// `withMermaid` rend les blocs ```mermaid des pages en schémas.
+export default withMermaid(defineConfig({
   lang: "fr",
   title: "Nwasabi",
   description: "Émulateur d'applications externes NumWorks (.nwa) en Rust et WebAssembly",
   base,
   cleanUrls: true,
-  vite: { plugins: [emulatorIndex] },
+  // Étiquettes en SVG et police de repli : en HTML, les styles de VitePress (interligne des paragraphes) font couper le texte des nœuds.
+  mermaid: { fontFamily: "sans-serif", htmlLabels: false, flowchart: { htmlLabels: false, padding: 16, nodeSpacing: 40, rankSpacing: 60 } },
+  // Mermaid et ses dépendances (CommonJS) doivent être préparées par Vite en développement, sinon la page reste blanche.
+  // Les schémas de Mermaid sont chargés à la demande, page par page : leurs gros fichiers ne pèsent pas sur les autres pages.
+  vite: { plugins: [emulatorIndex], optimizeDeps: { include: ["mermaid"] }, build: { chunkSizeWarningLimit: 1000 } },
   // Les logos sont ceux de `assets/logo/` : `just docs-emulator` les copie dans `public/` (VitePress ne sert que ce dossier).
   // L'icône de l'onglet est la version à fond arrondi ; le logo de la barre et de l'accueil, la version sans fond.
   // Une page de documentation ouverte avec un paramètre de l'émulateur (`?nwa=…`, `?flash=…`) est envoyée vers l'émulateur, paramètres
@@ -90,4 +96,4 @@ export default defineConfig({
     },
     socialLinks: [{ icon: "github", link: "https://github.com/Oignontom8283/nwasabi" }],
   },
-});
+}));
