@@ -149,7 +149,7 @@ export function useEmulator() {
     capture,
     startRecording,
     stopRecording,
-    load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null) => newDevice(player<boolean>("load", nwa, name, data)),
+    load: (nwa: Uint8Array, name: string, data: Uint8Array | null = null, flash: unknown = null) => newDevice(player<boolean>("load", nwa, name, data, flash)),
     restart: () => newDevice(player<boolean>("restart")),
     stepFrame: () => player<boolean>("stepFrame"),
     runWithoutData: () => newDevice(player<boolean>("runWithoutData")),

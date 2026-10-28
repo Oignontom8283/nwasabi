@@ -270,6 +270,14 @@ impl Keyboard {
         (self.shift, self.alpha, self.alpha_lock)
     }
 
+    /// Impose l'état de `shift` et d'`alpha` (verrouillé ou non), comme le fait une application qui
+    /// gère son propre clavier. Un verrouillage suppose `alpha`.
+    pub fn set_modifiers(&mut self, shift: bool, alpha: bool, alpha_lock: bool) {
+        self.shift = shift;
+        self.alpha = alpha || alpha_lock;
+        self.alpha_lock = alpha_lock;
+    }
+
     /// Enfonce une touche : met à jour l'état et produit son événement.
     pub fn press(&mut self, key: Key) {
         let already = self.state >> key.bit() & 1 != 0;

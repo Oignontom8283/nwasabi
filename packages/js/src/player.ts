@@ -180,6 +180,8 @@ export class Player {
   private frame: unknown = null;
   private nwa: Uint8Array | null = null;
   private data: Uint8Array | null = null;
+  /** Document `.nfd` : des octets à placer en flash à côté de l'application (voir `docs/format/nfd.md`). */
+  private flash: unknown = null;
   private readonly pressed = new Set<KeyName>();
   // Une touche relâchée avant que l'application ait pu la lire (un appui plus court qu'une image)
   // reste enfoncée jusqu'à l'image suivante.
@@ -347,10 +349,11 @@ export class Player {
     this.state.revision++;
   }
 
-  /** Charge une application (et ses données externes éventuelles) puis la lance. */
-  load(nwa: Uint8Array, name: string, data: Uint8Array | null = null): boolean {
+  /** Charge une application (avec ses données externes et ses octets en flash éventuels) puis la lance. */
+  load(nwa: Uint8Array, name: string, data: Uint8Array | null = null, flash: unknown = null): boolean {
     this.nwa = nwa;
     this.data = data;
+    this.flash = flash;
     this.state.appName = name;
     return this.restart();
   }
@@ -376,6 +379,7 @@ export class Player {
       nwa: toBase64(this.nwa),
     };
     if (this.data) request.data = toBase64(this.data);
+    if (this.flash) request.nfd = this.flash;
     state.needsData = false;
     const reply = this.call(request);
     if (!reply.ok && !this.data && /données externes|external/i.test(reply.error ?? "")) {
@@ -426,11 +430,12 @@ export class Player {
     if (!reply.ok) return false;
     const state = this.state;
     const doc = document as {
-      app?: { nwa?: string; data?: string; name?: string; file_name?: string };
+      app?: { nwa?: string; data?: string; flash?: unknown; name?: string; file_name?: string };
     };
     if (doc.app?.nwa) {
       this.nwa = fromBase64(doc.app.nwa);
       this.data = doc.app.data !== undefined ? fromBase64(doc.app.data) : null;
+      this.flash = doc.app.flash ?? null;
     }
     const app = reply.app as { name?: string } | undefined;
     if (doc.app?.file_name || app?.name) state.appName = doc.app?.file_name ?? app?.name ?? state.appName;
@@ -460,7 +465,7 @@ export class Player {
   /** Lance l'application qui réclame des données externes avec un jeu vide. */
   runWithoutData(): boolean {
     if (!this.nwa) return false;
-    return this.load(this.nwa, this.state.appName, new Uint8Array());
+    return this.load(this.nwa, this.state.appName, new Uint8Array(), this.flash);
   }
 
   /** Change le modèle (et le firmware) ; relance l'application chargée, s'il y en a une. */

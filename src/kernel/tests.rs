@@ -684,3 +684,100 @@ fn a_bad_kernel_state_changes_nothing() {
     assert!(emu.kernel.restore_state(&state).is_err());
     assert_eq!(emu.kernel.to_state(), before);
 }
+
+// ---- clavier shift/alpha et flash externe (appels 26, 28, 30, 32) ---------------------------------
+
+#[test]
+fn the_shift_alpha_status_is_read_and_set_like_epsilon() {
+    let (mut emu, mut cpu) = setup();
+    call(&mut emu, &mut cpu, 28, &[]);
+    assert_eq!(cpu.regs.r[0], 0);
+    // Alpha verrouillé : l'état 4 (lockAlpha de KhiCAS) ; alpha seul : 2 ; shift seul : 1.
+    call(&mut emu, &mut cpu, 26, &[4]);
+    call(&mut emu, &mut cpu, 28, &[]);
+    assert_eq!(cpu.regs.r[0], 4);
+    assert_eq!(emu.kernel.keyboard.modifiers(), (false, true, true));
+    call(&mut emu, &mut cpu, 26, &[2]);
+    call(&mut emu, &mut cpu, 28, &[]);
+    assert_eq!(cpu.regs.r[0], 2);
+    call(&mut emu, &mut cpu, 26, &[1]);
+    call(&mut emu, &mut cpu, 28, &[]);
+    assert_eq!(cpu.regs.r[0], 1);
+    call(&mut emu, &mut cpu, 26, &[0]);
+    assert_eq!(emu.kernel.keyboard.modifiers(), (false, false, false));
+}
+
+/// Un appareil dont la flash de l'application est protégée jusqu'à 0x90200000.
+fn setup_flash() -> (Emulator, Cpu) {
+    let (mut emu, cpu) = setup();
+    emu.kernel.flash_protected_end = 0x9020_0000;
+    (emu, cpu)
+}
+
+#[test]
+fn erasing_a_sector_sets_its_bytes_to_ff() {
+    let (mut emu, mut cpu) = setup_flash();
+    emu.device
+        .memory
+        .write_bytes(0x9026_0000, &[1, 2, 3])
+        .unwrap();
+    emu.device.memory.write_bytes(0x9027_0000, &[9]).unwrap();
+    // Le secteur 8 + 0x26 est celui de 0x90260000 (64 Kio chacun à partir de 0x90010000 = secteur 9).
+    call(&mut emu, &mut cpu, 30, &[8 + 0x26, 1]);
+    assert_eq!(cpu.regs.r[0], 1);
+    assert_eq!(
+        emu.device.memory.read_bytes(0x9026_0000, 3).unwrap(),
+        [0xff; 3]
+    );
+    assert_eq!(emu.device.memory.read_bytes(0x9027_0000, 1).unwrap(), [9]);
+}
+
+#[test]
+fn erasing_the_firmware_or_a_missing_sector_is_refused() {
+    let (mut emu, mut cpu) = setup_flash();
+    let before = emu.device.memory.read_bytes(0x9001_0000, 4).unwrap();
+    call(&mut emu, &mut cpu, 30, &[9, 1]);
+    assert_eq!(cpu.regs.r[0], 0);
+    assert_eq!(
+        emu.device.memory.read_bytes(0x9001_0000, 4).unwrap(),
+        before
+    );
+    call(&mut emu, &mut cpu, 30, &[500, 1]);
+    assert_eq!(cpu.regs.r[0], 0);
+}
+
+#[test]
+fn writing_the_flash_only_clears_bits() {
+    let (mut emu, mut cpu) = setup_flash();
+    emu.device
+        .memory
+        .write_bytes(SCRATCH, &[0xf0, 0x0f, 0xaa])
+        .unwrap();
+    // Flash effacée (0xff) : l'écriture donne exactement les octets.
+    call(&mut emu, &mut cpu, 32, &[0x9030_0000, SCRATCH, 3, 1]);
+    assert_eq!(cpu.regs.r[0], 1);
+    assert_eq!(
+        emu.device.memory.read_bytes(0x9030_0000, 3).unwrap(),
+        [0xf0, 0x0f, 0xaa]
+    );
+    // Réécrire sans effacer ne peut que passer des bits à 0.
+    emu.device
+        .memory
+        .write_bytes(SCRATCH, &[0x3c, 0xff, 0x00])
+        .unwrap();
+    call(&mut emu, &mut cpu, 32, &[0x9030_0000, SCRATCH, 3, 1]);
+    assert_eq!(
+        emu.device.memory.read_bytes(0x9030_0000, 3).unwrap(),
+        [0x30, 0x0f, 0x00]
+    );
+}
+
+#[test]
+fn writing_outside_the_allowed_flash_is_refused() {
+    let (mut emu, mut cpu) = setup_flash();
+    for destination in [0x9010_0000u32, 0x2000_0000, 0x907f_ffff] {
+        let length = if destination == 0x907f_ffff { 2 } else { 1 };
+        call(&mut emu, &mut cpu, 32, &[destination, SCRATCH, length, 1]);
+        assert_eq!(cpu.regs.r[0], 0, "{destination:#x}");
+    }
+}

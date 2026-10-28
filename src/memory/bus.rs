@@ -115,6 +115,10 @@ impl Memory {
 }
 
 impl Bus for Memory {
+    fn privileged_write(&mut self, address: u32, data: &[u8]) -> bool {
+        self.write_bytes(address, data).is_ok()
+    }
+
     fn read8(&mut self, address: u32) -> Result<u8, BusFault> {
         Ok(self.read_access::<1>(address, false)?[0])
     }

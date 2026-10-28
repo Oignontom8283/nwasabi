@@ -15,6 +15,7 @@
 use super::{base64, boolean, field, nfs, number, number32, text};
 use crate::cpu::Cpu;
 use crate::emulator::{AppSource, Emulator};
+use crate::formats::nfd;
 use crate::json::{self, Value, ValueExt};
 use crate::kernel::KernelConfig;
 use crate::memory::PAGE_SIZE;
@@ -133,6 +134,11 @@ fn fresh(
         emulator
             .install_nwa(&source.nwa, source.data.as_deref())
             .map_err(|e| e.to_string())?;
+        if !source.flash.is_empty() {
+            emulator
+                .install_flash(source.flash.clone())
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(emulator)
 }
@@ -226,6 +232,9 @@ pub fn dump(emulator: &mut Emulator, firmware: &str, parts: Parts) -> Result<Val
             .with("nwa", json::base64_encode(&src.nwa));
         if let Some(data) = &src.data {
             section.set("data", json::base64_encode(data));
+        }
+        if !src.flash.is_empty() {
+            section.set("flash", nfd::export(&src.flash));
         }
         out.set("app", section);
     }
@@ -341,6 +350,10 @@ pub fn restore(document: &Value, current: Option<&Current>) -> Result<Restored, 
                 data: match section.get("data") {
                     Some(_) => Some(base64(section, "data").map_err(|e| format!("app : {e}"))?),
                     None => None,
+                },
+                flash: match section.get("flash") {
+                    Some(doc) => nfd::parse(doc).map_err(|e| format!("app : flash : {e}"))?,
+                    None => Vec::new(),
                 },
             })
         }

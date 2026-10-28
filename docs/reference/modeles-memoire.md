@@ -25,7 +25,25 @@ Le modèle se choisit dans les Réglages, avec `--model` en ligne de commande ou
 | SRAM | début du modèle | `0x40000` (256 Kio) | pile, tas, données de l'application |
 | Noyau | dans la SRAM | `0x1000` | structures du système, inaccessibles à l'application |
 
-Dans la SRAM, la disposition est celle du système :
+## Les deux slots de la flash
+
+La flash externe est coupée en deux **slots** de 4 Mio : le slot A à `0x9000_0000`, le slot B à `0x9040_0000`. Chacun peut contenir
+un firmware, suivi de la zone des applications externes (qui finit à `0x903f_0000` pour le slot A, `0x907f_0000` pour le B). L'appareil
+en exécute un seul, le **slot actif** (réglage `active_slot`) : les applications s'installent dans la zone de ce slot-là.
+
+Début de la zone des applications, selon la disposition du firmware :
+
+| Disposition | N0110 | N0115 | N0120 |
+|---|---|---|---|
+| `24` (appareils relevés) | `0x9057_0000` (slot B actif) | `0x9017_0000` (slot A actif) | `0x9059_0000` (slot B actif) |
+| `26.4.0` | `0x9020_0000` (slot A) | `0x9020_0000` (slot A) | `0x9018_0000` (slot A) |
+
+Avec l'autre slot actif, les adresses sont décalées de `0x40_0000`. Un programme placé en flash à part (voir [`.nfd`](../format/nfd.md))
+ne peut pas recouvrir le firmware du slot actif ni les applications installées.
+
+## Dans la SRAM
+
+La disposition est celle du système :
 
 - le tampon de stockage (`0xA800` octets, 42 Kio) se trouve à `SRAM + 0x657c` ; c'est là que vivent les fichiers
   ([formats](../format/nfs.md)) ;

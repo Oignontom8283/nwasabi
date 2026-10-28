@@ -21,6 +21,7 @@ fn main() {
         Command::Survey(args) => commands::survey(args),
         Command::Session(args) => commands::session(args),
         Command::Keys(args) => commands::keys(args),
+        Command::Flash(args) => commands::flash_cmd(args),
     };
     match outcome {
         Ok(code) => std::process::exit(code),

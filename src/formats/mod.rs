@@ -1,8 +1,9 @@
 //! Formats de fichiers de nwasabi : les fichiers de la calculatrice (`.nfs`) et l'état d'une
-//! émulation (`.nds`). Les spécifications publiques sont dans `docs/format/`. (Le mapping des touches,
+//! émulation (`.nds`), les octets à placer en flash (`.nfd`). Les spécifications publiques sont dans `docs/format/`. (Le mapping des touches,
 //! `.nmk`, est dans `keymap`.)
 
 pub mod nds;
+pub mod nfd;
 pub mod nfs;
 
 use crate::json::Value;

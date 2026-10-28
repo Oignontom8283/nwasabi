@@ -12,6 +12,8 @@ use crate::link::runtime::{SVC_DRAW_STRING, SVC_EXIT, SVC_SBRK, SVC_WRITE};
 const MAX_STRING: u32 = 4096;
 /// Longueur maximale d'un `write`.
 const MAX_WRITE: u32 = 1 << 16;
+/// Taille maximale d'une programmation de la flash d'un seul appel.
+const MAX_FLASH_WRITE: u32 = 1 << 20;
 /// Taille du numéro de série copié, zéro final compris.
 const SERIAL_BUFFER: usize = 17;
 
@@ -125,6 +127,56 @@ impl Kernel {
         self.stop_with(KernelStop::Sleep { ms: remaining })
     }
 
+    /// `shiftAlphaStatus` : 1 shift, 2 alpha, 4 alpha verrouillé (3 et 5 : shift avec l'un des deux).
+    fn shift_alpha(&self) -> u32 {
+        let (shift, alpha, lock) = self.keyboard.modifiers();
+        u32::from(shift) | if lock { 4 } else { 2 * u32::from(alpha) }
+    }
+
+    fn set_shift_alpha(&mut self, status: u32) {
+        self.keyboard
+            .set_modifiers(status & 1 != 0, status & 6 != 0, status & 4 != 0);
+    }
+
+    /// Efface un secteur de la flash externe (`Ion::Device::Flash::EraseSector`) : 8 secteurs de 4 Kio,
+    /// un de 32 Kio, puis des secteurs de 64 Kio. Faux si le secteur n'existe pas ou fait partie
+    /// de ce que le noyau protège.
+    fn erase_sector<B: Bus>(&mut self, bus: &mut B, sector: u32) -> bool {
+        let (start, len) = match sector {
+            0..=7 => (sector * 0x1000, 0x1000),
+            8 => (0x8000, 0x8000),
+            9..=135 => ((sector - 8) * 0x1_0000, 0x1_0000),
+            _ => return false,
+        };
+        let start = crate::profile::EXTERNAL_FLASH_BASE + start;
+        start >= self.flash_protected_end && bus.privileged_write(start, &vec![0xff; len as usize])
+    }
+
+    /// Programme la flash externe (`Ion::Device::Flash::WriteMemory`) : une écriture ne peut que passer des
+    /// bits à 0, seul l'effacement d'un secteur les remet à 1.
+    fn write_flash<B: Bus>(
+        &mut self,
+        bus: &mut B,
+        destination: u32,
+        source: u32,
+        length: u32,
+    ) -> Result<bool, BusFault> {
+        let end = destination.checked_add(length);
+        let in_flash = destination >= self.flash_protected_end
+            && end.is_some_and(|end| {
+                end <= crate::profile::EXTERNAL_FLASH_BASE + crate::profile::EXTERNAL_FLASH_SIZE
+            });
+        if !in_flash || length > MAX_FLASH_WRITE {
+            return Ok(false);
+        }
+        let new = read_bytes(bus, source, length)?;
+        let mut data = read_bytes(bus, destination, length)?;
+        for (old, new) in data.iter_mut().zip(new) {
+            *old &= new;
+        }
+        Ok(bus.privileged_write(destination, &data))
+    }
+
     fn handle<B: Bus>(
         &mut self,
         number: u8,
@@ -195,7 +247,11 @@ impl Kernel {
             // Entrées vides de la table du noyau : l'appel est ignoré, les registres restent intacts.
             25 | 40 | 41 => {}
             55 => cpu.regs.r[0] = self.repeat_count,
-            6..=17 | 26..=28 | 30..=32 | 35..=38 | 42..=44 | 51 | 53..=54 | 58 => {
+            26 => self.set_shift_alpha(r0),
+            28 => cpu.regs.r[0] = self.shift_alpha(),
+            30 => cpu.regs.r[0] = u32::from(self.erase_sector(bus, r0)),
+            32 => cpu.regs.r[0] = u32::from(self.write_flash(bus, r0, r1, r2)?),
+            6..=17 | 27 | 31 | 35..=38 | 42..=44 | 51 | 53..=54 | 58 => {
                 cpu.regs.r[0] = 0;
             }
             SVC_DRAW_STRING => {

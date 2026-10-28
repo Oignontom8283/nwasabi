@@ -159,7 +159,8 @@ impl DeviceImage {
 
     /// Modifie le profil et réécrit en mémoire les structures qui en dépendent (en-têtes, nom de
     /// l'appareil, FCC…), comme le ferait une nouvelle version du firmware. Les applications et
-    /// les fichiers ne sont pas touchés. Si le nouveau profil est incohérent, rien n'est changé.
+    /// les fichiers ne sont pas touchés (si la zone des applications change, la suivante s'installe
+    /// au début de la nouvelle). Si le nouveau profil est incohérent, rien n'est changé.
     pub fn update_profile(
         &mut self,
         change: impl FnOnce(&mut FirmwareProfile),
@@ -168,6 +169,14 @@ impl DeviceImage {
         change(&mut profile);
         profile.validate().map_err(DeviceError::Profile)?;
         write_structures(&mut self.memory, &profile)?;
+        // Une autre zone pour les applications (autre slot actif) : la suivante s'installe à son début.
+        let (old, new) = (
+            self.profile.active().apps_flash,
+            profile.active().apps_flash,
+        );
+        if new != old {
+            self.next_app = new.0;
+        }
         self.profile = profile;
         Ok(())
     }

@@ -68,6 +68,7 @@ export default defineConfig({
             { text: "Premiers pas", link: "/guide/" },
             { text: "Écrire une application", link: "/guide/ecrire-une-application" },
             { text: "L'émulateur web", link: "/guide/emulateur-web" },
+            { text: "Exécuter KhiCAS", link: "/guide/khicas" },
             { text: "Le serveur", link: "/guide/serveur" },
             { text: "La ligne de commande", link: "/guide/cli" },
           ],

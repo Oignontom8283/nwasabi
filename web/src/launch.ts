@@ -1,7 +1,7 @@
-// Ce que la page charge toute seule au démarrage : `?nwa=`, `?data=`, `?nmk=`, `?nfs=`, `?nds=`.
+// Ce que la page charge toute seule au démarrage : `?nwa=`, `?data=`, `?flash=`, `?nmk=`, `?nfs=`, `?nds=`.
 // Les adresses sont relatives à la page ou absolues ; un autre site doit autoriser la lecture (CORS).
 
-export const FILE_PARAMS = ["nwa", "data", "nmk", "nfs", "nds"] as const;
+export const FILE_PARAMS = ["nwa", "data", "flash", "nmk", "nfs", "nds"] as const;
 export type FileParam = (typeof FILE_PARAMS)[number];
 
 /** Les adresses données dans l'URL de la page (`null` si absentes). */

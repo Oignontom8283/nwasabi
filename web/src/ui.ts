@@ -140,7 +140,7 @@ export function notify(text: string, ms = 2200): void {
 }
 
 /** Ce que le menu de chargement peut ouvrir : un sélecteur de fichier par sorte de fichier. */
-export type PickKind = "app" | "data" | "keys" | "state" | "files";
+export type PickKind = "app" | "data" | "keys" | "state" | "files" | "flash";
 
 /** La fonction qui ouvre un sélecteur de fichier, fournie par `App.vue`. */
 export function usePick(): (which: PickKind) => void {

@@ -39,6 +39,8 @@ let dataBytes: Uint8Array | null = null;
 let appMap = false;
 let generalMap: KeyMap | null = null;
 let lastApp: { bytes: Uint8Array; name: string } | null = null;
+/** Les octets à placer en flash à côté de l'application (document `.nfd`), s'il y en a. */
+let flashDoc: unknown = null;
 
 // ---- ce que l'on charge ----------------------------------------------------------------------------
 
@@ -58,7 +60,7 @@ async function loadApp(bytes: Uint8Array, name: string) {
     appMap = false;
     emulator.setKeyMap(generalMap ?? KeyMap.default());
   }
-  await emulator.load(bytes, name, dataBytes);
+  await emulator.load(bytes, name, dataBytes, flashDoc);
   if (keep.enabled) void rememberApp(name, bytes);
 }
 
@@ -70,7 +72,17 @@ async function openRecent(name: string) {
 
 async function loadData(bytes: Uint8Array, name: string) {
   dataBytes = bytes;
-  if (lastApp) await emulator.load(lastApp.bytes, lastApp.name, dataBytes);
+  if (lastApp) await emulator.load(lastApp.bytes, lastApp.name, dataBytes, flashDoc);
+}
+
+/** Des octets à placer en flash (fichier `.nfd`) ; l'application chargée est relancée avec eux. */
+async function loadFlashText(text: string, source: string): Promise<boolean> {
+  const document = parseJson(text, source);
+  if (!document) return false;
+  flashDoc = document;
+  state.error = "";
+  if (lastApp) await emulator.load(lastApp.bytes, lastApp.name, dataBytes, flashDoc);
+  return !state.error;
 }
 
 function loadKeymapText(text: string, source: string): boolean {
@@ -126,6 +138,7 @@ async function openFile(file: File): Promise<unknown> {
   if (ext === "nmk") return loadKeymapText(await file.text(), name);
   if (ext === "nds") return loadStateText(await file.text(), name);
   if (ext === "nfs") return loadFilesText(await file.text(), name);
+  if (ext === "nfd") return loadFlashText(await file.text(), name);
   // L'application attend des données externes : tout autre fichier en est une.
   if (state.needsData) return loadData(await readBytes(file), name);
   fail(t("errors.unknownFile", { name }));
@@ -155,6 +168,7 @@ function describe(error: unknown): string {
 async function loadFromAddress() {
   const params = launchParams();
   try {
+    if (params.flash) flashDoc = parseJson(await (await fetchFile(params.flash)).text(), params.flash);
     if (params.data) await loadData(new Uint8Array(await (await fetchFile(params.data)).arrayBuffer()), fileNameOf(params.data));
     if (params.nds) await loadStateText(await (await fetchFile(params.nds)).text(), params.nds);
     else if (params.nwa) await loadApp(new Uint8Array(await (await fetchFile(params.nwa)).arrayBuffer()), fileNameOf(params.nwa));
@@ -180,7 +194,7 @@ async function serverApp(initial: boolean) {
   await loadApp(decode(preload.nwa), preload.name);
 }
 
-/** Une partie de ce que le serveur donne : l'application, le mapping `.nmk`, les fichiers `.nfs` ou l'état `.nds`. */
+/** Une partie de ce que le serveur donne : l'application, les octets en flash `.nfd`, le mapping `.nmk`, les fichiers `.nfs` ou l'état `.nds`. */
 async function serverPart(part: Part) {
   if (part === "app") return serverApp(false);
   const got = await fetchPart(`__nwasabi/${part}`);
@@ -189,13 +203,15 @@ async function serverPart(part: Part) {
   const text = await got.reply.text();
   const source = t("errors.fromServer");
   if (part === "nds") await loadStateText(text, source);
+  else if (part === "flash") await loadFlashText(text, source);
   else if (part === "nfs") await loadFilesText(text, source);
   else loadKeymapText(text, source);
 }
 
-/** Ce que le serveur `nwasabi` précharge (`--nwa`, `--nmk`, `--nfs`, `--nds`) ; une page hébergée ailleurs n'a rien. */
+/** Ce que le serveur `nwasabi` précharge (`--nwa`, `--flash`, `--nmk`, `--nfs`, `--nds`) ; une page hébergée ailleurs n'a rien. */
 async function loadFromServer() {
   await baseline();
+  await serverPart("flash"); // avant l'application : elle se lance avec
   await serverApp(true);
   for (const part of ["nds", "nfs", "nmk"] as const) await serverPart(part);
   watch(serverPart, () => ui.autoReload);
@@ -333,6 +349,7 @@ const commands = computed((): Command[] => {
     { id: "open-state", label: t("palette.openState"), run: () => pick("state") },
     { id: "open-keys", label: t("palette.openKeys"), run: () => pick("keys") },
     { id: "open-files", label: t("palette.openFiles"), run: () => pick("files") },
+    { id: "open-flash", label: t("palette.openFlash"), run: () => pick("flash") },
     { id: "pause", label: t("palette.pause"), shortcut: SHORTCUTS.toggleRun, enabled: loaded && state.running, run: () => emulator.stop() },
     { id: "resume", label: t("palette.resume"), shortcut: SHORTCUTS.toggleRun, enabled: loaded && !state.running, run: () => emulator.start() },
     { id: "restart", label: t("palette.restart"), shortcut: SHORTCUTS.restart, enabled: loaded, run: () => void emulator.restart() },
@@ -356,7 +373,8 @@ const input_data = ref<HTMLInputElement | null>(null);
 const input_keys = ref<HTMLInputElement | null>(null);
 const input_state = ref<HTMLInputElement | null>(null);
 const input_files = ref<HTMLInputElement | null>(null);
-const pickers: Record<PickKind, typeof input_app> = { app: input_app, data: input_data, keys: input_keys, state: input_state, files: input_files };
+const input_flash = ref<HTMLInputElement | null>(null);
+const pickers: Record<PickKind, typeof input_app> = { app: input_app, data: input_data, keys: input_keys, state: input_state, files: input_files, flash: input_flash };
 const pick = (which: PickKind) => pickers[which].value?.click();
 provide("pick", pick);
 </script>
@@ -369,6 +387,7 @@ provide("pick", pick);
     <input ref="input_keys" type="file" accept=".nmk,application/json" hidden @change="choose('keys')($event)" />
     <input ref="input_state" type="file" accept=".nds,application/json" hidden @change="choose('state')($event)" />
     <input ref="input_files" type="file" accept=".nfs,application/json" hidden @change="choose('files')($event)" />
+    <input ref="input_flash" type="file" accept=".nfd,application/json" hidden @change="choose('flash')($event)" />
 
     <main class="workspace">
       <div class="stage" :style="stageStyle">
