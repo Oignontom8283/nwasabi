@@ -12,6 +12,7 @@ use std::fmt;
 use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
 use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
 use crate::elf::SymbolKind;
+use crate::formats::nfd::{self, Segment};
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
 use crate::link::{LinkError, LinkOptions, LinkedApp, Origin, link};
 use crate::memory::{WatchHit, access};
@@ -153,6 +154,8 @@ pub enum EmulatorError {
     NoApp,
     /// Le mode examen cache les applications externes.
     ExamMode,
+    /// Des octets à placer en flash ne peuvent pas l'être (voir [`Emulator::install_flash`]).
+    Flash(String),
 }
 
 impl fmt::Display for EmulatorError {
@@ -162,6 +165,7 @@ impl fmt::Display for EmulatorError {
             Self::Device(e) => write!(f, "{e}"),
             Self::NoApp => write!(f, "aucune application installée"),
             Self::ExamMode => write!(f, "mode examen : les applications externes sont cachées"),
+            Self::Flash(message) => write!(f, "flash : {message}"),
         }
     }
 }
@@ -180,6 +184,16 @@ impl From<DeviceError> for EmulatorError {
     }
 }
 
+/// Un segment en quelques mots, pour un message d'erreur.
+fn describe(segment: &Segment) -> String {
+    format!(
+        "« {} » (0x{:08x}..0x{:08x})",
+        segment.name,
+        segment.address,
+        segment.end()
+    )
+}
+
 /// Un appareil en train d'exécuter une application.
 pub struct Emulator {
     pub device: DeviceImage,
@@ -189,6 +203,8 @@ pub struct Emulator {
     app: Option<LinkedApp>,
     /// Les octets donnés à [`Emulator::install_nwa`] (pour enregistrer l'état, voir `snapshot`).
     source: Option<AppSource>,
+    /// Octets placés en flash à part de l'application (voir [`Emulator::install_flash`]).
+    flash: Vec<Segment>,
     /// Adresses où l'exécution s'arrête avant l'instruction (voir [`Emulator::add_breakpoint`]).
     breakpoints: Vec<Breakpoint>,
     /// Le point d'arrêt où l'on vient de s'arrêter : l'instruction qui s'y trouve s'exécute au prochain `run`.
@@ -207,6 +223,8 @@ pub struct Emulator {
 pub struct AppSource {
     pub nwa: Vec<u8>,
     pub data: Option<Vec<u8>>,
+    /// Les octets placés en flash à part (`.nfd`), que l'application attend à des adresses fixes.
+    pub flash: Vec<Segment>,
 }
 
 impl Emulator {
@@ -229,6 +247,7 @@ impl Emulator {
             storage,
             app: None,
             source: None,
+            flash: Vec::new(),
             breakpoints: Vec::new(),
             resume_from: None,
             profile: None,
@@ -246,13 +265,63 @@ impl Emulator {
     ) -> Result<(), EmulatorError> {
         let layout = self.device.app_layout();
         let app = link(nwa, external_data, &layout, &LinkOptions::default())?;
+        let installed = app.flash_start..app.flash_start + app.installed_size();
+        if let Some(segment) = self
+            .flash
+            .iter()
+            .find(|s| s.address < installed.end && installed.start < s.end())
+        {
+            return Err(EmulatorError::Flash(format!(
+                "l'application (0x{:08x}..0x{:08x}) recouvre le segment {}",
+                installed.start,
+                installed.end,
+                describe(segment)
+            )));
+        }
         self.device.install(&app)?;
+        self.kernel.flash_protected_end = self.device.next_app_address();
         self.app = Some(app);
         self.source = Some(AppSource {
             nwa: nwa.to_vec(),
             data: external_data.map(<[u8]>::to_vec),
+            flash: self.flash.clone(),
         });
         self.launch()
+    }
+
+    /// Place des octets dans la flash externe, comme on les flashe à part avec un outil USB : un gros
+    /// programme ou des données que l'application attend à des adresses fixes. Les segments
+    /// s'ajoutent à ceux déjà placés (un segment à la même adresse remplace l'ancien). Ils ne peuvent
+    /// pas recouvrir le firmware ni les applications installées : à placer après l'application.
+    pub fn install_flash(&mut self, segments: Vec<Segment>) -> Result<(), EmulatorError> {
+        nfd::check_all(&segments).map_err(EmulatorError::Flash)?;
+        let protected = self.device.next_app_address();
+        for segment in &segments {
+            if segment.address < protected {
+                return Err(EmulatorError::Flash(format!(
+                    "le segment {} recouvre le firmware ou une application installée (jusqu'à 0x{protected:08x})",
+                    describe(segment)
+                )));
+            }
+        }
+        for segment in segments {
+            self.flash.retain(|old| old.address != segment.address);
+            self.device
+                .memory
+                .write_bytes(segment.address, &segment.data)
+                .map_err(|e| EmulatorError::Flash(e.to_string()))?;
+            self.flash.push(segment);
+        }
+        if let Some(source) = &mut self.source {
+            source.flash = self.flash.clone();
+        }
+        self.kernel.flash_protected_end = protected;
+        Ok(())
+    }
+
+    /// Les segments placés en flash par [`Emulator::install_flash`].
+    pub fn flash_segments(&self) -> &[Segment] {
+        &self.flash
     }
 
     /// Les fichiers de la calculatrice : consultables et modifiables à tout moment entre deux

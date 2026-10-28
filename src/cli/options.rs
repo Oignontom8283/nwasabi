@@ -63,6 +63,9 @@ pub struct DeviceOpts {
     /// Données externes de l'application (ROM, script…)
     #[arg(long, value_name = "FICHIER")]
     pub data: Option<PathBuf>,
+    /// Octets à placer en flash à côté de l'application (fichier .nfd, voir « flash pack »)
+    #[arg(long, value_name = "FICHIER.nfd")]
+    pub flash: Option<PathBuf>,
     /// Fréquence du processeur en MHz, qui règle le temps virtuel (par défaut : celle du modèle)
     #[arg(long, value_name = "MHZ")]
     pub mhz: Option<u32>,
@@ -94,6 +97,38 @@ pub enum Command {
     Session(SessionArgs),
     /// Liste les noms des touches
     Keys(KeysArgs),
+    /// Fabrique ou lit un fichier .nfd (octets à placer en flash)
+    Flash(FlashArgs),
+}
+
+#[derive(Args)]
+pub struct FlashArgs {
+    /// Sortie en JSON
+    #[arg(long, global = true)]
+    pub json: bool,
+    #[command(subcommand)]
+    pub op: FlashOp,
+}
+
+#[derive(Subcommand)]
+pub enum FlashOp {
+    /// Rassemble des fichiers à leur adresse dans un .nfd
+    Pack {
+        /// Fichier .nfd à écrire
+        #[arg(long, short, value_name = "FICHIER.nfd")]
+        out: PathBuf,
+        /// Slot du firmware que l'appareil doit exécuter (quand les segments occupent l'autre)
+        #[arg(long, value_name = "a|b", value_parser = ["a", "b"])]
+        active_slot: Option<String>,
+        /// Les segments, de la forme ADRESSE=FICHIER (par exemple 0x90400000=khi120ab.tar)
+        #[arg(required = true, value_name = "ADRESSE=FICHIER")]
+        segments: Vec<String>,
+    },
+    /// Liste les segments d'un .nfd
+    List {
+        /// Fichier .nfd
+        file: PathBuf,
+    },
 }
 
 #[derive(Args)]

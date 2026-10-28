@@ -8,6 +8,7 @@
 //! La session ne touche ni au disque ni à l'horloge : les fichiers entrent et sortent en base64
 //! (ou en hexadécimal pour la mémoire), le temps est donné par `advance`.
 //!
+//! `load` accepte aussi `"nfd"` (un document `.nfd` : des octets à placer en flash, voir `flash_load`).
 //! `new` et `load` acceptent aussi `"clock"` (`"virtual"`, par défaut, ou `"host"`).
 //! `new` et `load` acceptent `"model"` (`n0110`, `n0115`, `n0120`) et `"firmware"` (`"24"`, par
 //! défaut, ou `"26.4.0"`).
@@ -15,7 +16,7 @@
 //! Commandes : `new`, `load`, `launch`, `run`, `key`, `advance`, `time`, `screen`, `stdout`, `cpu`,
 //! `inspect`, `regions`, `usage`, `memory_read`, `memory_write`, `changes`, `watch`, `unwatch`,
 //! `history`, `step_back`, `reverse_continue`, `history_goto`, `profile`, `backtrace`, `symbol`, `symbols`, `step`, `break`, `unbreak`, `breaks`, `cpu_set`, `disasm`, `watch_list`, `watch_hits`, `svc_stats`, `svc_log`, `fs_list`, `fs_stats`, `fs_read`, `fs_write`, `fs_remove`,
-//! `fs_rename`, `settings_get`, `settings_set`, `help`.
+//! `fs_rename`, `flash_load`, `flash_export`, `settings_get`, `settings_set`, `help`.
 
 mod debug;
 mod history;
@@ -24,7 +25,7 @@ mod views;
 use crate::checksum;
 use crate::elf::SymbolKind;
 use crate::emulator::{Emulator, RunStop};
-use crate::formats::{nds, nfs};
+use crate::formats::{nds, nfd, nfs};
 use crate::inspect::read_structures;
 use crate::json::{self, Value, ValueExt};
 use crate::kernel::Key;
@@ -284,6 +285,8 @@ impl Session {
                     "fs_rename",
                     "fs_export",
                     "fs_import",
+                    "flash_load",
+                    "flash_export",
                     "dump",
                     "restore",
                     "settings_get",
@@ -782,6 +785,19 @@ impl Session {
                 let count = nfs::import(&mut self.emu()?.fs(), doc, replace)?;
                 Ok(Value::object().with("files", count))
             }
+            "flash_load" => {
+                let doc = req.get("nfd").ok_or("champ « nfd » (document) manquant")?;
+                let segments = nfd::parse(doc)?;
+                let count = segments.len();
+                self.emu()?
+                    .install_flash(segments)
+                    .map_err(|e| e.to_string())?;
+                Ok(Value::object().with("segments", count))
+            }
+            "flash_export" => {
+                let doc = nfd::export(self.emu()?.flash_segments());
+                Ok(Value::object().with("nfd", doc))
+            }
             "dump" => self.dump(req),
             "restore" => self.restore(req),
             c if c.starts_with("fs_") => self.fs(c, req),
@@ -888,9 +904,21 @@ impl Session {
             None => None,
         };
         let model = model_of(req.get("model").and_then(Value::as_str).unwrap_or("n0110"))?;
-        let profile = profile_of(req, model)?;
+        let mut profile = profile_of(req, model)?;
+        // Des octets à placer en flash (`.nfd`), vérifiés avant de construire l'appareil.
+        let flash = match req.get("nfd") {
+            Some(doc) => {
+                if let Some(slot) = nfd::active_slot(doc)? {
+                    profile.active_slot = slot;
+                }
+                nfd::parse(doc)?
+            }
+            None => Vec::new(),
+        };
         let mut emu =
             Emulator::with_profile(profile, config_of(req)?).map_err(|e| e.to_string())?;
+        // Placés avant l'application, ils sont vérifiés contre elle quand elle s'installe.
+        emu.install_flash(flash).map_err(|e| e.to_string())?;
         emu.install_nwa(&nwa, data.as_deref())
             .map_err(|e| e.to_string())?;
         let info = views::app(emu.app().expect("application installée"));

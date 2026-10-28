@@ -5,7 +5,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use nwasabi::device::DeviceImage;
-use nwasabi::formats;
+use nwasabi::formats::{self, nfd};
 use nwasabi::json::{self, Value, ValueExt};
 use nwasabi::kernel::Key;
 use nwasabi::keymap::KeyMap;
@@ -15,8 +15,8 @@ use nwasabi::session::Session;
 use nwasabi::storage::records;
 
 use crate::options::{
-    DeviceOpts, FirmwareOpt, FsArgs, FsOp, InspectArgs, KeysArgs, LinkArgs, RunArgs, SessionArgs,
-    SurveyArgs,
+    DeviceOpts, FirmwareOpt, FlashArgs, FlashOp, FsArgs, FsOp, InspectArgs, KeysArgs, LinkArgs,
+    RunArgs, SessionArgs, SurveyArgs,
 };
 
 /// Taille du tampon du système de fichiers d'un N0110 (octets).
@@ -69,6 +69,9 @@ fn load_request(device: &DeviceOpts, nwa: &[u8]) -> Result<Value, String> {
     let mut request = device_request("load", device).with("nwa", json::base64_encode(nwa));
     if let Some(path) = &device.data {
         request.set("data", json::base64_encode(&read_file(path)?));
+    }
+    if let Some(path) = &device.flash {
+        request.set("nfd", read_json(path)?);
     }
     Ok(request)
 }
@@ -727,4 +730,81 @@ fn describe_keymap(map: &KeyMap) -> String {
         ));
     }
     lines.join("\n")
+}
+
+// ---- flash (.nfd) --------------------------------------------------------------------------------
+
+pub fn flash_cmd(args: FlashArgs) -> Outcome {
+    match args.op {
+        FlashOp::Pack {
+            out,
+            active_slot,
+            segments,
+        } => {
+            let mut list = Vec::new();
+            for spec in &segments {
+                let (address, path) = spec
+                    .split_once('=')
+                    .ok_or_else(|| format!("« {spec} » : la forme ADRESSE=FICHIER est attendue"))?;
+                let address = Value::from(address)
+                    .as_u32()
+                    .ok_or_else(|| format!("« {address} » : adresse invalide (0x90400000…)"))?;
+                let name = Path::new(path)
+                    .file_name()
+                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                list.push(nfd::Segment {
+                    name,
+                    address,
+                    data: read_file(path)?,
+                });
+            }
+            nfd::check_all(&list)?;
+            let mut document = nfd::export(&list);
+            if let Some(slot) = active_slot {
+                document.set("active_slot", slot);
+            }
+            write_file(&out, document.to_string().as_bytes())?;
+            print(
+                args.json,
+                &Value::object().with("segments", list.len()),
+                || format!("{} : {} segment(s)", out.display(), list.len()),
+            );
+            Ok(0)
+        }
+        FlashOp::List { file } => {
+            let document = read_json(&file)?;
+            let segments =
+                nfd::parse(&document).map_err(|e| format!("{} : {e}", file.display()))?;
+            let slot = document.get("active_slot").and_then(Value::as_str);
+            let rows: Vec<Value> = segments
+                .iter()
+                .map(|s| {
+                    Value::object()
+                        .with("name", s.name.as_str())
+                        .with("address", s.address)
+                        .with("size", s.data.len())
+                })
+                .collect();
+            let json = Value::object()
+                .with("active_slot", slot)
+                .with("segments", rows);
+            print(args.json, &json, || {
+                let mut text = String::new();
+                if let Some(slot) = slot {
+                    text += &format!("slot actif : {slot}\n");
+                }
+                for s in &segments {
+                    text += &format!(
+                        "0x{:08x}..0x{:08x}  {:>9} octets  {}\n",
+                        s.address,
+                        s.end(),
+                        s.data.len(),
+                        s.name
+                    );
+                }
+                text.trim_end().to_owned()
+            });
+            Ok(0)
+        }
+    }
 }
