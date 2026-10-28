@@ -12,6 +12,9 @@ import { defineConfig } from "vitepress";
 // (par exemple `/nwasabi/` sur GitHub Pages).
 const base = process.env.SITE_BASE ?? "/";
 
+// Les paramètres d'adresse que comprend l'émulateur (voir docs/guide/emulateur-web.md).
+const EMULATOR_PARAMS = ["nwa", "data", "nmk", "nfs", "nds", "flash", "lang"];
+
 // En développement, le serveur de VitePress répond à `/emulator/` avec sa propre application (donc sa
 // page 404) : il ne sert que les fichiers exacts de `public/`, pas l'`index.html` d'un dossier. Ce plugin
 // (inutile dans le site construit, où le serveur statique s'en charge) renvoie la page de l'émulateur.
@@ -38,7 +41,16 @@ export default defineConfig({
   vite: { plugins: [emulatorIndex] },
   // Les logos sont ceux de `assets/logo/` : `just docs-emulator` les copie dans `public/` (VitePress ne sert que ce dossier).
   // L'icône de l'onglet est la version à fond arrondi ; le logo de la barre et de l'accueil, la version sans fond.
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo-bordered.svg` }]],
+  // Une page de documentation ouverte avec un paramètre de l'émulateur (`?nwa=…`, `?flash=…`) est envoyée vers l'émulateur, paramètres
+  // et ancre conservés. Le script est le même pour toutes les pages : le chemin de l'émulateur vient de `base`.
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo-bordered.svg` }],
+    [
+      "script",
+      {},
+      `(() => { const p = new URLSearchParams(location.search); if (${JSON.stringify(EMULATOR_PARAMS)}.some((k) => p.has(k))) location.replace(${JSON.stringify(`${base}emulator/`)} + location.search + location.hash); })()`,
+    ],
+  ],
   themeConfig: {
     logo: "/logo.svg",
     nav: [
