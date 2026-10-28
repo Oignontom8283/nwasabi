@@ -8,8 +8,10 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
+use crate::debuginfo::DebugInfo;
 use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
 use crate::elf::SymbolKind;
 use crate::formats::nfd::{self, Segment};
@@ -205,6 +207,8 @@ pub struct Emulator {
     source: Option<AppSource>,
     /// Octets placés en flash à part de l'application (voir [`Emulator::install_flash`]).
     flash: Vec<Segment>,
+    /// Les informations de débogage de l'application, lues à la première demande (`Some(None)` : l'application n'en a pas).
+    debug: Option<Option<Arc<DebugInfo>>>,
     /// Adresses où l'exécution s'arrête avant l'instruction (voir [`Emulator::add_breakpoint`]).
     breakpoints: Vec<Breakpoint>,
     /// Le point d'arrêt où l'on vient de s'arrêter : l'instruction qui s'y trouve s'exécute au prochain `run`.
@@ -248,6 +252,7 @@ impl Emulator {
             app: None,
             source: None,
             flash: Vec::new(),
+            debug: None,
             breakpoints: Vec::new(),
             resume_from: None,
             profile: None,
@@ -281,6 +286,7 @@ impl Emulator {
         self.device.install(&app)?;
         self.kernel.flash_protected_end = self.device.next_app_address();
         self.app = Some(app);
+        self.debug = None;
         self.source = Some(AppSource {
             nwa: nwa.to_vec(),
             data: external_data.map(<[u8]>::to_vec),
@@ -317,6 +323,25 @@ impl Emulator {
         }
         self.kernel.flash_protected_end = protected;
         Ok(())
+    }
+
+    /// Les informations de débogage du code source de l'application (DWARF), si elle en a.
+    pub fn debug_info(&mut self) -> Option<Arc<DebugInfo>> {
+        if self.debug.is_none() {
+            let parsed = self.app.as_ref().and_then(|app| {
+                let sections: Vec<(&str, &[u8])> = app
+                    .debug
+                    .iter()
+                    .map(|s| (s.name.as_str(), s.data.as_slice()))
+                    .collect();
+                DebugInfo::from_sections(&sections)
+                    .ok()
+                    .flatten()
+                    .map(Arc::new)
+            });
+            self.debug = Some(parsed);
+        }
+        self.debug.clone().flatten()
     }
 
     /// Les segments placés en flash par [`Emulator::install_flash`].

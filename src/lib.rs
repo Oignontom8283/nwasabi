@@ -13,6 +13,7 @@
 
 pub mod checksum;
 pub mod cpu;
+pub mod debuginfo;
 pub mod device;
 pub mod elf;
 pub mod emulator;

@@ -155,7 +155,17 @@ pub struct LinkedApp {
     pub heap: Region,
     pub sections: Vec<PlacedSection>,
     pub symbols: Vec<LinkedSymbol>,
+    /// Informations de débogage de l'application (sections `.debug_*`), relocations appliquées : les adresses
+    /// qu'elles contiennent sont celles de l'image finale. Vide si l'application n'en a pas.
+    pub debug: Vec<DebugSection>,
     pub warnings: Vec<LinkWarning>,
+}
+
+/// Une section `.debug_*` de l'application, prête à être lue (adresses définitives).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugSection {
+    pub name: String,
+    pub data: Vec<u8>,
 }
 
 impl LinkedApp {
