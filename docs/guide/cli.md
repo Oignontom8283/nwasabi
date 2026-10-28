@@ -27,7 +27,7 @@ Exécute l'application et résume l'arrêt, l'écran et la sortie standard.
 | `--press TOUCHE` | touche enfoncée avant de lancer (répétable) ; `nwasabi-cli keys` les liste |
 | `--nmk FICHIER` | mapping pour traduire les touches de `--press` (accepte alors `KeyW`, `key:e`…) |
 | `--nds`, `--nfs` | reprend un état, charge des fichiers de la calculatrice |
-| `--flash FICHIER.nfd` | place des octets en flash à côté de l'application ([format](../format/nfd.md)) |
+| `--flash FICHIER.nfd` | place des [données auxiliaires en flash](../reference/donnees-flash.md) ([format](../format/nfd.md)) |
 | `--save-nds`, `--save-nfs` | enregistre l'état ou les fichiers après l'exécution |
 | `--screenshot FICHIER.png` | enregistre l'écran final |
 | `--json` | sortie en JSON |

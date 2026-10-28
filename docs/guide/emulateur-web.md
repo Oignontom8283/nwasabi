@@ -11,7 +11,7 @@ L'extension d'un fichier fourni à la page décide de ce qui est chargé :
 | `.nwa` | l'application | — |
 | `.nmk` | les touches (clavier et gestes) | [`nmk`](../format/nmk.md) |
 | `.nfs` | les fichiers de la calculatrice | [`nfs`](../format/nfs.md) |
-| `.nfd` | des [données auxiliaires en flash](./donnees-flash.md) ; l'application est relancée | [`nfd`](../format/nfd.md) |
+| `.nfd` | des [données auxiliaires en flash](../reference/donnees-flash.md) ; l'application est relancée | [`nfd`](../format/nfd.md) |
 | `.nds` | un état d'émulation à reprendre | [`nds`](../format/nds.md) |
 
 ## Paramètres de l'adresse
