@@ -1,11 +1,14 @@
 <script setup lang="ts">
 // L'onglet Débogage : tous les outils pour comprendre ce que fait une application, sous une même barre de navigation.
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ui } from "../../ui.js";
 import type { DebugView } from "../../ui.js";
 import { gdb } from "../../gdbBridge.js";
 import { server } from "../../serverLink.js";
+import { useEmu } from "../../emulator.js";
+import { refreshDebugInfo } from "../../sourceStore.js";
+import SourceView from "../debug/SourceView.vue";
 import GdbView from "../debug/GdbView.vue";
 import CodeView from "../debug/CodeView.vue";
 import ConsoleView from "../debug/ConsoleView.vue";
@@ -18,11 +21,19 @@ import WatchPoints from "../WatchPoints.vue";
 const { t } = useI18n();
 // La vue GDB passe par le serveur Nwasabi : sur une page hébergée ailleurs (site statique), elle n'est pas proposée.
 const VIEWS = computed<DebugView[]>(() => {
-  const views: DebugView[] = ["code", "points", "watch", "console", "profile", "calls"];
+  const views: DebugView[] = ["code", "source", "points", "watch", "console", "profile", "calls"];
   return server.active ? [...views, "gdb"] : views;
 });
 const view = computed(() => (VIEWS.value.includes(ui.debugView) ? ui.debugView : "code"));
 const info = ref(false);
+
+// Les informations de débogage du code source se relisent à chaque nouvelle application : la vue Source en dépend.
+const emulator = useEmu();
+watch(
+  () => [emulator.state.appName, emulator.state.deviceSeq, emulator.state.loaded] as const,
+  ([name, , loaded]) => void (loaded ? refreshDebugInfo(emulator, name) : undefined),
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -37,9 +48,10 @@ const info = ref(false);
     </header>
 
     <p v-if="gdb.enabled && gdb.clients > 0" class="banner" role="status">{{ t("gdb.driven") }}</p>
-    <p v-if="['code', 'points', 'watch', 'console'].includes(view)" class="intro muted">{{ t(`debug.intro.${view}`) }}</p>
+    <p v-if="['source', 'code', 'points', 'watch', 'console'].includes(view)" class="intro muted">{{ t(`debug.intro.${view}`) }}</p>
 
     <CodeView v-if="view === 'code'" />
+    <SourceView v-else-if="view === 'source'" />
     <PointsView v-else-if="view === 'points'" />
     <WatchPoints v-else-if="view === 'watch'" />
     <ConsoleView v-else-if="view === 'console'" />
