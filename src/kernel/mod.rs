@@ -190,6 +190,9 @@ pub struct Kernel {
     random: u32,
     heap: (u32, u32),
     brk: u32,
+    /// Fin (exclue) de ce que l'application ne peut pas effacer ni écrire dans la flash externe : le
+    /// firmware et les applications installées. Au-delà, elle peut programmer la flash (voir `svc` 30 et 32).
+    pub flash_protected_end: u32,
     stop: Option<KernelStop>,
     wait: Option<EventWait>,
 }
@@ -255,6 +258,7 @@ impl Kernel {
             random: config.random_seed.max(1),
             heap: (0, 0),
             brk: 0,
+            flash_protected_end: crate::profile::EXTERNAL_FLASH_BASE,
             stop: None,
             wait: None,
             config,

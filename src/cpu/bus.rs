@@ -76,6 +76,12 @@ pub trait Bus {
         Ok(())
     }
 
+    /// Écriture du noyau simulé (programmation de la flash), permise même dans une zone en lecture
+    /// seule. Rend faux si les adresses ne sont pas toutes mappées. Par défaut, non prise en charge.
+    fn privileged_write(&mut self, _address: u32, _data: &[u8]) -> bool {
+        false
+    }
+
     /// Lit un demi-mot d'instruction. Par défaut c'est une simple lecture 16 bits ; un bus peut
     /// la redéfinir pour distinguer le chargement d'instructions de la lecture de données.
     fn fetch16(&mut self, address: u32) -> Result<u16, BusFault> {
