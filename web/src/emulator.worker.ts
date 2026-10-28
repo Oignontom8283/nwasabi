@@ -142,6 +142,27 @@ function restoreFiles(): void {
   if (document && player) player.nwasabi.request({ cmd: "fs_import", nfs: document, replace: true });
 }
 
+/**
+ * Les points d'arrêt suivent l'application d'un appareil à l'autre : relancer, changer de modèle ou recharger la même application les
+ * remet en place avant la première instruction, comme dans un débogueur d'ordinateur. Une autre application les oublie.
+ */
+let breakpoints: Array<{ address: number; condition?: unknown }> = [];
+let breakpointsApp = "";
+const BREAK_COMMANDS = new Set(["break", "unbreak", "break_line", "unbreak_line", "break_function"]);
+
+/** Relève les points d'arrêt de l'appareil actuel, après une commande qui les change. */
+function noteBreakpoints(): void {
+  if (!player) return;
+  const reply = player.nwasabi.request({ cmd: "breaks" });
+  if (reply.ok) breakpoints = (reply.details as typeof breakpoints) ?? [];
+}
+
+/** Dans tout appareil neuf, on remet les points d'arrêt connus. */
+function restoreBreakpoints(): void {
+  if (!player) return;
+  for (const b of breakpoints) player.nwasabi.request({ cmd: "break", address: b.address, condition: b.condition ?? null });
+}
+
 const NEW_DEVICE: ReadonlySet<PlayerMethod> = new Set(["load", "restart", "runWithoutData", "changeModel"]);
 
 async function handle(message: ToWorker): Promise<void> {
@@ -177,6 +198,7 @@ async function handle(message: ToWorker): Promise<void> {
     case "request": {
       if (!player) return void scope.postMessage({ kind: "failure", id: message.id, message: "émulateur pas encore prêt" });
       const result = message.quiet ? player.nwasabi.request(message.request) : player.call(message.request);
+      if (BREAK_COMMANDS.has(String(message.request.cmd))) noteBreakpoints();
       scope.postMessage({ kind: "reply", id: message.id, result });
       flush();
       return;
@@ -186,8 +208,17 @@ async function handle(message: ToWorker): Promise<void> {
       try {
         const method = (player as unknown as Record<string, (...args: unknown[]) => unknown>)[message.method];
         if (NEW_DEVICE.has(message.method)) carryFiles();
+        if (message.method === "load") {
+          // Une autre application : ses points d'arrêt ne sont pas ceux de la précédente.
+          const name = String(message.args[1] ?? "");
+          if (name !== breakpointsApp) breakpoints = [];
+          breakpointsApp = name;
+        }
         const result = method?.apply(player, message.args);
-        if (NEW_DEVICE.has(message.method)) restoreFiles();
+        if (NEW_DEVICE.has(message.method)) {
+          restoreFiles();
+          restoreBreakpoints();
+        }
         scope.postMessage({ kind: "reply", id: message.id, result });
       } catch (error) {
         scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });
