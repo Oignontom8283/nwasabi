@@ -75,7 +75,7 @@ docs-emulator: build-emulator
 
 # `SITE_BASE=/nwasabi/ just build-docs` pour un site publié dans un sous-dossier. Construit le site statique complet (VitePress + émulateur à /emulator/) dans docs/.vitepress/dist.
 build-docs: docs-emulator (npm-install ".")
-    @cd docs && if [ ! -f .vitepress/dist/index.html ] || [ -n "$(find index.html index.md .vitepress/config.mjs public package.json -newer .vitepress/dist/index.html 2>/dev/null | head -n 1)" ]; then npm run build; else echo "documentation à jour (docs/.vitepress/dist)"; fi
+    @cd docs && if [ ! -f .vitepress/dist/index.html ] || [ -n "$(find . \( -path ./node_modules -o -path ./.vitepress/dist -o -path ./.vitepress/cache \) -prune -o -type f -newer .vitepress/dist/index.html -print 2>/dev/null | head -n 1)" ]; then npm run build; else echo "documentation à jour (docs/.vitepress/dist)"; fi
 
 alias build-doc := build-docs
 
