@@ -1,4 +1,4 @@
-// Lien avec le serveur `nwasabi` (`--nwa`, `--nmk`, `--nfs`, `--nds`) : il relit ses fichiers à chaque requête et donne
+// Lien avec le serveur `nwasabi` (`--nwa`, `--flash`, `--nmk`, `--nfs`, `--nds`) : il relit ses fichiers à chaque requête et donne
 // leur empreinte sur `__nwasabi/version`. La page les compare une fois par seconde ; quand l'un a changé, elle le recharge
 // tout de suite (si le réglage « recharger automatiquement » est activé) ou propose de le faire (bouton, ou Ctrl + R).
 // Une page hébergée ailleurs n'a pas ce lien : rien n'est alors surveillé.
@@ -6,10 +6,10 @@
 import { reactive } from "vue";
 
 /** Ce que recharge chaque fichier : l'application (avec ses données), le mapping, les fichiers, l'état. */
-export type Part = "app" | "nmk" | "nfs" | "nds";
+export type Part = "app" | "flash" | "nmk" | "nfs" | "nds";
 type Stamps = Record<keyof typeof PARTS, string | null>;
 
-const PARTS = { nwa: "app", data: "app", nmk: "nmk", nfs: "nfs", nds: "nds" } as const;
+const PARTS = { nwa: "app", data: "app", flash: "flash", nmk: "nmk", nfs: "nfs", nds: "nds" } as const;
 
 export const server = reactive<{ active: boolean; stale: Part[] }>({
   /** Le serveur `nwasabi` répond-il ? */

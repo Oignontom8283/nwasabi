@@ -33,6 +33,7 @@ const ITEMS: Array<[PickKind, string, boolean]> = [
   ["data", "top.openData", false],
   ["keys", "top.openKeys", false],
   ["files", "top.openFiles", false],
+  ["flash", "top.openFlash", false],
   ["state", "top.openState", false],
 ];
 function openRecent(name: string) {

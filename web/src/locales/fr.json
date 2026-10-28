@@ -14,7 +14,7 @@
     "fromServer": "du serveur",
     "json": "{source} : ce n'est pas un fichier JSON valide.",
     "keymap": "Mapping {source} : {message}",
-    "unknownFile": "{name} : type de fichier non reconnu (attendu : .nwa, .nmk, .nfs ou .nds)."
+    "unknownFile": "{name} : type de fichier non reconnu (attendu : .nwa, .nmk, .nfs, .nfd ou .nds)."
   },
   "top": {
     "about": "Nwasabi — émulateur d'applications NumWorks",
@@ -22,6 +22,8 @@
     "noApp": "Aucune application",
     "openFiles": "Charger des fichiers de la calculatrice (.nfs)…",
     "openFilesHint": "Charge tous les fichiers d'un fichier .nfs.",
+    "openFlash": "Charger des octets en flash (.nfd)…",
+    "openFlashHint": "Charge un fichier .nfd : des octets placés à des adresses de la flash, dont certaines applications (KhiCAS…) ont besoin. L'application est relancée.",
     "openApp": "Charger une autre application (.nwa)…",
     "openAppHint": "Charge un fichier .nwa (vous pouvez aussi le glisser sur la page).",
     "openData": "Charger les données externes…",
@@ -284,6 +286,7 @@
     "openState": "Charger un état (.nds)…",
     "openKeys": "Charger un mapping de touches…",
     "openFiles": "Charger des fichiers de la calculatrice…",
+    "openFlash": "Charger des octets en flash (.nfd)…",
     "pause": "Mettre en pause",
     "resume": "Reprendre",
     "restart": "Relancer l'application",

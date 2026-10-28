@@ -6,7 +6,7 @@
 //! (vérifié au démarrage) est sur `/__nwasabi/nmk`.
 //!
 //! Le site (construit par `build.rs`) est embarqué dans le binaire par `rust-embed`. Le seul disque lu
-//! est celui des fichiers donnés au démarrage (`--nwa`, `--data`, `--nmk`, `--nfs`, `--nds`) : relus à
+//! est celui des fichiers donnés au démarrage (`--nwa`, `--data`, `--nmk`, `--nfs`, `--flash`, `--nds`) : relus à
 //! chaque requête, pour que la page puisse les recharger quand ils changent
 //! (`/__nwasabi/version` donne leur empreinte). Aucun chemin de la requête n'est jamais lu.
 
@@ -59,6 +59,9 @@ struct Options {
     /// Fichiers de la calculatrice à charger dans la page (fichier .nfs)
     #[arg(long, value_name = "FICHIER.nfs")]
     nfs: Option<PathBuf>,
+    /// Octets à placer en flash à côté de l'application (fichier .nfd : voir `nwasabi-cli flash pack`)
+    #[arg(long, value_name = "FICHIER.nfd")]
+    flash: Option<PathBuf>,
     /// État à reprendre dans la page (fichier .nds)
     #[arg(long, value_name = "FICHIER.nds")]
     nds: Option<PathBuf>,
@@ -105,6 +108,9 @@ fn gdb_session(served: &Served) -> Result<nwasabi::session::Session, String> {
         let data = std::fs::read(path).map_err(|e| format!("{} : {e}", path.display()))?;
         request["data"] = json!(nwasabi::json::base64_encode(&data));
     }
+    if let Some(path) = &served.flash {
+        request["nfd"] = parse_json(path, &read_text(path)?)?;
+    }
     let mut session = nwasabi::session::Session::new();
     let reply = session.handle_line(&request.to_string());
     if reply.contains("\"ok\":true") {
@@ -146,6 +152,7 @@ struct Served {
     data: Option<PathBuf>,
     nmk: Option<PathBuf>,
     nfs: Option<PathBuf>,
+    flash: Option<PathBuf>,
     nds: Option<PathBuf>,
     model: &'static str,
     firmware: &'static str,
@@ -174,6 +181,14 @@ fn load_nmk(path: &std::path::Path) -> Result<String, String> {
 fn load_nfs(path: &std::path::Path) -> Result<String, String> {
     let text = read_text(path)?;
     nwasabi::formats::nfs::parse(&parse_json(path, &text)?)
+        .map_err(|e| format!("{} : {e}", path.display()))?;
+    Ok(text)
+}
+
+/// Le fichier `--flash`, vérifié.
+fn load_nfd(path: &std::path::Path) -> Result<String, String> {
+    let text = read_text(path)?;
+    nwasabi::formats::nfd::parse(&parse_json(path, &text)?)
         .map_err(|e| format!("{} : {e}", path.display()))?;
     Ok(text)
 }
@@ -302,6 +317,7 @@ async fn version(State(served): State<Shared>) -> Json<Value> {
         "data": stamp(&served.data),
         "nmk": stamp(&served.nmk),
         "nfs": stamp(&served.nfs),
+        "flash": stamp(&served.flash),
         "nds": stamp(&served.nds),
     }))
 }
@@ -323,6 +339,10 @@ async fn nmk(State(served): State<Shared>) -> Response {
 
 async fn nfs(State(served): State<Shared>) -> Response {
     given(&served.nfs, load_nfs)
+}
+
+async fn flash(State(served): State<Shared>) -> Response {
+    given(&served.flash, load_nfd)
 }
 
 async fn nds(State(served): State<Shared>) -> Response {
@@ -385,6 +405,7 @@ async fn run(options: Options) -> Result<(), String> {
         data: options.data.clone(),
         nmk: options.nmk.clone(),
         nfs: options.nfs.clone(),
+        flash: options.flash.clone(),
         nds: options.nds.clone(),
         model,
         firmware,
@@ -397,6 +418,9 @@ async fn run(options: Options) -> Result<(), String> {
     }
     if let Some(path) = &served.nfs {
         load_nfs(path)?;
+    }
+    if let Some(path) = &served.flash {
+        load_nfd(path)?;
     }
     if let Some(path) = &served.nds {
         load_nds(path)?;
@@ -440,6 +464,7 @@ async fn run(options: Options) -> Result<(), String> {
         .route("/__nwasabi/version", get(version))
         .route("/__nwasabi/nmk", get(nmk))
         .route("/__nwasabi/nfs", get(nfs))
+        .route("/__nwasabi/flash", get(flash))
         .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
         .with_state(served);

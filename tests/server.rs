@@ -252,3 +252,38 @@ fn given_files_are_read_again_and_their_stamp_changes_with_them() {
     assert!(String::from_utf8_lossy(&body).contains("JSON invalide"));
     assert_eq!(get(&server, "/__nwasabi/health").0, 200);
 }
+
+#[test]
+fn flash_is_served_after_checking_and_has_a_stamp() {
+    let dir = std::env::temp_dir().join("nwasabi-flash-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let good = dir.join("khi.nfd");
+    std::fs::write(
+        &good,
+        r#"{"nfd":1,"segments":[{"address":"0x90400000","content":"AQID"}]}"#,
+    )
+    .unwrap();
+    let server = start(&["--flash", good.to_str().unwrap()]);
+    assert_eq!(
+        get(&server, "/__nwasabi/flash").1,
+        std::fs::read(&good).unwrap()
+    );
+    let (_, version) = get(&server, "/__nwasabi/version");
+    let version: serde_json::Value = serde_json::from_slice(&version).unwrap();
+    assert!(version["flash"].is_string(), "{version}");
+    assert_eq!(get(&start(&[]), "/__nwasabi/flash").0, 404);
+
+    // Un segment hors de la flash arrête le serveur avant qu'il écoute.
+    let bad = dir.join("bad.nfd");
+    std::fs::write(
+        &bad,
+        r#"{"nfd":1,"segments":[{"address":"0x20000000","content":"AQID"}]}"#,
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_nwasabi"))
+        .args(["--port", "0", "--flash", bad.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("segments[0]"));
+}

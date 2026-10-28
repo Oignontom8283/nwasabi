@@ -14,7 +14,7 @@
     "fromServer": "from the server",
     "json": "{source}: not a valid JSON file.",
     "keymap": "Key mapping {source}: {message}",
-    "unknownFile": "{name}: unrecognised file type (expected .nwa, .nmk, .nfs or .nds)."
+    "unknownFile": "{name}: unrecognised file type (expected .nwa, .nmk, .nfs, .nfd or .nds)."
   },
   "top": {
     "about": "Nwasabi — NumWorks app emulator",
@@ -22,6 +22,8 @@
     "noApp": "No app",
     "openFiles": "Load calculator files (.nfs)…",
     "openFilesHint": "Loads all the files of a .nfs file.",
+    "openFlash": "Load flash bytes (.nfd)…",
+    "openFlashHint": "Loads a .nfd file: bytes placed at flash addresses, which some applications (KhiCAS…) need. The application is restarted.",
     "openApp": "Load another application (.nwa)…",
     "openAppHint": "Loads a .nwa file (you can also drop it on the page).",
     "openData": "Load the external data…",
@@ -284,6 +286,7 @@
     "openState": "Load a state (.nds)…",
     "openKeys": "Load a key mapping…",
     "openFiles": "Load calculator files…",
+    "openFlash": "Load flash bytes (.nfd)…",
     "pause": "Pause",
     "resume": "Resume",
     "restart": "Restart the application",
