@@ -13,13 +13,16 @@ OUT=${OUT:-build}
 
 mkdir -p "$OUT" bin
 $NWLINK png-icon-o icon.png "$OUT/icon.o"
-CFLAGS="$($NWLINK eadk-cflags-device) -O2 -ffreestanding -fno-math-errno -Wall -Wextra"
+# `-fdebug-prefix-map` : les chemins de débogage sont relatifs à ce dossier, pas à la machine qui compile.
+CFLAGS="$($NWLINK eadk-cflags-device) -O2 -ffreestanding -fno-math-errno -Wall -Wextra -fdebug-prefix-map=$(pwd)=."
 LDFLAGS="$($NWLINK eadk-ldflags-device) -nostdlib"
 
 for source in src/*.c; do
     name=$(basename "$source" .c)
     # nwlink rend ses options avec des guillemets (chemin d'inclusion) : eval les relit.
-    eval "$CC $CFLAGS -c $source -o $OUT/$name.o"
+    # Une application peut ajouter ses options sur sa première ligne : `// CFLAGS: -O0 -g` (les dernières l'emportent).
+    extra=$(sed -n '1s|^// CFLAGS: ||p' "$source")
+    eval "$CC $CFLAGS $extra -c $source -o $OUT/$name.o"
     eval "$CC $CFLAGS $LDFLAGS $OUT/$name.o $OUT/icon.o -o bin/$name.nwa"
     echo "bin/$name.nwa"
 done
