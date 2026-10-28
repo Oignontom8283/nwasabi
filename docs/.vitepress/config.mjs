@@ -12,8 +12,8 @@ import { defineConfig } from "vitepress";
 // (par exemple `/nwasabi/` sur GitHub Pages).
 const base = process.env.SITE_BASE ?? "/";
 
-// Les paramètres d'adresse que comprend l'émulateur (voir docs/guide/emulateur-web.md).
-const EMULATOR_PARAMS = ["nwa", "data", "nmk", "nfs", "nds", "flash", "lang"];
+// Les paramètres d'adresse qui désignent un fichier à ouvrir dans l'émulateur (voir docs/guide/emulateur-web.md). `lang` n'en fait pas partie : sur une page de la documentation, il appartiendra à la langue de la documentation.
+const EMULATOR_PARAMS = ["nwa", "data", "nmk", "nfs", "nds", "flash"];
 
 // En développement, le serveur de VitePress répond à `/emulator/` avec sa propre application (donc sa
 // page 404) : il ne sert que les fichiers exacts de `public/`, pas l'`index.html` d'un dossier. Ce plugin
