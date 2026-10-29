@@ -28,4 +28,7 @@ features:
   - title: Un vrai débogueur
     details: Points d'arrêt, pile exacte, variables, expressions en C, remontée dans le temps et GDB, pour le C, le C++ et le Rust.
     link: /guide/deboguer-c-cpp-rust
+  - title: Compris de bout en bout
+    details: Un processeur Cortex-M7 (Thumb-2, DSP, FPv5), un éditeur de liens refait comme l'outil officiel et un noyau simulé, décrits pour qui veut les lire.
+    link: /fonctionnement/
 ---

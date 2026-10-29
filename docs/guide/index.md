@@ -58,6 +58,10 @@ just serve --nwa jeu.nwa --port 8080
 
 `just --list` donne toutes les recettes (tests, documentation, paquets npm…).
 
+## Comprendre comment ça marche
+
+La section [Fonctionnement](../fonctionnement/index.md) décrit l'intérieur de Nwasabi (processeur, mémoire, noyau simulé, éditeur de liens, débogage) pour les lecteurs qui veulent le vérifier ou le prolonger.
+
 ## Ce qu'il faut savoir avant de s'y fier
 
 L'émulateur reproduit **ce que voit une application**, pas toute la calculatrice. Il est utile pour développer, tester et

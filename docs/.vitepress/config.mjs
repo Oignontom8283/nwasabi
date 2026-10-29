@@ -73,6 +73,7 @@ export default withMermaid(defineConfig({
       { text: "Émulateur", link: "/emulator/", target: "_self" },
       { text: "Guide", link: "/guide/" },
       { text: "Référence", link: "/reference/compatibilite" },
+      { text: "Fonctionnement", link: "/fonctionnement/" },
     ],
     sidebar: {
       "/guide/": [
@@ -122,6 +123,90 @@ export default withMermaid(defineConfig({
             { text: ".nds : état", link: "/reference/formats/nds" },
             { text: ".nrp : enregistrement", link: "/reference/formats/nrp" },
           ],
+        },
+      ],
+      "/fonctionnement/": [
+        {
+          text: "Fonctionnement",
+          items: [{ text: "Vue d'ensemble", link: "/fonctionnement/" }],
+        },
+        {
+          text: "Processeur",
+          collapsed: false,
+          items: [
+            { text: "Le processeur", link: "/fonctionnement/processeur/" },
+            { text: "Décodage et cache", link: "/fonctionnement/processeur/decodage" },
+            { text: "Exécution", link: "/fonctionnement/processeur/execution" },
+            { text: "Virgule flottante", link: "/fonctionnement/processeur/virgule-flottante" },
+            { text: "Exceptions et fautes", link: "/fonctionnement/processeur/exceptions" },
+            { text: "Désassembleur", link: "/fonctionnement/processeur/desassembleur" },
+          ],
+        },
+        {
+          text: "Mémoire et appareil",
+          collapsed: false,
+          items: [
+            { text: "La mémoire", link: "/fonctionnement/memoire/" },
+            { text: "L'appareil", link: "/fonctionnement/memoire/appareil" },
+          ],
+        },
+        {
+          text: "Noyau simulé",
+          collapsed: false,
+          items: [
+            { text: "Le noyau", link: "/fonctionnement/noyau/" },
+            { text: "Appels système", link: "/fonctionnement/noyau/appels-systeme" },
+            { text: "Écran et police", link: "/fonctionnement/noyau/ecran-et-police" },
+            { text: "Clavier et événements", link: "/fonctionnement/noyau/clavier" },
+            { text: "Fichiers", link: "/fonctionnement/noyau/fichiers" },
+          ],
+        },
+        {
+          text: "Édition de liens",
+          collapsed: false,
+          items: [
+            { text: "Vue d'ensemble", link: "/fonctionnement/edition-de-liens/" },
+            { text: "Lecture ELF", link: "/fonctionnement/edition-de-liens/elf" },
+            { text: "Symboles et sections", link: "/fonctionnement/edition-de-liens/symboles" },
+            { text: "Placement", link: "/fonctionnement/edition-de-liens/placement" },
+            { text: "Relocations", link: "/fonctionnement/edition-de-liens/relocations" },
+            { text: "Le runtime EADK", link: "/fonctionnement/edition-de-liens/runtime" },
+            { text: "Application et ELF", link: "/fonctionnement/edition-de-liens/application" },
+          ],
+        },
+        {
+          text: "Exécution",
+          collapsed: false,
+          items: [{ text: "L'exécution coopérative", link: "/fonctionnement/execution/" }],
+        },
+        {
+          text: "Débogage",
+          collapsed: false,
+          items: [
+            { text: "Vue d'ensemble", link: "/fonctionnement/debogage/" },
+            { text: "DWARF", link: "/fonctionnement/debogage/dwarf" },
+            { text: "Pile d'appels", link: "/fonctionnement/debogage/pile" },
+            { text: "Expressions", link: "/fonctionnement/debogage/expressions" },
+            { text: "C++ et Rust", link: "/fonctionnement/debogage/langages" },
+            { text: "Historique", link: "/fonctionnement/debogage/historique" },
+            { text: "La session", link: "/fonctionnement/debogage/session" },
+            { text: "Serveur GDB", link: "/fonctionnement/debogage/gdb" },
+          ],
+        },
+        {
+          text: "Hôtes",
+          collapsed: false,
+          items: [
+            { text: "Vue d'ensemble", link: "/fonctionnement/hotes/" },
+            { text: "WebAssembly", link: "/fonctionnement/hotes/wasm" },
+            { text: "La page web", link: "/fonctionnement/hotes/web" },
+            { text: "Le serveur", link: "/fonctionnement/hotes/serveur" },
+            { text: "Bibliothèque JavaScript", link: "/fonctionnement/hotes/bibliotheque-js" },
+          ],
+        },
+        {
+          text: "Vérification",
+          items: [{ text: "Vérification", link: "/fonctionnement/verification/" }],
         },
       ],
     },
