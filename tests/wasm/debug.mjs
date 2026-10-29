@@ -24,7 +24,7 @@ const ask = (request) => player.nwasabi.request(request);
 const info = ask({ cmd: "debug_info" });
 assert.equal(info.available, true);
 assert.equal(info.files[0].path, "src/debugme.c");
-assert.equal(info.functions, 4);
+assert.equal(info.functions, 6);
 
 const stop = ask({ cmd: "break_function", name: "factorial" });
 assert.equal(stop.function, "factorial");

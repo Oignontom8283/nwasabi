@@ -32,5 +32,6 @@ pub mod session;
 pub mod settings;
 pub mod storage;
 pub mod structures;
+pub mod symbols;
 #[cfg(feature = "wasm")]
 pub mod wasm;

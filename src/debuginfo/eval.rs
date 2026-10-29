@@ -3,8 +3,40 @@
 use super::{DebugInfo, Encoding, TypeId, TypeKind};
 use crate::json::{Value as Json, ValueExt};
 
-/// Lit `len` octets à `address` dans la mémoire de l'appareil, ou rien si l'adresse n'est pas lisible.
-pub type ReadMemory<'a> = &'a mut dyn FnMut(u32, usize) -> Option<Vec<u8>>;
+/// L'appareil que les expressions lisent et, pour les affectations et les appels de fonction, modifient.
+pub trait Target {
+    /// Lit `len` octets à `address`, ou rien si l'adresse n'est pas lisible.
+    fn read(&mut self, address: u32, len: usize) -> Option<Vec<u8>>;
+    /// Écrit des octets ; faux si l'adresse n'est pas inscriptible.
+    fn write(&mut self, _address: u32, _data: &[u8]) -> bool {
+        false
+    }
+    /// Modifie un registre du cadre en cours (r0 à r15).
+    fn set_register(&mut self, _index: usize, _value: u32) -> bool {
+        false
+    }
+    /// Appelle la fonction à `function` avec ces arguments (convention ARM à virgule flottante matérielle).
+    fn call(&mut self, _function: u32, _args: &[CallArg]) -> Result<CallResult, String> {
+        Err("les appels de fonction ne sont pas possibles ici".to_owned())
+    }
+}
+
+/// Un argument d'un appel de fonction : entier ou pointeur (r0 à r3, puis la pile), flottant (s0…) ou double (d0…).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CallArg {
+    Int(u32),
+    Float(f32),
+    Double(f64),
+}
+
+/// Ce qu'une fonction rend : r0 et r1 (entiers, pointeurs, entiers de 64 bits), s0 et s1 (flottant, ou double dans d0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CallResult {
+    pub r0: u32,
+    pub r1: u32,
+    pub s0: u32,
+    pub s1: u32,
+}
 
 /// L'état dans lequel une expression s'évalue : les registres du cadre, son adresse de base, la mémoire.
 pub struct Context<'a> {
@@ -16,7 +48,7 @@ pub struct Context<'a> {
     pub cfa: Option<u32>,
     /// Adresse de base des variables de la fonction : `DW_OP_fbreg`.
     pub frame_base: Option<u32>,
-    pub memory: ReadMemory<'a>,
+    pub memory: &'a mut dyn Target,
 }
 
 /// Où se trouve une valeur.
@@ -103,8 +135,10 @@ pub fn locate(expr: &[u8], ctx: &mut Context<'_>) -> Result<Place, String> {
             ))),
             0x06 => {
                 let a = pop(&mut stack)? as u32;
-                let bytes =
-                    (ctx.memory)(a, 4).ok_or_else(|| format!("mémoire illisible à 0x{a:08x}"))?;
+                let bytes = ctx
+                    .memory
+                    .read(a, 4)
+                    .ok_or_else(|| format!("mémoire illisible à 0x{a:08x}"))?;
                 stack.push(u64::from(u32::from_le_bytes(
                     bytes.try_into().map_err(|_| bad())?,
                 )));
@@ -255,7 +289,9 @@ pub fn locate(expr: &[u8], ctx: &mut Context<'_>) -> Result<Place, String> {
             0x94 => {
                 let size = fixed::<1>(expr, &mut at).ok_or_else(bad)?[0] as usize;
                 let a = pop(&mut stack)? as u32;
-                let bytes = (ctx.memory)(a, size)
+                let bytes = ctx
+                    .memory
+                    .read(a, size)
                     .ok_or_else(|| format!("mémoire illisible à 0x{a:08x}"))?;
                 let mut padded = [0u8; 8];
                 padded[..size.min(8)].copy_from_slice(&bytes[..size.min(8)]);
@@ -314,6 +350,11 @@ pub enum ValueKind {
         name: Option<String>,
     },
     Struct(Vec<(String, Value)>),
+    /// Une énumération Rust : la variante active et ses champs.
+    Variant {
+        name: String,
+        fields: Vec<(String, Value)>,
+    },
     Array {
         items: Vec<Value>,
         /// Nombre total d'éléments (peut dépasser ceux que l'on a lus).
@@ -370,6 +411,21 @@ impl Value {
                     .collect();
                 format!("{{{}}}", parts.join(", "))
             }
+            ValueKind::Variant { name, fields } => {
+                if fields.is_empty() {
+                    name.clone()
+                } else if fields.iter().all(|(n, _)| n.starts_with("__")) {
+                    // Une variante « tuple » : `Some(4)`.
+                    let parts: Vec<String> = fields.iter().map(|(_, v)| v.summary()).collect();
+                    format!("{name}({})", parts.join(", "))
+                } else {
+                    let parts: Vec<String> = fields
+                        .iter()
+                        .map(|(n, v)| format!("{n} = {}", v.summary()))
+                        .collect();
+                    format!("{name} {{{}}}", parts.join(", "))
+                }
+            }
             ValueKind::Array { items, total } => {
                 let parts: Vec<String> = items.iter().map(Value::summary).collect();
                 let more = if *total as usize > items.len() {
@@ -398,7 +454,7 @@ impl Value {
             out.set("register", *r);
         }
         match &self.kind {
-            ValueKind::Struct(fields) => {
+            ValueKind::Struct(fields) | ValueKind::Variant { fields, .. } => {
                 let children: Vec<Json> = fields
                     .iter()
                     .map(|(n, v)| v.to_json().with("name", n.as_str()))
@@ -464,9 +520,10 @@ fn register_bytes(ctx: &Context<'_>, reg: u16, len: u32) -> Option<Vec<u8>> {
 /// Les octets d'une valeur de `len` octets à `place`.
 fn bytes_at(place: &Place, len: u32, ctx: &mut Context<'_>) -> Result<Vec<u8>, String> {
     match place {
-        Place::Address(a) => {
-            (ctx.memory)(*a, len as usize).ok_or_else(|| format!("mémoire illisible à 0x{a:08x}"))
-        }
+        Place::Address(a) => ctx
+            .memory
+            .read(*a, len as usize)
+            .ok_or_else(|| format!("mémoire illisible à 0x{a:08x}")),
         Place::Register(r) => {
             register_bytes(ctx, *r, len).ok_or_else(|| "registre inconnu".to_owned())
         }
@@ -612,9 +669,63 @@ fn read(
                 )
             }
         },
-        TypeKind::Struct { fields, .. } => {
+        TypeKind::Reference(target) => match bytes_at(&place, 4, ctx) {
+            Err(e) => value(ValueKind::Unavailable(e), place),
+            Ok(bytes) => {
+                // Une référence se lit comme ce qu'elle désigne ; l'emplacement est celui de l'objet.
+                let address = le(&bytes) as u32;
+                if address == 0 {
+                    return value(ValueKind::Unavailable("référence nulle".into()), place);
+                }
+                let mut v = read(info, *target, Place::Address(address), ctx, depth);
+                v.ty = Some(ty);
+                v.type_name = type_name.clone();
+                v
+            }
+        },
+        TypeKind::Struct {
+            fields, variants, ..
+        } => {
             if depth >= MAX_DEPTH {
                 return value(ValueKind::Unavailable("…".into()), place);
+            }
+            if let (Some(part), Place::Address(base)) = (variants, &place) {
+                // Une énumération Rust : l'étiquette dit quelle variante est active.
+                let tag = bytes_at(
+                    &Place::Address(base.wrapping_add(part.discr_offset)),
+                    part.discr_size,
+                    ctx,
+                )
+                .map(|b| le(&b) as i64)
+                .unwrap_or(0);
+                let active = part
+                    .variants
+                    .iter()
+                    .find(|v| v.discr == Some(tag))
+                    .or_else(|| part.variants.iter().find(|v| v.discr.is_none()));
+                return match active {
+                    Some(v) => {
+                        let inner = read(
+                            info,
+                            Some(v.ty),
+                            Place::Address(base.wrapping_add(v.offset)),
+                            ctx,
+                            depth + 1,
+                        );
+                        let fields = match inner.kind {
+                            ValueKind::Struct(f) => f,
+                            _ => Vec::new(),
+                        };
+                        value(
+                            ValueKind::Variant {
+                                name: v.name.clone(),
+                                fields,
+                            },
+                            place,
+                        )
+                    }
+                    None => value(ValueKind::Unavailable("variante inconnue".into()), place),
+                };
             }
             let Place::Address(base) = place else {
                 // Un agrégat dans des registres : on lit chaque champ dans les octets rassemblés.
@@ -627,7 +738,7 @@ fn read(
                         .map(<[u8]>::to_vec)
                         .unwrap_or_default();
                     out.push((
-                        f.name.clone(),
+                        field_label(f),
                         read(info, Some(f.ty), Place::Computed(part), ctx, depth + 1),
                     ));
                 }
@@ -657,7 +768,7 @@ fn read(
                         };
                     }
                 }
-                out.push((f.name.clone(), v));
+                out.push((field_label(f), v));
             }
             value(ValueKind::Struct(out), place)
         }
@@ -694,8 +805,10 @@ fn read(
 fn read_c_string(ctx: &mut Context<'_>, address: u32) -> Option<String> {
     let mut out = Vec::new();
     for chunk in 0..4u32 {
-        let bytes = (ctx.memory)(address.wrapping_add(chunk * 16), 16)
-            .or_else(|| (ctx.memory)(address.wrapping_add(chunk * 16), 1))?;
+        let bytes = ctx
+            .memory
+            .read(address.wrapping_add(chunk * 16), 16)
+            .or_else(|| ctx.memory.read(address.wrapping_add(chunk * 16), 1))?;
         for b in bytes {
             if b == 0 {
                 return Some(escape(&out));
@@ -721,4 +834,13 @@ fn escape(bytes: &[u8]) -> String {
         }
     }
     s
+}
+
+/// Le nom d'un champ à l'affichage : une classe de base s'écrit `<Base>`.
+fn field_label(f: &super::Field) -> String {
+    if f.base {
+        format!("<{}>", f.name)
+    } else {
+        f.name.clone()
+    }
 }

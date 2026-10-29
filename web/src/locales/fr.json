@@ -4,7 +4,6 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "dismiss": "Masquer le message",
-    "apply": "Appliquer",
     "pauseRequired": "Mettez la simulation en pause pour faire cela."
   },
   "errors": {
@@ -38,14 +37,12 @@
     "modelHint": "Modèle de calculatrice émulé : N0110 et N0115 (192 MHz) ou N0120 (540 MHz).",
     "firmware": "Firmware",
     "firmwareHint": "Disposition du firmware : les applications écrites avec eadkp ne retrouvent le système de fichiers que sur celle des appareils relevés (Epsilon 23–24).",
-    "firmware24": "Epsilon 23–24",
     "pause": "Pause",
     "resume": "Reprendre",
     "pauseHint": "Fige la simulation : pour l'application, le temps s'arrête.",
     "resumeHint": "Reprend la simulation.",
     "restart": "Relancer",
     "restartHint": "Relance l'application depuis le début.",
-    "dropHint": "Glissez un fichier .nwa ici",
     "language": "Langue",
     "theme": "Thème : {theme}",
     "themes": {
@@ -64,8 +61,6 @@
     "stepHint": "Avance d'une image (en pause) : l'application s'exécute jusqu'à la prochaine fin d'image et reçoit 1/60 s."
   },
   "watch": {
-    "title": "Points d'observation",
-    "help": "Un point d'observation relève les accès de l'application à une plage de mémoire et indique quelle instruction les fait : repérez l'adresse d'un score avec la recherche de valeurs, observez-la en écriture, et vous saurez quelle instruction la modifie. Cliquez l'adresse d'une instruction pour la voir dans l'éditeur. L'observation ralentit l'émulation.",
     "new": "Nouveau point d'observation",
     "posed": "Points posés",
     "accesses": "Accès relevés, par instruction",
@@ -84,7 +79,6 @@
     "colAccess": "Accès",
     "colValue": "Valeur",
     "colCount": "Fois",
-    "gotoInstruction": "Voir cette instruction dans la mémoire",
     "waiting": "Aucun accès pour l'instant.",
     "clear": "Effacer le relevé"
   },
@@ -226,7 +220,6 @@
     "docs": "Lire la documentation complète du débogage"
   },
   "profile": {
-    "title": "Profil d'exécution",
     "help": "Relève régulièrement l'instruction en cours : les fonctions et les adresses qui reviennent le plus souvent sont celles où l'application passe son temps. Le relevé continue tant qu'on ne l'arrête pas.",
     "start": "Lancer",
     "stop": "Arrêter",
@@ -234,8 +227,7 @@
     "waiting": "Aucun relevé pour l'instant : une application qui passe son temps à attendre (écran, clavier) exécute trop peu d'instructions pour être profilée.",
     "function": "Fonction",
     "address": "Adresse",
-    "share": "Part du temps",
-    "show": "Voir dans le débogueur"
+    "share": "Part du temps"
   },
   "export": {
     "title": "Exporter une zone de mémoire",
@@ -256,7 +248,6 @@
     "help": "Un signet est un raccourci nommé vers une zone de la mémoire de cette application (par exemple « score » ou « points de vie »). Il sert à retrouver vite un endroit et montre la valeur qu'il contient en ce moment ; vous pouvez la modifier sur place (choisissez son type, tapez, Entrée), comme dans la liste de la recherche de valeurs. Cliquer l'adresse sélectionne la zone dans l'éditeur hexadécimal (clic droit : autres actions). Les signets sont gardés dans ce navigateur, pour cette application ; le bouton « Signet » de l'éditeur ajoute la sélection.",
     "name": "Nom",
     "address": "Adresse",
-    "size": "Octets",
     "remove": "Retirer ce signet",
     "none": "Aucun signet pour cette application.",
     "noApp": "Chargez une application pour avoir des signets.",
@@ -306,7 +297,6 @@
     "theme": "Changer clair / sombre"
   },
   "svclog": {
-    "title": "Journal des appels système",
     "help": "Chaque appel de l'application au système de la calculatrice (écran, clavier, temps, fichiers…), du plus récent au plus ancien, avec ses arguments et sa valeur de retour. Le journal garde les 400 derniers appels.",
     "start": "Lancer",
     "stop": "Arrêter",
@@ -318,7 +308,6 @@
     "args": "Arguments (r0 à r3)",
     "ret": "Retour (r0)",
     "from": "Depuis",
-    "show": "Voir l'instruction dans le débogueur",
     "none": "Aucun appel pour l'instant.",
     "argsNote": "Les quatre registres sont montrés tels quels : tous ne sont pas des arguments, selon l'appel. Les valeurs sont en hexadécimal."
   },
@@ -402,7 +391,6 @@
     "watch": "Observation",
     "if": "si",
     "condition": "Condition du point d'arrêt",
-    "show": "Voir l'instruction dans le code",
     "disable": "Désactiver",
     "enable": "Réactiver",
     "disabled": "désactivé",
@@ -467,7 +455,6 @@
     "collapse": "Replier",
     "expand": "Déplier",
     "editHint": "Double-clic pour modifier",
-    "pointee": "pointé",
     "badValue": "Une valeur numérique est attendue (12, -3, 0x2a, 1.5)."
   },
   "gdb": {
@@ -581,7 +568,6 @@
     "toolbar": "Actions sur les fichiers",
     "new": "Nouveau",
     "newName": "Nom du fichier (nom.extension)",
-    "create": "Créer",
     "import": "Importer…",
     "importNfs": "Importer .nfs",
     "importNfsHint": "Charge tous les fichiers d'un fichier .nfs.",
@@ -668,7 +654,6 @@
     "vectors": "Vecteurs",
     "real": "Réelle (comme sur la calculatrice)",
     "simulated": "Simulée par l'émulateur",
-    "simulatedWhole": "{name} : le système de la calculatrice n'existe pas ici, c'est l'émulateur qui le joue.",
     "note": "Réelle : ce que l'application voit comme sur une vraie calculatrice (son code, sa RAM, ses fichiers). Simulée : ce que l'émulateur fabrique à la place du système (en-têtes, RAM du noyau…). Cliquez une zone pour la voir en hexadécimal.",
     "structures": "Structures du système (cliquez pour les détailler)",
     "clickHint": "Cliquer pour voir en hexadécimal.",
@@ -708,18 +693,14 @@
     "back": "Retour",
     "backHint": "Revient à l'endroit d'où vous avez suivi un pointeur.",
     "watch": "Observer",
-    "watching": "Observation de {address} en écriture (onglet Débogage, Points d'observation)",
     "watchHint": "Pose un point d'observation sur la sélection : on verra quelles instructions l'écrivent (onglet Débogage, Points d'observation).",
     "fill": "Remplir",
-    "fillValue": "Remplir {count} octet(s) avec la valeur hexadécimale (un octet, de 00 à ff) :",
     "address": "Adresse",
     "grid": "Octets de la mémoire",
     "inspector": "Valeurs de l'octet ou de la zone sélectionnés",
     "bigEndian": "gros-boutiste",
-    "pauseToEdit": "Mettez la simulation en pause pour modifier la mémoire.",
     "unmapped": "{address} n'est dans aucune zone de mémoire.",
     "badAddress": "Adresse invalide (exemples : 0x20000000, 536870912).",
-    "badByte": "Valeur invalide : un ou deux chiffres hexadécimaux sont attendus (exemples : 00, 7f, 0xff).",
     "badPattern": "Motif invalide : octets en hexadécimal (de ad be ef) ou texte entre guillemets.",
     "searching": "Recherche…",
     "notFound": "Introuvable dans cette zone.",
@@ -758,7 +739,6 @@
     "bytes": "octets",
     "copy": "Copier la valeur",
     "copyHint": "Double-clic pour copier la valeur.",
-    "showInMemory": "Voir en hexadécimal",
     "noApps": "Aucune application installée.",
     "noMatch": "Aucun champ ne correspond.",
     "notFound": "Structure introuvable à l'adresse attendue.",
@@ -843,11 +823,7 @@
     "thresholdsHelp": "Ces valeurs règlent la sensibilité de la reconnaissance des gestes ; elles sont enregistrées dans le fichier .nmk.",
     "setting": "Réglage",
     "value": "Valeur",
-    "meaning": "Ce que cela change",
-    "swipeDistanceInfo": "Distance minimale parcourue par le doigt pour compter comme un balayage et non comme un simple toucher.",
-    "longPressInfo": "Temps pendant lequel le doigt doit rester posé, sans bouger, pour compter comme un appui long.",
-    "doubleTapInfo": "Temps maximal entre deux touchers pour qu'ils forment un double appui.",
-    "pressMsInfo": "Durée pendant laquelle la touche reste enfoncée pour un geste bref (appui, balayage, double appui), pour que l'application ait le temps de la voir."
+    "meaning": "Ce que cela change"
   },
   "settings": {
     "screen": "Écran",
@@ -938,8 +914,6 @@
     "empty": "(vide)",
     "copy": "Copier",
     "clear": "Effacer",
-    "register": "Registre",
-    "value": "Valeur",
     "role": "Rôle",
     "regInfo": {
       "args": "Arguments et résultat d'une fonction (r0 à r3) ; une fonction peut les écraser librement.",
@@ -951,7 +925,6 @@
       "xpsr": "Registre d'état : drapeaux N Z C V Q, bit Thumb et numéro de l'exception en cours.",
       "fpscr": "Contrôle et état de la virgule flottante : mode d'arrondi et drapeaux d'erreur."
     },
-    "flagsTitle": "Drapeaux du registre d'état",
     "flagsHelp": "Quatre bits de xpsr résument le résultat de la dernière opération et servent aux branchements conditionnels ; en couleur, ceux qui sont levés.",
     "svcInfo": {
       "1": "Lit la luminosité du rétroéclairage.",
@@ -1069,7 +1042,6 @@
     "colDescription": "Description",
     "colType": "Type",
     "colFrozen": "Maintenir",
-    "goto": "Afficher dans l'éditeur hexadécimal",
     "add": "Ajouter à la liste (ou double-clic)",
     "remove": "Retirer de la liste",
     "unnamed": "Sans nom",

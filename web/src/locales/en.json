@@ -4,7 +4,6 @@
     "cancel": "Cancel",
     "close": "Close",
     "dismiss": "Dismiss message",
-    "apply": "Apply",
     "pauseRequired": "Pause the simulation to do this."
   },
   "errors": {
@@ -38,14 +37,12 @@
     "modelHint": "Emulated calculator model: N0110 and N0115 (192 MHz) or N0120 (540 MHz).",
     "firmware": "Firmware",
     "firmwareHint": "Firmware layout: apps written with eadkp only find the file system on the layout of the surveyed devices (Epsilon 23–24).",
-    "firmware24": "Epsilon 23–24",
     "pause": "Pause",
     "resume": "Resume",
     "pauseHint": "Freezes the simulation: for the application, time stops.",
     "resumeHint": "Resumes the simulation.",
     "restart": "Restart",
     "restartHint": "Restarts the application from the beginning.",
-    "dropHint": "Drop a .nwa file here",
     "language": "Language",
     "theme": "Theme: {theme}",
     "themes": {
@@ -64,8 +61,6 @@
     "stepHint": "Advances one frame (while paused): the application runs to the end of the next frame and is given 1/60 s."
   },
   "watch": {
-    "title": "Watchpoints",
-    "help": "A watchpoint records the application's accesses to a memory range and tells which instruction makes them: find the address of a score with the value search, watch it for writes, and you will know which instruction changes it. Click an instruction's address to see it in the editor. Watching slows the emulation down.",
     "new": "New watchpoint",
     "posed": "Set watchpoints",
     "accesses": "Accesses, by instruction",
@@ -84,7 +79,6 @@
     "colAccess": "Access",
     "colValue": "Value",
     "colCount": "Times",
-    "gotoInstruction": "Show this instruction in memory",
     "waiting": "No access yet.",
     "clear": "Clear the log"
   },
@@ -226,7 +220,6 @@
     "docs": "Read the full debugging documentation"
   },
   "profile": {
-    "title": "Execution profile",
     "help": "Regularly records the instruction being executed: the functions and addresses that come up most often are where the application spends its time. Recording goes on until you stop it.",
     "start": "Start",
     "stop": "Stop",
@@ -234,8 +227,7 @@
     "waiting": "No samples yet: an application that spends its time waiting (screen, keyboard) runs too few instructions to be profiled.",
     "function": "Function",
     "address": "Address",
-    "share": "Share of time",
-    "show": "Show in the debugger"
+    "share": "Share of time"
   },
   "export": {
     "title": "Export a memory range",
@@ -256,7 +248,6 @@
     "help": "A bookmark is a named shortcut to an area of this application's memory (for example “score” or “hit points”). It helps you get back to a place quickly and shows the value it holds right now; you can edit it in place (choose its type, type, Enter), as in the value search list. Clicking the address selects the range in the hex editor (right click: more actions). Bookmarks are kept in this browser, for this application; the editor's “Bookmark” button adds the selection.",
     "name": "Name",
     "address": "Address",
-    "size": "Bytes",
     "remove": "Remove this bookmark",
     "none": "No bookmarks for this application.",
     "noApp": "Load an application to have bookmarks.",
@@ -306,7 +297,6 @@
     "theme": "Switch light / dark"
   },
   "svclog": {
-    "title": "System call log",
     "help": "Every call the application makes to the calculator's system (screen, keyboard, time, files…), newest first, with its arguments and return value. The log keeps the last 400 calls.",
     "start": "Start",
     "stop": "Stop",
@@ -318,7 +308,6 @@
     "args": "Arguments (r0 to r3)",
     "ret": "Return (r0)",
     "from": "From",
-    "show": "Show the instruction in the debugger",
     "none": "No calls yet.",
     "argsNote": "The four registers are shown as they are: not all of them are arguments, depending on the call. Values are in hexadecimal."
   },
@@ -402,7 +391,6 @@
     "watch": "Watchpoint",
     "if": "if",
     "condition": "Breakpoint condition",
-    "show": "Show the instruction in the code",
     "disable": "Disable",
     "enable": "Enable",
     "disabled": "disabled",
@@ -467,7 +455,6 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "editHint": "Double-click to edit",
-    "pointee": "pointee",
     "badValue": "A numeric value is expected (12, -3, 0x2a, 1.5)."
   },
   "gdb": {
@@ -581,7 +568,6 @@
     "toolbar": "File actions",
     "new": "New",
     "newName": "File name (name.extension)",
-    "create": "Create",
     "import": "Import…",
     "importNfs": "Import .nfs",
     "importNfsHint": "Loads all the files of a .nfs file.",
@@ -668,7 +654,6 @@
     "vectors": "Vectors",
     "real": "Real (as on the calculator)",
     "simulated": "Simulated by the emulator",
-    "simulatedWhole": "{name}: the calculator's system does not exist here, the emulator plays its role.",
     "note": "Real: what the application sees as on a real calculator (its code, RAM, files). Simulated: what the emulator fabricates in place of the system (headers, kernel RAM…). Click an area to view it in hex.",
     "structures": "System structures (click to see details)",
     "clickHint": "Click to see it in hexadecimal.",
@@ -708,18 +693,14 @@
     "back": "Back",
     "backHint": "Goes back to where you followed a pointer from.",
     "watch": "Watch",
-    "watching": "Watching {address} for writes (Debugging tab, Watchpoints)",
     "watchHint": "Sets a watchpoint on the selection: you will see which instructions write it (Debugging tab, Watchpoints).",
     "fill": "Fill",
-    "fillValue": "Fill {count} byte(s) with the hexadecimal value (one byte, 00 to ff):",
     "address": "Address",
     "grid": "Memory bytes",
     "inspector": "Values of the selected byte or range",
     "bigEndian": "big-endian",
-    "pauseToEdit": "Pause the simulation to edit memory.",
     "unmapped": "{address} is not in any memory region.",
     "badAddress": "Invalid address (examples: 0x20000000, 536870912).",
-    "badByte": "Invalid value: one or two hexadecimal digits are expected (examples: 00, 7f, 0xff).",
     "badPattern": "Invalid pattern: hexadecimal bytes (de ad be ef) or quoted text.",
     "searching": "Searching…",
     "notFound": "Not found in this region.",
@@ -758,7 +739,6 @@
     "bytes": "bytes",
     "copy": "Copy value",
     "copyHint": "Double-click to copy the value.",
-    "showInMemory": "View in hex",
     "noApps": "No installed apps.",
     "noMatch": "No field matches.",
     "notFound": "Structure not found at the expected address.",
@@ -843,11 +823,7 @@
     "thresholdsHelp": "These values tune how sensitive gesture recognition is; they are saved in the .nmk file.",
     "setting": "Setting",
     "value": "Value",
-    "meaning": "What it changes",
-    "swipeDistanceInfo": "Minimum distance the finger must travel to count as a swipe rather than a simple touch.",
-    "longPressInfo": "How long the finger must stay down, without moving, to count as a long press.",
-    "doubleTapInfo": "Maximum time between two touches for them to form a double tap.",
-    "pressMsInfo": "How long the key stays down for a brief gesture (tap, swipe, double tap), so the application has time to see it."
+    "meaning": "What it changes"
   },
   "settings": {
     "screen": "Screen",
@@ -938,8 +914,6 @@
     "empty": "(empty)",
     "copy": "Copy",
     "clear": "Clear",
-    "register": "Register",
-    "value": "Value",
     "role": "Role",
     "regInfo": {
       "args": "Arguments and result of a function (r0 to r3); a function may overwrite them freely.",
@@ -951,7 +925,6 @@
       "xpsr": "Status register: flags N Z C V Q, the Thumb bit and the current exception number.",
       "fpscr": "Floating-point control and status: rounding mode and error flags."
     },
-    "flagsTitle": "Status register flags",
     "flagsHelp": "Four bits of xpsr sum up the result of the last operation and drive conditional branches; the ones that are set are colored.",
     "svcInfo": {
       "1": "Reads the backlight brightness.",
@@ -1069,7 +1042,6 @@
     "colDescription": "Description",
     "colType": "Type",
     "colFrozen": "Hold",
-    "goto": "Show in the hex editor",
     "add": "Add to the list (or double-click)",
     "remove": "Remove from the list",
     "unnamed": "Unnamed",

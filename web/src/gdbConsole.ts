@@ -62,9 +62,11 @@ export async function evaluate(expression: string, backend: Backend): Promise<nu
     value = (await registers(backend))[name];
   } else {
     value = parseAddress(base);
-    if (value === undefined && /^[A-Za-z_][\w.]*$/.test(base)) {
-      const found = (await backend.request({ cmd: "symbols", query: base })).symbols as Array<{ name: string; address: number }> | undefined;
-      value = found?.find((s) => s.name === base)?.address;
+    if (value === undefined && /^[A-Za-z_][\w.:]*$/.test(base)) {
+      const found = (await backend.request({ cmd: "symbols", query: base })).symbols as Array<{ name: string; address: number; demangled?: string; qualified?: string }> | undefined;
+      // Le nom du symbole, son nom lisible (C++ et Rust) ou la fin de son nom complet (`generate`, `Chunk::generate`).
+      const same = (s: { name: string; demangled?: string; qualified?: string }) => s.name === base || s.demangled === base || s.qualified === base;
+      value = (found?.find(same) ?? found?.find((s) => s.qualified?.endsWith(`::${base}`)))?.address;
       if (value === undefined) throw new Error(`symbole inconnu : ${base}`);
     }
   }

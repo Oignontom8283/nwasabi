@@ -325,6 +325,15 @@ impl Emulator {
         Ok(())
     }
 
+    /// Le point d'arrêt d'où l'on repart (voir `resume_from`) : à sauvegarder avant d'exécuter du code pour le débogueur, et à rétablir après.
+    pub fn resume_point(&self) -> Option<u32> {
+        self.resume_from
+    }
+
+    pub fn set_resume_point(&mut self, point: Option<u32>) {
+        self.resume_from = point;
+    }
+
     /// Les informations de débogage du code source de l'application (DWARF), si elle en a.
     pub fn debug_info(&mut self) -> Option<Arc<DebugInfo>> {
         if self.debug.is_none() {
@@ -337,7 +346,12 @@ impl Emulator {
                 DebugInfo::from_sections(&sections)
                     .ok()
                     .flatten()
-                    .map(Arc::new)
+                    .map(|mut info| {
+                        info.attach_symbols(
+                            app.symbols.iter().map(|s| (s.address, s.name.as_str())),
+                        );
+                        Arc::new(info)
+                    })
             });
             self.debug = Some(parsed);
         }
