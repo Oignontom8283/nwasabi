@@ -5,6 +5,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use nwasabi::device::DeviceImage;
+use nwasabi::formats::nrp::{self, Recorder};
 use nwasabi::formats::{self, nfd};
 use nwasabi::json::{self, Value, ValueExt};
 use nwasabi::kernel::Key;
@@ -16,7 +17,7 @@ use nwasabi::storage::records;
 
 use crate::options::{
     DeviceOpts, FirmwareOpt, FlashArgs, FlashOp, FsArgs, FsOp, InspectArgs, KeysArgs, LinkArgs,
-    RunArgs, SessionArgs, SurveyArgs,
+    ReplayArgs, RunArgs, SessionArgs, SurveyArgs,
 };
 
 /// Taille du tampon du système de fichiers d'un N0110 (octets).
@@ -39,9 +40,35 @@ fn write_file(path: impl AsRef<Path>, data: &[u8]) -> Result<(), String> {
     fs::write(path, data).map_err(|e| format!("{} : {e}", path.display()))
 }
 
+thread_local! {
+    /// L'enregistrement en cours (`--record`) : chaque requête passée par `call` y est notée.
+    static RECORDER: std::cell::RefCell<Option<Recorder>> = const { std::cell::RefCell::new(None) };
+}
+
+fn note(request: &Value, reply: &Value) {
+    RECORDER.with(|r| {
+        if let Some(recorder) = r.borrow_mut().as_mut() {
+            recorder.note(request, reply);
+        }
+    });
+}
+
+/// Écrit l'enregistrement en cours dans `path`.
+fn write_recording(path: &Path, app: Option<&Path>) -> Result<(), String> {
+    let name = app
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned());
+    let document = RECORDER.with(|r| r.borrow().as_ref().map(|rec| rec.finish(name.as_deref())));
+    match document {
+        Some(doc) => write_file(path, doc.to_string().as_bytes()),
+        None => Ok(()),
+    }
+}
+
 /// Envoie une requête à la session ; une réponse « ok: false » devient une erreur.
 fn call(session: &mut Session, request: Value) -> Result<Value, String> {
     let reply = session.handle(&request);
+    note(&request, &reply);
     if reply.get("ok").and_then(Value::as_bool) == Some(true) {
         Ok(reply)
     } else {
@@ -134,6 +161,9 @@ fn pressed_keys(keymap: Option<&KeyMap>, name: &str) -> Result<Vec<String>, Stri
 // ---- run -----------------------------------------------------------------------------------------
 
 pub fn run(args: RunArgs) -> Outcome {
+    if args.record.is_some() {
+        RECORDER.with(|r| *r.borrow_mut() = Some(Recorder::new()));
+    }
     let mut session = Session::new();
     match (&args.nds, &args.app) {
         (Some(nds), _) => {
@@ -207,6 +237,9 @@ pub fn run(args: RunArgs) -> Outcome {
         .unwrap_or("?")
         .to_owned();
     let stdout = call(&mut session, Value::object().with("cmd", "stdout"))?;
+    if let Some(path) = &args.record {
+        write_recording(path, args.app.as_deref())?;
+    }
     let summary = Value::object()
         .with("stop", stop)
         .with("frames", ran.get("frames").cloned())
@@ -652,7 +685,10 @@ fn write_paths(request: &Value, reply: &mut Value) -> Result<(), String> {
 }
 
 /// Une requête JSON par ligne sur l'entrée standard, une réponse par ligne sur la sortie.
-pub fn session(_args: SessionArgs) -> Outcome {
+pub fn session(args: SessionArgs) -> Outcome {
+    if args.record.is_some() {
+        RECORDER.with(|r| *r.borrow_mut() = Some(Recorder::new()));
+    }
     let mut session = Session::new();
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
@@ -670,6 +706,7 @@ pub fn session(_args: SessionArgs) -> Outcome {
                 Err(e) => Value::object().with("ok", false).with("error", e),
                 Ok(()) => {
                     let mut reply = session.handle(&request);
+                    note(&request, &reply);
                     if let Err(e) = write_paths(&request, &mut reply) {
                         reply = Value::object().with("ok", false).with("error", e);
                     }
@@ -680,7 +717,66 @@ pub fn session(_args: SessionArgs) -> Outcome {
         writeln!(stdout, "{reply}").map_err(|e| e.to_string())?;
         stdout.flush().map_err(|e| e.to_string())?;
     }
+    if let Some(path) = &args.record {
+        write_recording(path, None)?;
+    }
     Ok(0)
+}
+
+// ---- replay --------------------------------------------------------------------------------------
+
+pub fn replay_cmd(args: ReplayArgs) -> Outcome {
+    let document = read_json(&args.recording)?;
+    let nwa = read_file(&args.app)?;
+    let data = args.data.as_deref().map(read_file).transpose()?;
+    let flash = args.flash.as_deref().map(read_json).transpose()?;
+    let mut session = Session::new();
+    let material = nrp::Material {
+        nwa: &nwa,
+        data: data.as_deref(),
+        flash: flash.as_ref(),
+    };
+    let report = nrp::replay(&document, &material, &mut session)
+        .map_err(|e| format!("{} : {e}", args.recording.display()))?;
+    if let Some(out) = &args.screenshot {
+        let screen = session.handle(&Value::object().with("cmd", "screen").with("rgba", true));
+        write_file(out, &png_from_reply(&screen)?)?;
+    }
+    let mismatches: Vec<Value> = report
+        .mismatches
+        .iter()
+        .map(|m| {
+            Value::object()
+                .with("entry", m.entry)
+                .with("what", m.what.as_str())
+                .with("recorded", m.recorded.as_str())
+                .with("replayed", m.replayed.as_str())
+        })
+        .collect();
+    let summary = Value::object()
+        .with("entries", report.entries)
+        .with("checks", report.checks)
+        .with("mismatches", mismatches)
+        .with("warnings", report.warnings.clone());
+    print(args.json, &summary, || {
+        let mut text = format!(
+            "{} entrées rejouées, {} vérifications, {} différence(s)",
+            report.entries,
+            report.checks,
+            report.mismatches.len()
+        );
+        for w in &report.warnings {
+            text += &format!("\nattention : {w}");
+        }
+        for m in &report.mismatches {
+            text += &format!(
+                "\nentrée {} : {} : enregistré {}, rejoué {}",
+                m.entry, m.what, m.recorded, m.replayed
+            );
+        }
+        text
+    });
+    Ok(if report.mismatches.is_empty() { 0 } else { 4 })
 }
 
 // ---- keys ----------------------------------------------------------------------------------------

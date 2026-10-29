@@ -73,7 +73,8 @@ pub struct DeviceOpts {
 
 /// nwasabi-cli : émulateur d'applications externes NumWorks (.nwa).
 ///
-/// Codes de sortie : 0 succès, 1 erreur, 2 mauvais usage, 3 l'application s'est arrêtée sur une faute.
+/// Codes de sortie : 0 succès, 1 erreur, 2 mauvais usage, 3 l'application s'est arrêtée sur une faute, 4 la rediffusion d'un
+/// enregistrement ne redonne pas ce qui avait été enregistré.
 #[derive(Parser)]
 #[command(name = "nwasabi-cli", version)]
 pub struct Cli {
@@ -99,6 +100,8 @@ pub enum Command {
     Keys(KeysArgs),
     /// Fabrique ou lit un fichier .nfd (octets à placer en flash)
     Flash(FlashArgs),
+    /// Rejoue un enregistrement .nrp et vérifie qu'il donne les mêmes arrêts, le même nombre d'instructions et le même écran
+    Replay(ReplayArgs),
 }
 
 #[derive(Args)]
@@ -166,6 +169,10 @@ pub struct RunArgs {
     /// Enregistre l'écran final en PNG
     #[arg(long, value_name = "FICHIER.png")]
     pub screenshot: Option<PathBuf>,
+    /// Enregistre ce que fait cette exécution (touches, exécution, écran final) dans ce fichier .nrp : `replay` la rejoue
+    /// et vérifie qu'elle donne la même chose
+    #[arg(long, value_name = "FICHIER.nrp")]
+    pub record: Option<PathBuf>,
     /// Sortie en JSON
     #[arg(long)]
     pub json: bool,
@@ -268,6 +275,29 @@ pub struct SessionArgs {
     /// Requêtes sur l'entrée standard (option conservée pour la clarté)
     #[arg(long)]
     pub stdio: bool,
+    /// Enregistre les requêtes qui changent l'état (touches, temps, exécution…) avec ce qu'on en a observé, dans ce fichier .nrp
+    #[arg(long, value_name = "FICHIER.nrp")]
+    pub record: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct ReplayArgs {
+    /// Enregistrement à rejouer (fichier .nrp)
+    pub recording: PathBuf,
+    /// L'application de l'enregistrement (fichier .nwa)
+    pub app: PathBuf,
+    /// Données externes de l'application, si l'enregistrement en avait
+    #[arg(long, value_name = "FICHIER")]
+    pub data: Option<PathBuf>,
+    /// Données auxiliaires en flash (fichier .nfd), si l'enregistrement en avait
+    #[arg(long, value_name = "FICHIER.nfd")]
+    pub flash: Option<PathBuf>,
+    /// Enregistre l'écran final en PNG
+    #[arg(long, value_name = "FICHIER.png")]
+    pub screenshot: Option<PathBuf>,
+    /// Sortie en JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args)]

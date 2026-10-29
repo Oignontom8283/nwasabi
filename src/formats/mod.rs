@@ -5,6 +5,7 @@
 pub mod nds;
 pub mod nfd;
 pub mod nfs;
+pub mod nrp;
 
 use crate::json::Value;
 

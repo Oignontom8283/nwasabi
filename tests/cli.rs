@@ -457,3 +457,143 @@ fn fs_export_and_import_use_the_nfs_format() {
         .success()
     );
 }
+
+// ---- enregistrer et rejouer -------------------------------------------------------------------------------------
+
+fn test_app(name: &str) -> String {
+    format!("{}/tests/apps/bin/{name}.nwa", env!("CARGO_MANIFEST_DIR"))
+}
+
+#[test]
+fn a_run_is_recorded_and_replays_identically() {
+    let dir = workdir("replay-run");
+    let recording = dir.join("keys.nrp");
+    let recorded = cli(&[
+        "run",
+        &test_app("keys"),
+        "--press",
+        "ok",
+        "--frames",
+        "6",
+        "--record",
+        recording.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(
+        recorded.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&recorded.stderr)
+    );
+
+    let replayed = cli(&["replay", recording.to_str().unwrap(), &test_app("keys")]);
+    assert_eq!(replayed.status.code(), Some(0), "{}", stdout(&replayed));
+    assert!(
+        stdout(&replayed).contains("0 différence"),
+        "{}",
+        stdout(&replayed)
+    );
+
+    // Une autre application ne donne pas la même chose : code 4, avec l'endroit de la différence.
+    let other = cli(&[
+        "replay",
+        recording.to_str().unwrap(),
+        &test_app("integer"),
+        "--json",
+    ]);
+    assert_eq!(other.status.code(), Some(4), "{}", stdout(&other));
+    let report = json::parse(&stdout(&other)).unwrap();
+    assert!(!report["mismatches"].as_array().unwrap().is_empty());
+    assert!(
+        report["warnings"][0]
+            .as_str()
+            .unwrap()
+            .contains("n'est pas celle")
+    );
+}
+
+#[test]
+fn a_session_is_recorded_with_its_keys_and_time() {
+    let dir = workdir("replay-session");
+    let recording = dir.join("session.nrp");
+    let app = std::fs::read(test_app("keys")).unwrap();
+    let nwa = json::base64_encode(&app);
+    let script = format!(
+        "{}\n{}\n{}\n{}\n{}\n{}\n",
+        format_args!(r#"{{"cmd":"load","nwa":"{nwa}"}}"#),
+        r#"{"cmd":"run","frames":2}"#,
+        r#"{"cmd":"key","key":"left","action":"press"}"#,
+        r#"{"cmd":"run","frames":4}"#,
+        r#"{"cmd":"cpu"}"#,
+        r#"{"cmd":"screen"}"#,
+    );
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nwasabi-cli"))
+        .args(["session", "--record", recording.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+
+    let document = json::parse(&std::fs::read_to_string(&recording).unwrap()).unwrap();
+    let entries = document["entries"].as_array().unwrap();
+    let commands: Vec<&str> = entries
+        .iter()
+        .map(|e| e["request"]["cmd"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        commands,
+        ["run", "key", "run", "screen"],
+        "la lecture du processeur n'est pas enregistrée"
+    );
+
+    let replayed = cli(&["replay", recording.to_str().unwrap(), &test_app("keys")]);
+    assert_eq!(replayed.status.code(), Some(0), "{}", stdout(&replayed));
+}
+
+#[test]
+fn a_tampered_recording_is_detected() {
+    let dir = workdir("replay-tamper");
+    let recording = dir.join("keys.nrp");
+    cli(&[
+        "run",
+        &test_app("keys"),
+        "--frames",
+        "3",
+        "--record",
+        recording.to_str().unwrap(),
+    ]);
+    let text = std::fs::read_to_string(&recording).unwrap();
+    let doc = json::parse(&text).unwrap();
+    let crc = doc["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find_map(|e| e["expect"]["crc32"].as_str().map(str::to_owned))
+        .unwrap();
+    std::fs::write(&recording, text.replace(&crc, "deadbeef")).unwrap();
+    let replayed = cli(&["replay", recording.to_str().unwrap(), &test_app("keys")]);
+    assert_eq!(replayed.status.code(), Some(4));
+    assert!(
+        stdout(&replayed).contains("deadbeef"),
+        "{}",
+        stdout(&replayed)
+    );
+}
+
+#[test]
+fn an_invalid_recording_is_refused() {
+    let dir = workdir("replay-invalid");
+    let bad = dir.join("bad.nrp");
+    std::fs::write(&bad, r#"{"nfs":1}"#).unwrap();
+    let out = cli(&["replay", bad.to_str().unwrap(), &test_app("keys")]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains(".nrp"));
+}
