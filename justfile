@@ -148,6 +148,7 @@ test-wasm corpus="": build-wasm build-js
     node tests/web/snapshot.mjs
     node tests/web/faultregs.mjs
     node tests/web/gdbconsole.mjs
+    node tests/web/launch.mjs
     node tests/web/thumbdocs.mjs
     node tests/web/selection.mjs
 

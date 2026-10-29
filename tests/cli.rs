@@ -597,3 +597,98 @@ fn an_invalid_recording_is_refused() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains(".nrp"));
 }
+
+// ---- données auxiliaires en flash et ELF -------------------------------------------------------------------------
+
+#[test]
+fn flash_pack_and_list_round_trip() {
+    let dir = workdir("flash-pack");
+    let (program, table) = (dir.join("programme.bin"), dir.join("table.bin"));
+    std::fs::write(&program, [1u8, 2, 3, 4, 5]).unwrap();
+    std::fs::write(&table, [9u8; 16]).unwrap();
+    let out = dir.join("aux.nfd");
+    let packed = cli(&[
+        "flash",
+        "pack",
+        "-o",
+        out.to_str().unwrap(),
+        "--active-slot",
+        "a",
+        &format!("0x90400000={}", program.display()),
+        &format!("0x90260000={}", table.display()),
+    ]);
+    assert_eq!(
+        packed.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&packed.stderr)
+    );
+
+    let listed = cli(&["flash", "list", out.to_str().unwrap(), "--json"]);
+    assert_eq!(listed.status.code(), Some(0));
+    let doc = json::parse(&stdout(&listed)).unwrap();
+    assert_eq!(doc["active_slot"], "a");
+    assert_eq!(doc["segments"].as_array().unwrap().len(), 2);
+    assert_eq!(doc["segments"][0]["size"], 5);
+
+    // Le fichier produit se charge avec une application.
+    let run = cli(&[
+        "run",
+        &test_app("integer"),
+        "--flash",
+        out.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+}
+
+#[test]
+fn flash_pack_refuses_overlaps_and_bad_addresses() {
+    let dir = workdir("flash-bad");
+    let file = dir.join("x.bin");
+    std::fs::write(&file, [0u8; 32]).unwrap();
+    let out = dir.join("bad.nfd");
+    let f = file.display();
+    for specs in [
+        vec![format!("0x90400000={f}"), format!("0x90400010={f}")],
+        vec![format!("0x20000000={f}")],
+        vec![format!("pas-une-adresse={f}")],
+        vec!["0x90400000".to_owned()],
+    ] {
+        let mut args = vec!["flash", "pack", "-o", out.to_str().unwrap()];
+        args.extend(specs.iter().map(String::as_str));
+        let result = cli(&args);
+        assert_eq!(result.status.code(), Some(1), "{specs:?}");
+        assert!(
+            !out.exists(),
+            "aucun fichier ne doit être écrit pour {specs:?}"
+        );
+    }
+}
+
+#[test]
+fn link_can_write_the_elf_for_gdb() {
+    let dir = workdir("elf");
+    let elf = dir.join("debugme.elf");
+    let linked = cli(&[
+        "link",
+        &test_app("debugme"),
+        "--elf",
+        elf.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(
+        linked.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&linked.stderr)
+    );
+    let bytes = std::fs::read(&elf).unwrap();
+    assert_eq!(&bytes[..4], b"\x7fELF");
+    assert!(bytes.windows(9).any(|w| w == b"factorial"));
+}
