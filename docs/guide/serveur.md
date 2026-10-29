@@ -17,6 +17,7 @@ Il affiche l'adresse à ouvrir (`http://127.0.0.1:8080/` par défaut). Avec les 
 | `--data FICHIER` | données externes de l'application (ROM, script…) ; demande `--nwa` |
 | `--nmk FICHIER.nmk` | mapping des touches ([format](../format/nmk.md)), vérifié au démarrage |
 | `--nfs FICHIER.nfs` | fichiers de la calculatrice à charger ([format](../format/nfs.md)) |
+| `--src DOSSIER` | dossier des sources : la vue Source de la page y lit le texte des fichiers que désignent les informations de débogage (voir [Déboguer le code source](../debug/index.md#deboguer-le-code-source)) |
 | `--flash FICHIER.nfd` | [données auxiliaires en flash](../reference/donnees-flash.md) de l'application ([format](../format/nfd.md)), vérifié au démarrage |
 | `--nds FICHIER.nds` | état à reprendre ([format](../format/nds.md)) ; il contient son application |
 | `--model n0110\|n0115\|n0120` | modèle émulé (défaut `n0110`) |

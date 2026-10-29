@@ -49,7 +49,10 @@ tire les **lignes de source**, les **fonctions**, les **variables** (paramètres
 bits) et les **tables d'appel**. Elles sont relues à chaque chargement, avec les adresses définitives de l'application liée.
 
 **Le texte des sources** n'est pas dans le `.nwa` : il ne contient que les noms des fichiers et les numéros de lignes. La page web
-demande les fichiers (choix ou glisser-déposer, rattachés par leur nom) et les garde pour l'application.
+demande les fichiers (choix ou glisser-déposer, rattachés par leur nom) et les garde pour l'application. Avec le serveur local
+(`nwasabi --nwa jeu.nwa --src dossier/`), elle les lit elle-même dans ce dossier, à chaque chargement : le texte suit vos
+modifications. Le serveur ne sert que des fichiers de ce dossier, choisis par la fin de leur chemin ; il ne lit jamais un chemin
+qu'on lui donnerait.
 
 Ce que l'on peut faire :
 

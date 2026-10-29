@@ -287,3 +287,47 @@ fn flash_is_served_after_checking_and_has_a_stamp() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("segments[0]"));
 }
+
+#[test]
+fn sources_are_served_from_the_given_folder_only() {
+    let dir = std::env::temp_dir().join(format!("nwasabi-src-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("proj/src")).unwrap();
+    std::fs::write(
+        dir.join("proj/src/main.c"),
+        "int main(void) { return 0; }\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("secret.txt"), "pas pour la page").unwrap();
+    let server = start(&["--src", dir.join("proj").to_str().unwrap()]);
+
+    // Le chemin des informations de débogage est relatif à la machine qui a compilé : la fin du chemin suffit.
+    for name in [
+        "src/main.c",
+        "/home/moi/travail/proj/src/main.c",
+        "main.c",
+        "./src/main.c",
+    ] {
+        let (code, body) = get(&server, &format!("/__nwasabi/source?name={name}"));
+        assert_eq!(code, 200, "{name}");
+        assert_eq!(body, b"int main(void) { return 0; }\n");
+    }
+    // Rien d'autre n'est lisible : ni un fichier voisin, ni une remontée de dossier, ni un fichier inconnu.
+    for name in [
+        "secret.txt",
+        "../secret.txt",
+        "..%2Fsecret.txt",
+        "%2e%2e/secret.txt",
+        "src/absent.c",
+        "",
+    ] {
+        assert_eq!(
+            get(&server, &format!("/__nwasabi/source?name={name}")).0,
+            404,
+            "{name}"
+        );
+    }
+    assert_eq!(get(&server, "/__nwasabi/source").0, 404);
+    // Sans --src, aucun fichier n'est servi.
+    let without = start(&[]);
+    assert_eq!(get(&without, "/__nwasabi/source?name=src/main.c").0, 404);
+}

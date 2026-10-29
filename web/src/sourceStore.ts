@@ -67,6 +67,9 @@ export async function refreshDebugInfo(emulator: Emulator, app: string): Promise
   for (const file of source.files) {
     const stored = await idbGet<string>(key(app, file.path));
     if (typeof stored === "string") source.texts[file.path] = stored;
+    // Le serveur local (option --src) donne le texte des sources : le plus à jour, il remplace celui qu'on avait gardé.
+    const served = await fetchServedSource(file.path);
+    if (served !== null) source.texts[file.path] = served;
     const lines = await emulator.quiet({ cmd: "source_lines", file_id: file.id });
     if (lines.ok) source.codeLines[file.path] = lines.lines as number[];
   }
@@ -76,6 +79,29 @@ export async function refreshDebugInfo(emulator: Emulator, app: string): Promise
     await emulator.quiet({ cmd: "unbreak", address: main.address });
     if (source.files.some((f) => f.path === main.path)) source.current = main.path as string;
   }
+}
+
+/** Le texte d'un fichier source, si le serveur Nwasabi a été lancé avec `--src` ; `null` sinon (autre serveur, fichier inconnu). */
+async function fetchServedSource(path: string): Promise<string | null> {
+  try {
+    const reply = await fetch(`__nwasabi/source?name=${encodeURIComponent(path)}`, { cache: "no-store" });
+    return reply.ok && (reply.headers.get("content-type") ?? "").startsWith("text/plain") ? await reply.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Relit les sources du serveur (après une recompilation, par exemple) ; rend le nombre de fichiers mis à jour. */
+export async function reloadServedSources(): Promise<number> {
+  let n = 0;
+  for (const file of source.files) {
+    const text = await fetchServedSource(file.path);
+    if (text !== null && text !== source.texts[file.path]) {
+      source.texts[file.path] = text;
+      n++;
+    }
+  }
+  return n;
 }
 
 const basename = (path: string) => path.replace(/\\/g, "/").split("/").pop() ?? path;

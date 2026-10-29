@@ -59,6 +59,9 @@ struct Options {
     /// Fichiers de la calculatrice à charger dans la page (fichier .nfs)
     #[arg(long, value_name = "FICHIER.nfs")]
     nfs: Option<PathBuf>,
+    /// Dossier des sources de l'application : la page de débogage y lit le texte des fichiers que désignent les informations DWARF
+    #[arg(long, value_name = "DOSSIER")]
+    src: Option<PathBuf>,
     /// Octets à placer en flash à côté de l'application (fichier .nfd : voir `nwasabi-cli flash pack`)
     #[arg(long, value_name = "FICHIER.nfd")]
     flash: Option<PathBuf>,
@@ -153,6 +156,7 @@ struct Served {
     nmk: Option<PathBuf>,
     nfs: Option<PathBuf>,
     flash: Option<PathBuf>,
+    src: Option<PathBuf>,
     nds: Option<PathBuf>,
     model: &'static str,
     firmware: &'static str,
@@ -341,6 +345,116 @@ async fn nfs(State(served): State<Shared>) -> Response {
     given(&served.nfs, load_nfs)
 }
 
+/// La valeur (décodée) du paramètre `key` de la requête.
+fn query_value(uri: &Uri, key: &str) -> Option<String> {
+    let query = uri.query()?;
+    let (_, value) = query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(k, _)| *k == key)?;
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if bytes
+                .get(i + 1..i + 3)
+                .is_some_and(|h| h.iter().all(u8::is_ascii_hexdigit)) =>
+            {
+                out.push(
+                    u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?, 16).ok()?,
+                );
+                i += 3;
+            }
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// Les fichiers (chemin relatif, chemin complet) du dossier des sources, en cherchant sur huit niveaux au plus.
+fn source_files(root: &std::path::Path) -> Vec<(String, PathBuf)> {
+    fn walk(
+        dir: &std::path::Path,
+        root: &std::path::Path,
+        depth: u32,
+        out: &mut Vec<(String, PathBuf)>,
+    ) {
+        if depth > 8 || out.len() > 20_000 {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') || name == "node_modules" || name == "target" {
+                continue;
+            }
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => walk(&path, root, depth + 1, out),
+                Ok(t) if t.is_file() => {
+                    let relative = path
+                        .strip_prefix(root)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    out.push((relative, path));
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, root, 0, &mut out);
+    out
+}
+
+/// Le texte du fichier source que désigne `name` (un chemin des informations de débogage). La requête n'est jamais utilisée comme
+/// chemin : elle sert à choisir parmi les fichiers du dossier donné au démarrage, par la fin de leur chemin.
+async fn source(State(served): State<Shared>, uri: Uri) -> Response {
+    let (Some(root), Some(name)) = (&served.src, query_value(&uri, "name")) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let wanted = name.replace('\\', "/");
+    let wanted = wanted.trim_start_matches("./").trim_start_matches('/');
+    let files = source_files(root);
+    // Le fichier dont le chemin se termine comme le chemin demandé (le plus long accord gagne), sinon le même nom de fichier.
+    let by_suffix = files
+        .iter()
+        .filter(|(relative, _)| {
+            wanted == relative
+                || wanted.ends_with(&format!("/{relative}"))
+                || relative.ends_with(&format!("/{wanted}"))
+        })
+        .max_by_key(|(relative, _)| relative.len());
+    let base = wanted.rsplit('/').next().unwrap_or(wanted);
+    let found = by_suffix.or_else(|| {
+        files
+            .iter()
+            .find(|(relative, _)| relative.rsplit('/').next() == Some(base))
+    });
+    let Some((_, path)) = found else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match std::fs::read(path) {
+        Ok(bytes) if bytes.len() <= 2 << 20 => (
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            String::from_utf8_lossy(&bytes).into_owned(),
+        )
+            .into_response(),
+        _ => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 async fn flash(State(served): State<Shared>) -> Response {
     given(&served.flash, load_nfd)
 }
@@ -406,6 +520,7 @@ async fn run(options: Options) -> Result<(), String> {
         nmk: options.nmk.clone(),
         nfs: options.nfs.clone(),
         flash: options.flash.clone(),
+        src: options.src.clone(),
         nds: options.nds.clone(),
         model,
         firmware,
@@ -465,6 +580,7 @@ async fn run(options: Options) -> Result<(), String> {
         .route("/__nwasabi/nmk", get(nmk))
         .route("/__nwasabi/nfs", get(nfs))
         .route("/__nwasabi/flash", get(flash))
+        .route("/__nwasabi/source", get(source))
         .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
         .with_state(served);
