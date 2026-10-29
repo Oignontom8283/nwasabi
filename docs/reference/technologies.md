@@ -1,3 +1,8 @@
+---
+title: "Technologies prises en charge"
+description: "Langages, compilateurs, jeu d'instructions, informations de débogage, outils, formats de fichiers et plateformes pris en charge ou non par Nwasabi."
+---
+
 # Technologies prises en charge
 
 Ce que Nwasabi comprend et ce qu'il ne comprend pas. Les cases « testé » ont été essayées de bout en bout ; le reste est ce que le
@@ -61,7 +66,7 @@ système de la calculatrice ([Écrire une application](../guide/ecrire-une-appli
 | | Format |
 |---|---|
 | Application | `.nwa` (objet ELF relogeable) |
-| Mapping des touches, fichiers de la calculatrice, données auxiliaires en flash, état, enregistrement | `.nmk`, `.nfs`, `.nfd`, `.nds`, `.nrp` : [Formats de fichiers](../format/index.md) |
+| Mapping des touches, fichiers de la calculatrice, données auxiliaires en flash, état, enregistrement | `.nmk`, `.nfs`, `.nfd`, `.nds`, `.nrp` : [Formats de fichiers](./formats/index.md) |
 | Application liée pour GDB | ELF exécutable (`nwasabi-cli link --elf`) |
 
 ## Plateformes

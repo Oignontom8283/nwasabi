@@ -1,3 +1,8 @@
+---
+title: "La bibliothèque JavaScript"
+description: "Utiliser @nwasabi/js et @nwasabi/wasm pour intégrer l'émulateur dans une page web ou un programme Node.js."
+---
+
 # La bibliothèque JavaScript
 
 `@nwasabi/js` embarque l'émulateur (compilé en WebAssembly) dans une page web ou un programme JavaScript : le lecteur d'écran

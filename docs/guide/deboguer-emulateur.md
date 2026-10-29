@@ -1,9 +1,14 @@
-# Débogage
+---
+title: "Déboguer dans l'émulateur"
+description: "Points d'arrêt, observation, pas à pas, pile d'appels, code source, remontée dans le temps, console à la GDB, profil et registres de faute dans l'émulateur Nwasabi."
+---
+
+# Déboguer dans l'émulateur
 
 Nwasabi émule le **processeur** (un Cortex-M7), pas toute la calculatrice : le système (Epsilon), les périphériques et les temps
 d'accès de la vraie puce sont remplacés par des versions simplifiées (voir [Compatibilité](../reference/compatibilite.md)). On
 débogue donc son code face à ce système simulé. Cette page décrit ce que le cœur d'émulation sait faire ; les mêmes fonctions sont
-offertes par la page web, par le [protocole de session](../reference/protocole-session.md) et par [GDB](#utiliser-gdb).
+offertes par la page web, par le [protocole de session](../reference/protocole-session.md) et par [GDB](./deboguer-c-cpp-rust.md#gdb). Pour déboguer un projet en C, C++ ou Rust, voir [Déboguer un projet en C, C++ ou Rust](./deboguer-c-cpp-rust.md).
 
 ## Points d'arrêt
 
@@ -86,7 +91,7 @@ l'application passe son temps. Une application qui attend (écran, clavier) exé
 ## Journal des appels système
 
 Chaque appel au système simulé est noté : numéro, registres r0 à r3 à l'entrée, valeur de retour, adresse de l'appel. Le journal
-garde les 400 derniers appels. Voir [Appels système](../reference/appels-systeme.md).
+garde les 2000 derniers appels. Voir [Appels système](../reference/appels-systeme.md).
 
 ## Remonter le temps
 
@@ -157,49 +162,6 @@ bloc de contrôle du système (SCB), lisibles à leur adresse habituelle :
 Les registres sont en lecture
 seule pour l'application ; la relance de l'application les remet à zéro. Un débogueur branché par GDB les lit comme ceux d'une
 vraie carte, après un plantage.
-
-## Utiliser GDB
-
-Le serveur `nwasabi` peut offrir un **serveur GDB** : un débogueur (GDB, LLDB, VS Code…) s'y branche comme à une sonde de
-débogage, et pilote **l'émulation de la page** : ce que fait GDB (pas, points d'arrêt, mémoire) se voit dans la page, et inversement.
-
-```sh
-nwasabi --nwa jeu.nwa --gdb 3333
-```
-
-Ce n'est **pas activé par défaut**, ni côté serveur ni côté page : la page doit accepter explicitement un débogueur (case
-« Accepter un débogueur GDB » de la vue GDB, décochée à chaque ouverture). Tant qu'elle ne l'est pas, une connexion est refusée.
-Le serveur sert d'intermédiaire : la page vient chercher les commandes du débogueur par une requête longue et y répond.
-
-Pour que GDB connaisse les **fonctions, les lignes et les variables**, donnez-lui l'application liée au format ELF (le bouton
-« Télécharger l'ELF » de la vue GDB, ou `nwasabi-cli link jeu.nwa --elf jeu.elf` avec le même `--model` et le même `--firmware`
-que la page : les adresses en dépendent) :
-
-```
-(gdb) file jeu.elf
-(gdb) target remote 127.0.0.1:3333
-(gdb) break main
-(gdb) list
-(gdb) continue
-(gdb) x/8xw $sp
-(gdb) stepi
-(gdb) reverse-stepi
-```
-
-Ce qui est pris en charge : lecture et écriture des registres et de la mémoire, points d'arrêt, points d'observation (`watch`,
-`rwatch`, `awatch`), pas à pas, reprise, interruption (Ctrl+C), et le **débogage en remontant le temps** (`reverse-stepi`,
-`reverse-continue`, grâce à l'historique, démarré à la connexion).
-
-À savoir :
-
-- un seul débogueur à la fois ;
-- le serveur n'écoute que sur cette machine (`--host` change l'adresse) : n'ouvrez pas ce port à un réseau auquel vous ne faites pas
-  confiance, car un débogueur peut modifier la mémoire et les registres ;
-- pour un débogueur sans page ouverte, `--gdb-headless 3333` (avec `--nwa`) lance une émulation à part, qui charge l'application
-  telle qu'elle est sur le disque et repart de zéro à chaque connexion ;
-- le protocole est le Remote Serial Protocol de GDB, avec description XML des registres du Cortex-M, mode sans acquittement, `vCont`, points d'arrêt logiciels et matériels, `ReverseStep` et `ReverseContinue` ;
-- sans `file jeu.elf`, GDB ne connaît que les adresses et le désassemblage ; avec lui (et une application compilée avec `-g`), `list`,
-  `info locals`, `print`, `next`, `finish`, `backtrace` et les points d'arrêt sur une ligne fonctionnent comme sur n'importe quelle cible.
 
 ## Les limites
 

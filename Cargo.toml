@@ -5,6 +5,14 @@ edition = "2024"
 default-run = "nwasabi"
 description = "Cœur d'émulation des applications externes (.nwa) des calculatrices NumWorks"
 license = "AGPL-3.0-only"
+authors = ["Oignontom8283"]
+repository = "https://github.com/Oignontom8283/nwasabi"
+homepage = "https://github.com/Oignontom8283/nwasabi"
+documentation = "https://github.com/Oignontom8283/nwasabi/tree/main/docs"
+readme = "README.md"
+rust-version = "1.85"
+keywords = ["numworks", "emulator", "wasm", "cortex-m", "gdb"]
+categories = ["emulators", "wasm", "development-tools::debugging"]
 # Le paquet publié ne contient que ce qui sert à compiler : le code (`src/`), le script de
 # construction et les sources de l'interface web. Ni les tests (et leurs références), ni l'exemple,
 # ni les recettes `just`.

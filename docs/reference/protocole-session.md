@@ -1,3 +1,8 @@
+---
+title: "Le protocole de session"
+description: "Les commandes JSON communes à l'outil en ligne de commande, au serveur, à la page web et à la bibliothèque JavaScript pour piloter un appareil émulé."
+---
+
 # Le protocole de session
 
 La ligne de commande (`nwasabi-cli session`), le serveur, la bibliothèque JavaScript et le serveur GDB parlent tous le même langage :
@@ -21,7 +26,7 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 
 | Commande | Effet |
 |---|---|
-| `new`, `load` | crée un appareil, ou en charge un avec une application (`nwa` et `data` en base64). Options : `model`, `firmware`, `clock` (`virtual` ou `host`), `speed`, `mhz` ; avec `load`, `nfd` : un document [`.nfd`](../format/nfd.md) de [données auxiliaires en flash](./donnees-flash.md) |
+| `new`, `load` | crée un appareil, ou en charge un avec une application (`nwa` et `data` en base64). Options : `model`, `firmware`, `clock` (`virtual` ou `host`), `speed`, `mhz` ; avec `load`, `nfd` : un document [`.nfd`](./formats/nfd.md) de [données auxiliaires en flash](./donnees-flash.md) |
 | `launch` | lance l'application |
 | `dump`, `restore` | exporte ou restaure l'état (`parts` : `app`, `memory`, `fs`, `state`) |
 | `settings_get`, `settings_set` | lit ou modifie les réglages (`settings_get` donne les noms) |
@@ -57,12 +62,12 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 | `break` (avec une condition `{register, op, value}` facultative), `unbreak`, `breaks` | points d'arrêt |
 | `watch`, `unwatch`, `watch_list`, `watch_hits` | points d'observation |
 | `step` | une instruction |
-| `history` (`start`, `stop`, `status`), `step_back`, `reverse_continue`, `history_goto` | [remonter le temps](../debug/index.md#remonter-le-temps) |
+| `history` (`start`, `stop`, `status`), `step_back`, `reverse_continue`, `history_goto` | [remonter le temps](../guide/deboguer-emulateur.md#remonter-le-temps) |
 
 ## Déboguer le code source
 
 Elles demandent une application compilée avec `-g` (sinon, elles répondent par une erreur qui le dit) : [Déboguer le code
-source](../debug/index.md#deboguer-le-code-source). `frame` (0 : l'instruction en cours) choisit le cadre de la pile.
+source](../guide/deboguer-emulateur.md#deboguer-le-code-source). `frame` (0 : l'instruction en cours) choisit le cadre de la pile.
 
 | Commande | Effet |
 |---|---|
@@ -87,5 +92,5 @@ source](../debug/index.md#deboguer-le-code-source). `frame` (0 : l'instruction e
 
 ## Octets en flash
 
-`flash_load` (`nfd` : un document [`.nfd`](../format/nfd.md)) place des [données auxiliaires](./donnees-flash.md) à des adresses de la flash externe, `flash_export` rend celles
+`flash_load` (`nfd` : un document [`.nfd`](./formats/nfd.md)) place des [données auxiliaires](./donnees-flash.md) à des adresses de la flash externe, `flash_export` rend celles
 qui sont placées. Ils ne peuvent pas recouvrir le firmware ni les applications installées.

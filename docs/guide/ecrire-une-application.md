@@ -1,3 +1,8 @@
+---
+title: "Écrire une application pour l'émulateur"
+description: "Compiler une application NumWorks (.nwa) en C, C++ ou Rust qui s'exécute dans Nwasabi : points d'entrée, drapeaux de compilation, appels système et limites du système simulé."
+---
+
 # Écrire une application qui marche dans l'émulateur
 
 Une application externe NumWorks est un programme C (ou C++, Rust…) compilé pour un Cortex-M7, lié avec l'outil de NumWorks
@@ -45,7 +50,7 @@ Pour du C++ ou du Rust, et pour les expressions, voir [Déboguer en C, C++ et Ru
 
 - **`-g`** : le compilateur écrit dans le `.nwa` les informations de débogage (lignes de source, variables, types, tables d'appel).
   Nwasabi les lit : points d'arrêt par ligne, pile exacte, variables, expressions (voir
-  [Déboguer le code source](../debug/index.md#deboguer-le-code-source)). Elles ne changent pas le code produit ni le fichier flashé
+  [Déboguer le code source](./deboguer-emulateur.md#deboguer-le-code-source)). Elles ne changent pas le code produit ni le fichier flashé
   sur la calculatrice : elles ne sont pas dans l'image.
 - **`-O0`** pour la partie que l'on suit pas à pas : en `-O2`, les variables vivent dans des registres, disparaissent, les fonctions
   sont fondues dans leur appelante.
@@ -55,11 +60,11 @@ Pour du C++ ou du Rust, et pour les expressions, voir [Déboguer en C, C++ et Ru
   adresses s'affichent.
 
 Pour **GDB**, `nwasabi-cli link jeu.nwa --elf jeu.elf` écrit l'application liée au format ELF, avec les adresses définitives :
-voir [Utiliser GDB](../debug/index.md#utiliser-gdb).
+voir [Utiliser GDB](./deboguer-c-cpp-rust.md#gdb).
 
 ## Quand l'application plante
 
 L'émulateur s'arrête sur la première faute et explique laquelle : accès à une adresse qui n'existe pas (pointeur nul ou corrompu),
 instruction indéfinie (saut dans des données), accès non aligné avec une instruction qui l'interdit, appel système inconnu… Il
 donne l'instruction fautive et remplit les registres de faute du Cortex-M7, que GDB lit comme sur une vraie carte :
-[Le débogage](../debug/index.md#registres-de-faute).
+[Déboguer dans l'émulateur](./deboguer-emulateur.md#registres-de-faute).

@@ -1,3 +1,8 @@
+---
+title: "La ligne de commande nwasabi-cli"
+description: "Exécuter, lier, désassembler et rejouer des applications NumWorks sans navigateur avec nwasabi-cli, pour des scripts et des tests."
+---
+
 # La ligne de commande `nwasabi-cli`
 
 `nwasabi-cli` exécute l'émulateur **sans navigateur** : le cœur est compilé dans le binaire, les résultats sont déterministes (une
@@ -27,9 +32,9 @@ Exécute l'application et résume l'arrêt, l'écran et la sortie standard.
 | `--press TOUCHE` | touche enfoncée avant de lancer (répétable) ; `nwasabi-cli keys` les liste |
 | `--nmk FICHIER` | mapping pour traduire les touches de `--press` (accepte alors `KeyW`, `key:e`…) |
 | `--nds`, `--nfs` | reprend un état, charge des fichiers de la calculatrice |
-| `--flash FICHIER.nfd` | place des [données auxiliaires en flash](../reference/donnees-flash.md) ([format](../format/nfd.md)) |
+| `--flash FICHIER.nfd` | place des [données auxiliaires en flash](../reference/donnees-flash.md) ([format](../reference/formats/nfd.md)) |
 | `--save-nds`, `--save-nfs` | enregistre l'état ou les fichiers après l'exécution |
-| `--record FICHIER.nrp` | enregistre l'exécution (touches, arrêt, écran) pour la rejouer avec `replay` ([format](../format/nrp.md)) |
+| `--record FICHIER.nrp` | enregistre l'exécution (touches, arrêt, écran) pour la rejouer avec `replay` ([format](../reference/formats/nrp.md)) |
 | `--screenshot FICHIER.png` | enregistre l'écran final |
 | `--json` | sortie en JSON |
 | `--mhz N` | fréquence du processeur, qui règle le temps virtuel |
@@ -39,7 +44,7 @@ Exécute l'application et résume l'arrêt, l'écran et la sortie standard.
 | Commande | Rôle |
 |---|---|
 | `inspect [APP]` | affiche en JSON les structures de l'OS lues en mémoire (en-têtes, applications, stockage) |
-| `link APP` | résultat de l'édition de liens ; `--map` ajoute les sections et les symboles ; `--elf FICHIER.elf` écrit l'application liée au format ELF, pour [GDB](../debug/index.md#utiliser-gdb) |
+| `link APP` | résultat de l'édition de liens ; `--map` ajoute les sections et les symboles ; `--elf FICHIER.elf` écrit l'application liée au format ELF, pour [GDB](./deboguer-c-cpp-rust.md#gdb) |
 | `flash pack`, `flash list` | rassemble des fichiers à leur adresse dans un `.nfd` (`pack -o aux.nfd [--active-slot a] 0x90400000=programme.tar …`), liste ses segments ([données auxiliaires](../reference/donnees-flash.md)) |
 | `check FICHIER…` | vérifie des fichiers de Nwasabi (`.nwa`, `.nmk`, `.nfs`, `.nfd`, `.nds`, `.nrp`, reconnus à l'extension) et résume leur contenu ; code 1 si l'un est illisible |
 | `replay ENREGISTREMENT.nrp APP` | rejoue un enregistrement et vérifie les arrêts, le nombre d'instructions et l'écran ; code de sortie 4 s'ils diffèrent |

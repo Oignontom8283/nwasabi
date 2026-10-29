@@ -40,6 +40,9 @@ export default withMermaid(defineConfig({
   description: "Émulateur d'applications externes NumWorks (.nwa) en Rust et WebAssembly",
   base,
   cleanUrls: true,
+  lastUpdated: true,
+  // Le titre de chaque page vient de son en-tête (`title`) : « Page | Nwasabi » dans l'onglet.
+  titleTemplate: ":title | Nwasabi",
   // Étiquettes en SVG et police de repli : en HTML, les styles de VitePress (interligne des paragraphes) font couper le texte des nœuds.
   mermaid: { fontFamily: "sans-serif", htmlLabels: false, flowchart: { htmlLabels: false, padding: 16, nodeSpacing: 40, rankSpacing: 60 } },
   // Mermaid et ses dépendances (CommonJS) doivent être préparées par Vite en développement, sinon la page reste blanche.
@@ -51,6 +54,13 @@ export default withMermaid(defineConfig({
   // et ancre conservés. Le script est le même pour toutes les pages : le chemin de l'émulateur vient de `base`.
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo-bordered.svg` }],
+    ["meta", { name: "author", content: "Oignontom8283" }],
+    ["meta", { name: "keywords", content: "NumWorks, émulateur, nwa, Epsilon, WebAssembly, Rust, Cortex-M7, GDB, débogueur" }],
+    ["meta", { name: "theme-color", content: "#74AD3A" }],
+    ["meta", { property: "og:site_name", content: "Nwasabi" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:locale", content: "fr_FR" }],
+    ["meta", { name: "twitter:card", content: "summary" }],
     [
       "script",
       {},
@@ -62,9 +72,7 @@ export default withMermaid(defineConfig({
     nav: [
       { text: "Émulateur", link: "/emulator/", target: "_self" },
       { text: "Guide", link: "/guide/" },
-      { text: "Débogage", link: "/debug/" },
       { text: "Référence", link: "/reference/compatibilite" },
-      { text: "Formats de fichiers", link: "/format/" },
     ],
     sidebar: {
       "/guide/": [
@@ -74,11 +82,20 @@ export default withMermaid(defineConfig({
             { text: "Premiers pas", link: "/guide/" },
             { text: "Écrire une application", link: "/guide/ecrire-une-application" },
             { text: "L'émulateur web", link: "/guide/emulateur-web" },
-            { text: "Déboguer en C, C++ et Rust", link: "/guide/deboguer-c-cpp-rust" },
-            { text: "Exécuter KhiCAS", link: "/guide/khicas" },
             { text: "Le serveur", link: "/guide/serveur" },
             { text: "La ligne de commande", link: "/guide/cli" },
           ],
+        },
+        {
+          text: "Déboguer",
+          items: [
+            { text: "Dans l'émulateur", link: "/guide/deboguer-emulateur" },
+            { text: "En C, C++ et Rust", link: "/guide/deboguer-c-cpp-rust" },
+          ],
+        },
+        {
+          text: "Applications",
+          items: [{ text: "Exécuter KhiCAS", link: "/guide/khicas" }],
         },
       ],
       "/reference/": [
@@ -94,8 +111,41 @@ export default withMermaid(defineConfig({
             { text: "Bibliothèque JavaScript", link: "/reference/bibliotheque-js" },
           ],
         },
+        {
+          text: "Formats de fichiers",
+          link: "/reference/formats/",
+          items: [
+            { text: "Vue d'ensemble", link: "/reference/formats/" },
+            { text: ".nmk : touches", link: "/reference/formats/nmk" },
+            { text: ".nfs : fichiers", link: "/reference/formats/nfs" },
+            { text: ".nfd : données en flash", link: "/reference/formats/nfd" },
+            { text: ".nds : état", link: "/reference/formats/nds" },
+            { text: ".nrp : enregistrement", link: "/reference/formats/nrp" },
+          ],
+        },
       ],
     },
+    search: { provider: "local" },
+    outline: { level: [2, 3], label: "Sur cette page" },
+    docFooter: { prev: "Page précédente", next: "Page suivante" },
+    lastUpdated: { text: "Dernière modification" },
+    returnToTopLabel: "Retour en haut",
+    sidebarMenuLabel: "Menu",
+    darkModeSwitchLabel: "Thème",
+    editLink: { pattern: "https://github.com/Oignontom8283/nwasabi/edit/main/docs/:path", text: "Modifier cette page" },
     socialLinks: [{ icon: "github", link: "https://github.com/Oignontom8283/nwasabi" }],
+  },
+  // Chaque page reprend son titre et sa description dans les balises sociales (`og:`, `twitter:`).
+  transformPageData(pageData) {
+    const { title, description } = pageData.frontmatter.title ? pageData.frontmatter : pageData;
+    const head = (pageData.frontmatter.head ??= []);
+    if (title) {
+      head.push(["meta", { property: "og:title", content: `${title} | Nwasabi` }]);
+      head.push(["meta", { name: "twitter:title", content: `${title} | Nwasabi` }]);
+    }
+    if (description) {
+      head.push(["meta", { property: "og:description", content: description }]);
+      head.push(["meta", { name: "twitter:description", content: description }]);
+    }
   },
 }));

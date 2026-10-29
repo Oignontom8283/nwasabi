@@ -1,3 +1,8 @@
+---
+title: "Compatibilité et limites"
+description: "Ce que Nwasabi reproduit de la calculatrice NumWorks et ce qu'il ne reproduit pas : processeur, système, temps, périphériques, exceptions."
+---
+
 # Compatibilité et limites
 
 Ce que l'émulateur reproduit, et ce qu'il ne reproduit pas. L'objectif est qu'une application bien écrite se comporte pareil ici et
@@ -17,7 +22,7 @@ sur la calculatrice ; ce n'est pas une reproduction de la puce, et il faut garde
 - **Les fautes** : une faute d'accès mémoire, une instruction indéfinie ou un accès non aligné arrêtent l'application, et les
   registres de faute du processeur sont remplis comme sur la puce.
 - **Le déterminisme** : à entrées égales (touches et temps), l'exécution est identique à chaque fois. C'est ce qui permet de
-  [remonter le temps](../debug/index.md#remonter-le-temps).
+  [remonter le temps](../guide/deboguer-emulateur.md#remonter-le-temps).
 
 ## Ce qui ne l'est pas
 
@@ -53,7 +58,7 @@ des fonctions écrites pour Nwasabi. Conséquences :
 
 - L'écran est de 320 × 240 pixels ; le rétroéclairage n'est qu'un assombrissement de l'image (réglable ou désactivable), pas une
   mesure de luminosité.
-- Le clavier est celui de la calculatrice : les touches de l'ordinateur sont liées par un [mapping](../format/nmk.md) modifiable.
+- Le clavier est celui de la calculatrice : les touches de l'ordinateur sont liées par un [mapping](./formats/nmk.md) modifiable.
   Les gestes tactiles du mapping (balayages, deux doigts) se traduisent en appuis de touches.
 
 ## Modèles et firmwares

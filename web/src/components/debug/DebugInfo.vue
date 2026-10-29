@@ -12,8 +12,8 @@ const { t } = useI18n();
 
 // Sur le site de la documentation, l'émulateur est à `/emulator/` et la page est à côté ; sinon, la page du dépôt.
 const docs = location.pathname.includes("/emulator/")
-  ? new URL("../debug", location.href).href
-  : "https://github.com/Oignontom8283/nwasabi/blob/main/docs/debug/index.md";
+  ? new URL("../guide/deboguer-emulateur", location.href).href
+  : "https://github.com/Oignontom8283/nwasabi/blob/main/docs/guide/deboguer-emulateur.md";
 </script>
 
 <template>

@@ -1,3 +1,8 @@
+---
+title: "Format .nmk (mapping des touches)"
+description: "Spécification du format .nmk : liaisons du clavier de l'ordinateur, accords de touches et gestes tactiles vers les touches de la calculatrice."
+---
+
 # Fichiers de mapping `.nmk`
 
 Un fichier **NMK** (*Nwasabi Mapping Key*) décrit comment les entrées de l'ordinateur ou de l'écran

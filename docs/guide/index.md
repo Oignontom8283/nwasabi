@@ -1,3 +1,8 @@
+---
+title: "Premiers pas"
+description: "Choisir comment utiliser Nwasabi (émulateur web, serveur, ligne de commande ou bibliothèque JavaScript), essayer une application en deux minutes et installer ou compiler le projet."
+---
+
 # Premiers pas
 
 Nwasabi exécute les **applications externes** des calculatrices NumWorks (fichiers `.nwa`) sur un autre appareil : un
@@ -19,8 +24,8 @@ Les trois premières se servent du même cœur ; ce qu'elles font se pilote par 
 ## Essayer une application en deux minutes
 
 1. Ouvrez l'émulateur (`/emulator/`) avec votre fichier `.nwa` ([L'émulateur web](./emulateur-web.md)).
-2. Les touches se lient par un fichier [`.nmk`](../format/nmk.md).
-3. Quelque chose ne va pas ? Voir [Le débogage](../debug/index.md) : points d'arrêt, observation, remontée dans le temps, GDB.
+2. Les touches se lient par un fichier [`.nmk`](../reference/formats/nmk.md).
+3. Quelque chose ne va pas ? Voir [Déboguer dans l'émulateur](./deboguer-emulateur.md) : points d'arrêt, observation, remontée dans le temps, GDB.
 
 Une application peut aussi s'ouvrir par l'adresse : `…/emulator/?nwa=https://exemple.org/jeu.nwa`.
 

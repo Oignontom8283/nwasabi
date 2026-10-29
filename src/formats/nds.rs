@@ -1,6 +1,6 @@
 //! `.nds` — Nwasabi Dump State : l'état d'une émulation en pause, pour la reprendre plus tard.
 //!
-//! Le document est un objet JSON dont les parties sont facultatives (voir `docs/format/nds.md`) :
+//! Le document est un objet JSON dont les parties sont facultatives (voir `docs/reference/formats/nds.md`) :
 //!
 //! - `device` (toujours) : modèle, disposition du firmware et réglages du profil modifiés ;
 //! - `app` : le `.nwa` et ses données externes ;

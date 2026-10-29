@@ -1,7 +1,12 @@
+---
+title: "Format .nfd (données en flash)"
+description: "Spécification du format .nfd : morceaux d'octets placés à des adresses de la flash externe, à côté d'une application."
+---
+
 # Fichiers `.nfd` — Nwasabi Flash Data
 
-Un fichier **NFD** contient les [**données auxiliaires en flash**](../reference/donnees-flash.md) d'une application : des **octets à placer à des
-adresses de la flash externe**, à côté de l'application (c'est le cas de [KhiCAS](../guide/khicas.md)). C'est du JSON, extension `.nfd`, avec
+Un fichier **NFD** contient les [**données auxiliaires en flash**](../donnees-flash.md) d'une application : des **octets à placer à des
+adresses de la flash externe**, à côté de l'application (c'est le cas de [KhiCAS](../../guide/khicas.md)). C'est du JSON, extension `.nfd`, avec
 les contenus en base64.
 
 ## Exemple
@@ -39,8 +44,8 @@ Un segment doit tenir entièrement dans la flash externe, et deux segments ne pe
 
 Un segment ne peut **pas recouvrir** le firmware ni les applications installées : il est refusé avec l'adresse en cause. Pour mettre
 un programme à `0x90400000`, il faut donc que le firmware soit dans le slot A : c'est le rôle de `active_slot`, que le chargement
-applique avant de construire l'appareil. Voir [Données auxiliaires en flash](../reference/donnees-flash.md#ou-placer-les-donnees) et
-[Modèles et mémoire](../reference/modeles-memoire.md#les-deux-slots-de-la-flash).
+applique avant de construire l'appareil. Voir [Données auxiliaires en flash](../donnees-flash.md#ou-placer-les-donnees) et
+[Modèles et mémoire](../modeles-memoire.md#les-deux-slots-de-la-flash).
 
 ## Fabriquer et charger un `.nfd`
 

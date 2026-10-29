@@ -1,3 +1,8 @@
+---
+title: "Format .nds (état d'émulation)"
+description: "Spécification du format .nds : l'état d'une émulation en pause (appareil, application, mémoire, fichiers, processeur, noyau) à reprendre plus tard."
+---
+
 # Fichiers `.nds` — Nwasabi Dump State
 
 Un fichier **NDS** est une **photographie d'une émulation en pause** : application, mémoire, fichiers,
