@@ -41,6 +41,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"], option
 rust-embed = { version = "8", features = ["debug-embed", "mime-guess", "interpolate-folder-path"], optional = true }
 clap = { version = "4", features = ["derive"], optional = true }
 gimli = { version = "0.34.0", default-features = false, features = ["read", "std", "endian-reader"] }
+rustc-demangle = "0.1.28"
+cpp_demangle = "0.5.1"
 
 [dev-dependencies]
 png = "0.18"
