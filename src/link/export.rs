@@ -77,12 +77,15 @@ impl LinkedApp {
         }];
 
         // Les sections de l'image, dans l'ordre des adresses.
-        let mut placed: Vec<&super::PlacedSection> = self.sections.iter().filter(|s| s.size > 0).collect();
+        let mut placed: Vec<&super::PlacedSection> =
+            self.sections.iter().filter(|s| s.size > 0).collect();
         placed.sort_by_key(|s| (s.address, s.name.clone()));
         let mut first_alloc = 0usize;
         for p in placed {
             let (kind, flags) = match p.class {
-                SectionClass::Text | SectionClass::Header => (SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR),
+                SectionClass::Text | SectionClass::Header => {
+                    (SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR)
+                }
                 SectionClass::Rodata => (SHT_PROGBITS, SHF_ALLOC),
                 SectionClass::Data => (SHT_PROGBITS, SHF_ALLOC | SHF_WRITE),
                 SectionClass::Bss | SectionClass::Common => (SHT_NOBITS, SHF_ALLOC | SHF_WRITE),
@@ -90,7 +93,10 @@ impl LinkedApp {
             let data = match (kind, p.flash_address) {
                 (SHT_PROGBITS, Some(flash)) => {
                     let start = flash.wrapping_sub(self.flash_start) as usize;
-                    self.flash.get(start..start + p.size as usize).map(<[u8]>::to_vec).unwrap_or_default()
+                    self.flash
+                        .get(start..start + p.size as usize)
+                        .map(<[u8]>::to_vec)
+                        .unwrap_or_default()
                 }
                 _ => Vec::new(),
             };
@@ -134,7 +140,11 @@ impl LinkedApp {
             sections[1..image_count]
                 .iter()
                 .position(|s| {
-                    let size = if s.kind == SHT_NOBITS { s.nobits_size } else { s.data.len() as u32 };
+                    let size = if s.kind == SHT_NOBITS {
+                        s.nobits_size
+                    } else {
+                        s.data.len() as u32
+                    };
                     address >= s.address && address < s.address + size.max(1)
                 })
                 .map_or(0xfff1, |i| (i + 1) as u16)
@@ -142,7 +152,12 @@ impl LinkedApp {
         let mut symtab = Vec::new();
         symtab.extend_from_slice(&[0u8; 16]); // symbole nul
         let mut count = 1u32;
-        let mut emit = |symtab: &mut Vec<u8>, count: &mut u32, name: &str, value: u32, size: u32, kind: SymbolKind| {
+        let mut emit = |symtab: &mut Vec<u8>,
+                        count: &mut u32,
+                        name: &str,
+                        value: u32,
+                        size: u32,
+                        kind: SymbolKind| {
             let st_type = match kind {
                 SymbolKind::Func => 2u8,
                 SymbolKind::Object => 1,
@@ -164,7 +179,11 @@ impl LinkedApp {
         symbols.sort_by_key(|s| (s.address, s.name.clone()));
         for s in symbols {
             // Une fonction Thumb porte le bit 0 à 1 dans la table des symboles.
-            let value = if s.kind == SymbolKind::Func { s.address | 1 } else { s.address };
+            let value = if s.kind == SymbolKind::Func {
+                s.address | 1
+            } else {
+                s.address
+            };
             emit(&mut symtab, &mut count, &s.name, value, s.size, s.kind);
         }
         let strtab_index = sections.len() + 1;
@@ -229,7 +248,14 @@ impl LinkedApp {
             push32(&mut out, s.flags);
             push32(&mut out, s.address);
             push32(&mut out, if s.kind == 0 { 0 } else { *offset });
-            push32(&mut out, if s.kind == SHT_NOBITS { s.nobits_size } else { s.data.len() as u32 });
+            push32(
+                &mut out,
+                if s.kind == SHT_NOBITS {
+                    s.nobits_size
+                } else {
+                    s.data.len() as u32
+                },
+            );
             push32(&mut out, s.link);
             push32(&mut out, s.info);
             push32(&mut out, s.align);

@@ -322,7 +322,14 @@ fn the_linked_application_exports_as_an_elf_for_gdb() {
     assert_eq!(u16::from_le_bytes([elf[16], elf[17]]), 2, "ET_EXEC");
     assert_eq!(u16::from_le_bytes([elf[18], elf[19]]), 40, "EM_ARM");
     let contains = |needle: &str| elf.windows(needle.len()).any(|w| w == needle.as_bytes());
-    for name in ["factorial", "global_counter", ".debug_info", ".debug_line", ".debug_frame", ".symtab"] {
+    for name in [
+        "factorial",
+        "global_counter",
+        ".debug_info",
+        ".debug_line",
+        ".debug_frame",
+        ".symtab",
+    ] {
         assert!(contains(name), "{name} absent de l'ELF");
     }
 }
