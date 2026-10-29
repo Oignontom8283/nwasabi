@@ -1,3 +1,8 @@
+---
+title: "L'émulateur web"
+description: "Utiliser l'émulateur de Nwasabi dans le navigateur : ouvrir une application, paramètres d'adresse, fichiers pris en charge, touches, vitesse, captures et GIF."
+---
+
 # L'émulateur web
 
 L'émulateur est dans le navigateur, à l'adresse `/emulator/` du site, ou servi par `nwasabi` (le serveur local).
@@ -9,10 +14,10 @@ L'extension d'un fichier fourni à la page décide de ce qui est chargé :
 | Extension | Contenu | Format |
 |---|---|---|
 | `.nwa` | l'application | — |
-| `.nmk` | les touches (clavier et gestes) | [`nmk`](../format/nmk.md) |
-| `.nfs` | les fichiers de la calculatrice | [`nfs`](../format/nfs.md) |
-| `.nfd` | des [données auxiliaires en flash](../reference/donnees-flash.md) ; l'application est relancée | [`nfd`](../format/nfd.md) |
-| `.nds` | un état d'émulation à reprendre | [`nds`](../format/nds.md) |
+| `.nmk` | les touches (clavier et gestes) | [`nmk`](../reference/formats/nmk.md) |
+| `.nfs` | les fichiers de la calculatrice | [`nfs`](../reference/formats/nfs.md) |
+| `.nfd` | des [données auxiliaires en flash](../reference/donnees-flash.md) ; l'application est relancée | [`nfd`](../reference/formats/nfd.md) |
+| `.nds` | un état d'émulation à reprendre | [`nds`](../reference/formats/nds.md) |
 
 ## Paramètres de l'adresse
 

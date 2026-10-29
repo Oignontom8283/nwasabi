@@ -1,3 +1,8 @@
+---
+title: "Modèles et carte mémoire"
+description: "Les modèles N0110, N0115 et N0120, les dispositions de firmware, la carte mémoire, les slots de la flash et la SRAM."
+---
+
 # Modèles et carte mémoire
 
 ## Les modèles
@@ -38,7 +43,7 @@ Début de la zone des applications, selon la disposition du firmware :
 | `24` (appareils relevés) | `0x9057_0000` (slot B actif) | `0x9017_0000` (slot A actif) | `0x9059_0000` (slot B actif) |
 | `26.4.0` | `0x9020_0000` (slot A) | `0x9020_0000` (slot A) | `0x9018_0000` (slot A) |
 
-Avec l'autre slot actif, les adresses sont décalées de `0x40_0000`. Un programme placé en flash à part (voir [`.nfd`](../format/nfd.md))
+Avec l'autre slot actif, les adresses sont décalées de `0x40_0000`. Un programme placé en flash à part (voir [`.nfd`](./formats/nfd.md))
 ne peut pas recouvrir le firmware du slot actif ni les applications installées.
 
 ## Dans la SRAM
@@ -46,10 +51,10 @@ ne peut pas recouvrir le firmware du slot actif ni les applications installées.
 La disposition est celle du système :
 
 - le tampon de stockage (`0xA800` octets, 42 Kio) se trouve à `SRAM + 0x657c` ; c'est là que vivent les fichiers
-  ([formats](../format/nfs.md)) ;
+  ([formats](./formats/nfs.md)) ;
 - la mémoire des applications va de `SRAM + 0x118a4` à `SRAM + 0x37000` ;
 - le haut de la pile du processus est à `SRAM + 0x3eff8`.
 
 La commande de session
 `regions` les renvoie. Toute lecture ou écriture hors d'une zone déclarée provoque une faute d'accès
-([registres de faute](../debug/index.md#registres-de-faute)).
+([registres de faute](../guide/deboguer-emulateur.md#registres-de-faute)).

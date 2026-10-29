@@ -180,7 +180,7 @@ export class Player {
   private frame: unknown = null;
   private nwa: Uint8Array | null = null;
   private data: Uint8Array | null = null;
-  /** Document `.nfd` : des octets à placer en flash à côté de l'application (voir `docs/format/nfd.md`). */
+  /** Document `.nfd` : des octets à placer en flash à côté de l'application (voir `docs/reference/formats/nfd.md`). */
   private flash: unknown = null;
   private readonly pressed = new Set<KeyName>();
   // Une touche relâchée avant que l'application ait pu la lire (un appui plus court qu'une image)
@@ -403,7 +403,7 @@ export class Player {
   static readonly DUMP_PARTS = ["app", "memory", "fs", "state"] as const;
 
   /**
-   * Enregistre l'état de l'appareil (document `.nds`, voir `docs/format/nds.md`). L'émulation doit être en pause :
+   * Enregistre l'état de l'appareil (document `.nds`, voir `docs/reference/formats/nds.md`). L'émulation doit être en pause :
    * l'état est pris entre deux instructions. Rend `null` (et `state.error`) sinon, ou si le module refuse.
    */
   dump(parts: readonly string[] = Player.DUMP_PARTS): unknown | null {

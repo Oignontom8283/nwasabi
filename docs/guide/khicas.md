@@ -1,3 +1,8 @@
+---
+title: "Exécuter KhiCAS"
+description: "Lancer le logiciel de calcul formel KhiCAS dans Nwasabi avec son lanceur et ses données auxiliaires en flash."
+---
+
 # Exécuter KhiCAS
 
 [KhiCAS](https://www-fourier.univ-grenoble-alpes.fr/~parisse/numworks/khicasnw.html) est le logiciel de calcul formel de Bernard Parisse

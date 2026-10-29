@@ -199,7 +199,7 @@ fn the_nfs_fixture_loads_into_the_calculator_files() {
     let imported = call(&mut session, cmd("fs_import").with("nfs", doc));
     assert_eq!(imported["files"], 2);
     let script = call(&mut session, cmd("fs_read").with("name", "main.py"));
-    // Le corps d'un script commence par l'octet « importé automatiquement », puis le texte (voir docs/format/nfs.md).
+    // Le corps d'un script commence par l'octet « importé automatiquement », puis le texte (voir docs/reference/formats/nfs.md).
     let body = json::base64_decode(script["content"].as_str().unwrap()).unwrap();
     assert!(
         String::from_utf8_lossy(&body).contains("bonjour"),

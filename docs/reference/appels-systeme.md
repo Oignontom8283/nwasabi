@@ -1,7 +1,12 @@
+---
+title: "Les appels système"
+description: "Table des appels système (svc) gérés par le noyau simulé : EADK, noyau d'Epsilon utilisé par KhiCAS, appels facultatifs et appels propres à Nwasabi."
+---
+
 # Les appels système
 
 Une application ne parle au système que par des appels système (`svc`). Voici ceux qui sont gérés. Le
-[débogage](../debug/index.md#journal-des-appels-systeme) les journalise avec leurs arguments.
+[débogueur](../guide/deboguer-emulateur.md#journal-des-appels-systeme) les journalise avec leurs arguments.
 
 ## Appels de l'EADK
 
@@ -40,8 +45,8 @@ application ordinaire).
 Les secteurs sont numérotés comme dans le noyau : 0 à 7 de 4 Kio (`0x90000000` à `0x90008000`), 8 de 32 Kio, puis 9 et suivants de
 64 Kio (`0x90010000` à `0x907f0000`). Écrire ne peut que passer des bits à 0 : seul l'effacement d'un secteur les remet à 1, comme
 pour la vraie flash. Ces deux appels sont **refusés** (retour 0) sur le firmware et sur les applications installées ; le reste de la
-flash externe est ouvert. Les écritures font partie de l'état de l'appareil (un [`.nds`](../format/nds.md) les garde) et remettent à
-zéro l'[historique du débogage](../debug/index.md#remonter-le-temps).
+flash externe est ouvert. Les écritures font partie de l'état de l'appareil (un [`.nds`](./formats/nds.md) les garde) et remettent à
+zéro l'[historique du débogage](../guide/deboguer-emulateur.md#remonter-le-temps).
 
 ## Appels facultatifs
 

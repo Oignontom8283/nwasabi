@@ -1,3 +1,8 @@
+---
+title: "Le serveur local nwasabi"
+description: "Lancer le serveur nwasabi : options, rechargement automatique de l'application, dossier des sources et serveur GDB."
+---
+
 # Le serveur local `nwasabi`
 
 `nwasabi` sert l'émulateur web depuis votre machine. L'émulation elle-même tourne dans le navigateur : le serveur donne la page, les
@@ -15,11 +20,11 @@ Il affiche l'adresse à ouvrir (`http://127.0.0.1:8080/` par défaut). Avec les 
 |---|---|
 | `--nwa FICHIER.nwa` | application à charger dans la page |
 | `--data FICHIER` | données externes de l'application (ROM, script…) ; demande `--nwa` |
-| `--nmk FICHIER.nmk` | mapping des touches ([format](../format/nmk.md)), vérifié au démarrage |
-| `--nfs FICHIER.nfs` | fichiers de la calculatrice à charger ([format](../format/nfs.md)) |
-| `--src DOSSIER` | dossier des sources : la vue Source de la page y lit le texte des fichiers que désignent les informations de débogage (voir [Déboguer le code source](../debug/index.md#deboguer-le-code-source)) |
-| `--flash FICHIER.nfd` | [données auxiliaires en flash](../reference/donnees-flash.md) de l'application ([format](../format/nfd.md)), vérifié au démarrage |
-| `--nds FICHIER.nds` | état à reprendre ([format](../format/nds.md)) ; il contient son application |
+| `--nmk FICHIER.nmk` | mapping des touches ([format](../reference/formats/nmk.md)), vérifié au démarrage |
+| `--nfs FICHIER.nfs` | fichiers de la calculatrice à charger ([format](../reference/formats/nfs.md)) |
+| `--src DOSSIER` | dossier des sources : la vue Source de la page y lit le texte des fichiers que désignent les informations de débogage (voir [Déboguer le code source](./deboguer-emulateur.md#deboguer-le-code-source)) |
+| `--flash FICHIER.nfd` | [données auxiliaires en flash](../reference/donnees-flash.md) de l'application ([format](../reference/formats/nfd.md)), vérifié au démarrage |
+| `--nds FICHIER.nds` | état à reprendre ([format](../reference/formats/nds.md)) ; il contient son application |
 | `--model n0110\|n0115\|n0120` | modèle émulé (défaut `n0110`) |
 | `--firmware 24\|26.4.0` | disposition du firmware (défaut `24`) ; voir [Modèles et mémoire](../reference/modeles-memoire.md) |
 | `--port N` | port d'écoute (défaut 8080 ; 0 : un port libre) |
@@ -54,7 +59,7 @@ de la page (ce réglage n'est pas retenu d'une visite à l'autre). Puis :
 (gdb) target remote 127.0.0.1:3333
 ```
 
-Détails et commandes prises en charge : [Le débogage](../debug/index.md#utiliser-gdb).
+Détails et commandes prises en charge : [GDB](./deboguer-c-cpp-rust.md#gdb).
 
 Le serveur n'écoute que sur cette machine. N'exposez pas ce port sur un réseau : un débogueur connecté peut lire et écrire toute la
 mémoire de l'émulation.

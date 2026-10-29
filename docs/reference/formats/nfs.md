@@ -1,3 +1,8 @@
+---
+title: "Format .nfs (fichiers de la calculatrice)"
+description: "Spécification du format .nfs : scripts Python et autres fichiers du système de fichiers de la calculatrice."
+---
+
 # Fichiers `.nfs` — Nwasabi File System
 
 Un fichier **NFS** contient les **fichiers de la calculatrice** (scripts Python, réglages…), ceux que

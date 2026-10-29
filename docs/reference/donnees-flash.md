@@ -1,3 +1,8 @@
+---
+title: "Données auxiliaires en flash"
+description: "Placer en flash externe des programmes ou des données que l'application attend à des adresses fixes : où, comment, limites et fichier .nfd."
+---
+
 # Données auxiliaires en flash
 
 Une application externe tient normalement dans son fichier `.nwa`. Certaines, trop volumineuses ou qui ont besoin de données
@@ -6,7 +11,7 @@ flash de la calculatrice, à des **adresses fixes**, avec un outil USB, à côt�
 lanceur qui va chercher ces données.
 
 Sans elles, l'application ne trouve rien à l'adresse attendue et s'arrête. Nwasabi les reproduit avec un fichier
-[`.nfd`](../format/nfd.md) : une liste de morceaux d'octets, chacun avec son adresse.
+[`.nfd`](./formats/nfd.md) : une liste de morceaux d'octets, chacun avec son adresse.
 
 ## À quoi ça ressemble
 
@@ -25,7 +30,7 @@ nwasabi-cli run lanceur.nwa --flash morceaux.nfd
 ```
 
 Chaque fichier est un simple fichier binaire : Nwasabi en copie les octets tels quels. Le format `.nfd` est décrit dans
-[Fichiers `.nfd`](../format/nfd.md) ; il se charge aussi par le [serveur](../guide/serveur.md), l'[émulateur web](../guide/emulateur-web.md) (`?flash=`)
+[Fichiers `.nfd`](./formats/nfd.md) ; il se charge aussi par le [serveur](../guide/serveur.md), l'[émulateur web](../guide/emulateur-web.md) (`?flash=`)
 et le [protocole de session](./protocole-session.md).
 
 ## Exemple : KhiCAS
@@ -116,7 +121,7 @@ Les données sont de la flash comme une autre : lisibles, et **exécutables** à
 application peut aussi effacer et reprogrammer la flash qui n'appartient ni au firmware ni aux applications installées, par exemple
 pour garder des scripts ou une session : voir les [appels système](./appels-systeme.md#appels-du-noyau-d-epsilon-utilises-par-khicas)
 d'effacement de secteur et d'écriture. Ces écritures font partie de l'état de l'appareil, qu'un fichier
-[`.nds`](../format/nds.md) enregistre, mais pas du `.nfd`.
+[`.nds`](./formats/nds.md) enregistre, mais pas du `.nfd`.
 
 ## Avec des données qui changent
 

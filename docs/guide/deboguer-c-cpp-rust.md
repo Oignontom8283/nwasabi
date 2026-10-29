@@ -1,13 +1,19 @@
-# Déboguer une application en C, en C++ ou en Rust
+---
+title: "Déboguer un projet en C, C++ ou Rust"
+description: "Compiler une application NumWorks avec ses informations de débogage, l'intégrer à un projet (just, Make, Cargo), la déboguer avec GDB ou un IDE, et évaluer des expressions en C, C++ et Rust."
+---
 
-Cette page montre, langage par langage, comment compiler une application pour qu'on puisse la déboguer ligne par ligne dans
-Nwasabi, puis comment poser des points d'arrêt, lire des variables et appeler des fonctions. Les outils sont décrits dans
-[Le débogage](../debug/index.md) ; ce qui est pris en charge, et ce qui ne l'est pas, dans
-[Technologies prises en charge](../reference/technologies.md).
+# Déboguer un projet en C, C++ ou Rust
+
+Cette page est celle du développeur d'une application : comment compiler pour qu'on puisse la déboguer ligne par ligne, comment
+brancher cela à son projet et à son éditeur, et ce qui change d'un langage à l'autre. Ce que sait faire l'émulateur lui-même (points
+d'arrêt, observation, pile, historique) est décrit dans [Déboguer dans l'émulateur](./deboguer-emulateur.md) ; ce qui est pris en
+charge, et ce qui ne l'est pas, dans [Technologies prises en charge](../reference/technologies.md).
 
 Dans tous les cas, le principe est le même : le compilateur écrit des **informations de débogage DWARF** dans le fichier objet, `nwlink`
 les conserve dans le `.nwa`, et Nwasabi les lit au chargement. Elles ne sont pas dans l'image flashée sur la calculatrice : elles n'ajoutent
-rien à la taille de l'application installée.
+rien à la taille de l'application installée. Les outils qui lisent ces informations (GDB, la vue Source, la console) ne dépendent pas du
+langage ; ceux qui lisent seulement vos sources (l'analyse de code d'un éditeur, `rust-analyzer`) n'ont pas besoin de Nwasabi.
 
 ## Compiler
 
@@ -65,9 +71,87 @@ rustc --edition 2024 --target thumbv7em-none-eabihf -C panic=abort -C opt-level=
 arm-none-eabi-gcc $(nwlink eadk-cflags-device) $(nwlink eadk-ldflags-device) -nostdlib main.o icon.o -o app.nwa
 ```
 
+### Rust avec Cargo
+
+Un projet Cargo produit une bibliothèque statique que l'on lie comme un fichier objet. `Cargo.toml` :
+
+```toml
+[package]
+name = "jeu"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+debug = 2
+overflow-checks = false
+debug-assertions = false
+
+[profile.release]
+panic = "abort"
+debug = 2
+```
+
+`.cargo/config.toml` (la cible vaut pour `cargo build`, `cargo check` et pour `rust-analyzer`) :
+
+```toml
+[build]
+target = "thumbv7em-none-eabihf"
+rustflags = ["-C", "target-cpu=cortex-m7", "-C", "relocation-model=static", "--remap-path-prefix=/chemin/du/projet=."]
+```
+
+Le code est celui de `main.rs` ci-dessus, placé tel quel dans `src/lib.rs`. La liaison reprend la ligne de
+l'application en C, avec la bibliothèque en entier (`--whole-archive`, sinon l'éditeur de liens ne garde que ce qu'il croit utilisé) :
+
+```sh
+arm-none-eabi-gcc $(nwlink eadk-cflags-device) $(nwlink eadk-ldflags-device) -nostdlib \
+  -Wl,--whole-archive target/thumbv7em-none-eabihf/debug/libjeu.a -Wl,--no-whole-archive icon.o -o jeu.nwa
+```
+
+### La bibliothèque `core` et les paniques
+
 La bibliothèque `core` appelle des fonctions de panique pour les contrôles de bornes et de dépassement : si votre projet ne les embarque pas,
 l'édition de liens échoue sur `core::panicking::…`. Coupez ces contrôles (`-C overflow-checks=off`, `get_unchecked` à la place de l'indexation) ou
 fournissez-les.
+
+## Intégrer au projet
+
+Une recette (`just`, `make`, un script de compilation) qui compile et lie avec `-g`, plus le serveur de Nwasabi qui recharge le
+`.nwa` à chaque changement, donne une boucle courte : on enregistre, on recompile, la page se met à jour avec les mêmes points d'arrêt.
+
+```make
+# Makefile
+jeu.nwa: main.o icon.o
+	arm-none-eabi-gcc $(CFLAGS) $(LDFLAGS) -nostdlib $^ -o $@
+
+debug: jeu.nwa
+	nwasabi --nwa jeu.nwa --src . --gdb 3333
+
+elf: jeu.nwa
+	nwasabi-cli link jeu.nwa --elf jeu.elf
+```
+
+```just
+# justfile
+build:
+    cargo build
+    arm-none-eabi-gcc $(nwlink eadk-cflags-device) $(nwlink eadk-ldflags-device) -nostdlib \
+      -Wl,--whole-archive target/thumbv7em-none-eabihf/debug/libjeu.a -Wl,--no-whole-archive icon.o -o jeu.nwa
+
+debug: build
+    nwasabi --nwa jeu.nwa --src . --gdb 3333
+```
+
+Deux points sont à surveiller :
+
+- les **adresses** de l'ELF exporté dépendent du modèle de calculatrice et du micrologiciel de la page : générez-le avec le même `--model` et le
+  même `--firmware` ;
+- les **chemins** des sources dans les informations de débogage sont ceux de la machine qui a compilé. `--fdebug-prefix-map` (C et C++) et
+  `--remap-path-prefix` (Rust) les ramènent au dossier du projet ; le serveur retrouve ensuite les fichiers par la fin de leur chemin.
 
 ## Voir ce qu'on débogue
 
@@ -79,18 +163,98 @@ Ouvrez l'onglet **Débogage**, puis la vue **Source**. Le texte des fichiers n'e
 lit (sans lui, glissez les fichiers dans la vue). Posez un point d'arrêt en cliquant à gauche d'une ligne, ou dans la console : `break main`,
 `break fichier.c:42`.
 
-Avec GDB, donnez-lui l'application liée au format ELF :
+## GDB
+
+Le serveur `nwasabi` peut offrir un **serveur GDB** : un débogueur (GDB, ou un éditeur qui le pilote) s'y branche comme à une sonde de
+débogage, et pilote **l'émulation de la page** : ce que fait GDB (pas, points d'arrêt, mémoire) se voit dans la page, et inversement.
 
 ```sh
-nwasabi --nwa app.nwa --gdb 3333        # puis cochez « Accepter un débogueur GDB » dans la vue GDB
-nwasabi-cli link app.nwa --elf app.elf  # le même --model et le même --firmware que la page
-gdb-multiarch app.elf
-(gdb) target remote 127.0.0.1:3333
-(gdb) break main
-(gdb) continue
+nwasabi --nwa jeu.nwa --gdb 3333
 ```
 
-GDB reconnaît tout seul le langage (C, C++, Rust) d'après les informations de débogage.
+Ce n'est **pas activé par défaut**, ni côté serveur ni côté page : la page doit accepter explicitement un débogueur (case
+« Accepter un débogueur GDB » de la vue GDB, décochée à chaque ouverture). Tant qu'elle ne l'est pas, une connexion est refusée.
+Le serveur sert d'intermédiaire : la page vient chercher les commandes du débogueur par une requête longue et y répond.
+
+Pour que GDB connaisse les **fonctions, les lignes et les variables**, donnez-lui l'application liée au format ELF (le bouton
+« Télécharger l'ELF » de la vue GDB, ou `nwasabi-cli link jeu.nwa --elf jeu.elf` avec le même `--model` et le même `--firmware`
+que la page : les adresses en dépendent) :
+
+```
+(gdb) file jeu.elf
+(gdb) target remote 127.0.0.1:3333
+(gdb) break main
+(gdb) list
+(gdb) continue
+(gdb) x/8xw $sp
+(gdb) stepi
+(gdb) reverse-stepi
+```
+
+Ce qui est pris en charge : lecture et écriture des registres et de la mémoire, points d'arrêt, points d'observation (`watch`,
+`rwatch`, `awatch`), pas à pas, reprise, interruption (Ctrl+C), et le **débogage en remontant le temps** (`reverse-stepi`,
+`reverse-continue`, grâce à l'historique, démarré à la connexion).
+
+À savoir :
+
+- un seul débogueur à la fois ;
+- le serveur n'écoute que sur cette machine (`--host` change l'adresse) : n'ouvrez pas ce port à un réseau auquel vous ne faites pas
+  confiance, car un débogueur peut modifier la mémoire et les registres ;
+- pour un débogueur sans page ouverte, `--gdb-headless 3333` (avec `--nwa`) lance une émulation à part, qui charge l'application
+  telle qu'elle est sur le disque et repart de zéro à chaque connexion ;
+- le protocole est le Remote Serial Protocol de GDB, avec description XML des registres du Cortex-M, mode sans acquittement, `vCont`, points d'arrêt logiciels et matériels, `ReverseStep` et `ReverseContinue` ;
+- sans `file jeu.elf`, GDB ne connaît que les adresses et le désassemblage ; avec lui (et une application compilée avec `-g`), `list`,
+  `info locals`, `print`, `next`, `finish`, `backtrace` et les points d'arrêt sur une ligne fonctionnent comme sur n'importe quelle cible.
+
+## Les éditeurs et les IDE
+
+Ce que parle Nwasabi, c'est le protocole de GDB (voir [GDB](#gdb)). Tout éditeur qui sait piloter GDB sur une cible distante peut donc s'y
+brancher, sans extension propre à Nwasabi : le serveur (`--gdb 3333`) joue le rôle de la sonde de débogage, et l'application liée au format
+ELF (`nwasabi-cli link jeu.nwa --elf jeu.elf`) celui du programme à déboguer. La page web doit avoir accepté le débogueur (case de la vue GDB),
+ou le serveur être lancé avec `--gdb-headless 3333`, qui n'a pas besoin de page.
+
+### Visual Studio Code
+
+Avec l'extension C/C++ de Microsoft, un `.vscode/launch.json` qui se branche sur le serveur :
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Nwasabi",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/jeu.elf",
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "miDebuggerPath": "gdb-multiarch",
+      "miDebuggerServerAddress": "127.0.0.1:3333",
+      "stopAtEntry": false,
+      "preLaunchTask": "elf"
+    }
+  ]
+}
+```
+
+L'extension *Native Debug* (`"type": "gdb"`, `"request": "attach"`, `"target": "127.0.0.1:3333"`, `"remote": true`) et *Cortex-Debug* (serveur « external »,
+`gdbTarget` à `127.0.0.1:3333`) se règlent de la même façon. Pour du Rust, ces configurations conviennent aussi : le débogueur est GDB, qui lit
+le DWARF de `rustc`. L'option `CodeLLDB` (LLDB) parle aussi le protocole distant (`gdb-remote`), mais Nwasabi n'a été vérifié qu'avec GDB.
+
+### CLion, Eclipse, Zed, Neovim
+
+Même principe : une cible GDB distante (« Remote Debug », « GDB Hardware Debugging », `target remote`), le programme `jeu.elf`, l'adresse `127.0.0.1:3333`.
+Avec Neovim, `nvim-dap` appelle `gdb --interpreter=dap` (GDB 14 et suivants).
+
+### rust-analyzer
+
+`rust-analyzer` est un serveur de langage : il analyse le code (complétion, erreurs, types) sans exécuter ni déboguer quoi que ce soit, et n'a pas besoin de
+Nwasabi. Il lit le `Cargo.toml` et le `.cargo/config.toml` du projet : avec la cible `thumbv7em-none-eabihf` fixée comme ci-dessus, il analyse le
+code pour la bonne architecture, avec `core` sans `std`. Un projet `no_std` n'a pas de tests à lancer : désactivez les lentilles « Run » et
+« Debug » de l'éditeur (`"rust-analyzer.lens.run.enable": false`) et lancez le débogage par la configuration ci-dessus. Pour qu'il
+ne cherche pas de tests dans une bibliothèque `no_std`, mettez `test = false` dans la section `[lib]`.
+
+Même séparation pour `clangd` en C et C++ : il lit un `compile_commands.json` (par exemple produit par `bear -- make`) et n'a pas besoin du débogueur.
 
 ## Les expressions
 
@@ -110,7 +274,7 @@ syntaxe du C, quel que soit le langage du programme :
 | caractères | `'A'`, `'\n'`, `'\x41'` |
 
 Une affectation ou un appel **modifient l'appareil** : l'application reprend ensuite avec ces valeurs, et l'historique pour
-[remonter le temps](../debug/index.md#remonter-le-temps) repart de là. Un appel exécute la fonction sur l'appareil (au plus 50 millions
+[remonter le temps](./deboguer-emulateur.md#remonter-le-temps) repart de là. Un appel exécute la fonction sur l'appareil (au plus 50 millions
 d'instructions) puis rétablit le processeur : les registres et la pile sont ceux d'avant, la mémoire garde les effets de la fonction. Les
 points d'arrêt posés dans la fonction appelée n'interrompent pas l'appel.
 

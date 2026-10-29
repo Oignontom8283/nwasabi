@@ -1,3 +1,8 @@
+---
+title: "Format .nrp (enregistrement)"
+description: "Spécification du format .nrp : l'enregistrement d'une exécution (touches, temps, vérifications) à rejouer et à vérifier."
+---
+
 # Fichiers `.nrp` — Nwasabi RePlay
 
 Un fichier **NRP** est l'**enregistrement d'une exécution** : les touches, le temps qui passe, les exécutions, avec ce qu'on a observé à
@@ -5,7 +10,7 @@ chaque étape (le motif d'arrêt, le nombre d'instructions, le CRC de l'écran).
 exactement la même chose : c'est un test de non-régression qui ne demande aucune image de référence. C'est du JSON, extension
 `.nrp`.
 
-L'émulation est déterministe (voir [Compatibilité](../reference/compatibilite.md)) : les mêmes requêtes sur un appareil neuf donnent les
+L'émulation est déterministe (voir [Compatibilité](../compatibilite.md)) : les mêmes requêtes sur un appareil neuf donnent les
 mêmes états, d'où la valeur d'un enregistrement.
 
 ## Exemple
@@ -30,10 +35,10 @@ mêmes états, d'où la valeur d'un enregistrement.
 |---|---|
 | `nrp` | **Obligatoire.** Version du format : `1`. |
 | `device` | Le modèle et le firmware de l'appareil, et le temps (`clock`, `speed`, `mhz`) quand ils ne sont pas ceux par défaut. |
-| `app` | L'application attendue : `name`, `crc32` (de son `.nwa`), et `data_crc32` si elle avait des données externes, `flash` si elle avait des [données auxiliaires en flash](../reference/donnees-flash.md). Le `.nwa` lui-même n'est pas dans le fichier. |
+| `app` | L'application attendue : `name`, `crc32` (de son `.nwa`), et `data_crc32` si elle avait des données externes, `flash` si elle avait des [données auxiliaires en flash](../donnees-flash.md). Le `.nwa` lui-même n'est pas dans le fichier. |
 | `entries` | **Obligatoire.** Les requêtes, dans l'ordre. |
 
-Chaque entrée a une `request` (une requête du [protocole de session](../reference/protocole-session.md)) et, le plus souvent, un `expect`
+Chaque entrée a une `request` (une requête du [protocole de session](../protocole-session.md)) et, le plus souvent, un `expect`
 avec ce qui a été observé :
 
 | Observation | Contenu de `expect` |
