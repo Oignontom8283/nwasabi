@@ -47,6 +47,17 @@ for (const file of files) {
 }
 for (const key of used) if (!all.has(key)) problems.push(`utilisée mais absente des langues : « ${key} »`);
 
+// Les clés que personne n'utilise : écrites en dur quelque part (n'importe quel guillemet), ou couvertes par une clé construite
+// (`a.b.${x}`, `${base}Hint`). Les autres sont à retirer des fichiers de langue.
+const source = files.map((f) => readFileSync(f, "utf8")).join("\n");
+const prefixes = [...source.matchAll(/[`"']([\w.]+?)\.?\$\{/g)].map((m) => m[1]);
+const suffixes = [...source.matchAll(/\}(\w+)`/g)].map((m) => m[1]);
+for (const key of all) {
+  const written = source.includes(`"${key}"`) || source.includes(`'${key}'`) || source.includes(`\`${key}\``);
+  const built = prefixes.some((p) => key === p || key.startsWith(`${p}.`)) || suffixes.some((s) => key.endsWith(s));
+  if (!written && !built) problems.push(`clé inutilisée : « ${key} » (à retirer des fichiers de langue)`);
+}
+
 if (problems.length) {
   console.log(problems.join("\n"));
   process.exit(1);
