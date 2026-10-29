@@ -22,6 +22,8 @@ build-cli:
 # Compile la bibliothèque en WebAssembly (sans les binaires). SIMD et copies en bloc : mêmes options que `build.rs`.
 build-wasm:
     RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128,+bulk-memory" cargo build --lib --profile wasm --no-default-features --features wasm --target {{wasm_target}}
+    @# Binaryen réécrit le module (code mort, doublons, opérations plus courtes) : environ 10 % de moins, sans changer ce qu'il fait.
+    @if [ -x node_modules/.bin/wasm-opt ]; then node_modules/.bin/wasm-opt -O3 --enable-simd --enable-bulk-memory --enable-sign-ext --enable-nontrapping-float-to-int --enable-mutable-globals {{wasm_file}} -o {{wasm_file}}; else echo "binaryen absent (npm ci) : module non optimisé"; fi
 
 # Compile tout ce qui peut l'être : serveur, CLI et WebAssembly.
 build-all: build-server build-cli build-wasm
