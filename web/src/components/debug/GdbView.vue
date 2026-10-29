@@ -5,7 +5,8 @@ import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
 import { gdb, probeGdb, setGdb } from "../../gdbBridge.js";
 import { poll } from "../../poll.js";
-import { checkedOf } from "../../util.js";
+import { checkedOf, download } from "../../util.js";
+import { source } from "../../sourceStore.js";
 
 const { t } = useI18n();
 const emulator = useEmu();
@@ -13,6 +14,13 @@ let stopPolling = () => {};
 onMounted(() => (stopPolling = poll(probeGdb, 2000)));
 onBeforeUnmount(() => stopPolling());
 const address = () => `127.0.0.1:${gdb.port}`;
+const elfName = () => `${emulator.state.appName.replace(/\.nwa$/i, "") || "application"}.elf`;
+/** L'application liée en ELF : GDB y lit les symboles, les lignes de source et les variables (`file application.elf`). */
+async function exportElf() {
+  const reply = await emulator.quiet({ cmd: "export_elf" });
+  if (!reply.ok) return;
+  download(elfName(), Uint8Array.from(atob(String(reply.elf)), (c) => c.charCodeAt(0)));
+}
 </script>
 
 <template>
@@ -37,7 +45,9 @@ const address = () => `127.0.0.1:${gdb.port}`;
 
       <section class="card" :class="{ off: !gdb.enabled }">
         <h3 class="subhead">{{ t("gdb.connect") }}</h3>
-        <pre class="mono">(gdb) target remote {{ address() }}</pre>
+        <pre class="mono">(gdb) file {{ elfName() }}
+(gdb) target remote {{ address() }}</pre>
+        <p class="small"><button @click="exportElf">{{ t("gdb.exportElf") }}</button> <span class="muted">{{ source.available ? t("gdb.elfHelp") : t("gdb.elfNoDebug") }}</span></p>
         <p class="status" role="status">
           <span class="dot" :class="{ on: gdb.clients > 0 }" aria-hidden="true" />
           <template v-if="!gdb.enabled">{{ t("gdb.statusOff") }}</template>

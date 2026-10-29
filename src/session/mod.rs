@@ -20,6 +20,7 @@
 
 mod debug;
 mod history;
+mod source;
 mod views;
 
 use crate::checksum;
@@ -291,6 +292,20 @@ impl Session {
                     "restore",
                     "settings_get",
                     "settings_set",
+                    "debug_info",
+                    "line_at",
+                    "source_lines",
+                    "break_line",
+                    "unbreak_line",
+                    "break_function",
+                    "frames",
+                    "locals",
+                    "eval",
+                    "assign",
+                    "globals",
+                    "ptype",
+                    "step_source",
+                    "export_elf",
                 ],
             )),
             "new" => self.new_device(req),
@@ -800,6 +815,7 @@ impl Session {
             }
             "dump" => self.dump(req),
             "restore" => self.restore(req),
+            c if source::COMMANDS.contains(&c) => self.source_command(c, req),
             c if c.starts_with("fs_") => self.fs(c, req),
             c if c.starts_with("settings_") => self.settings(c, req),
             other => Err(format!("commande inconnue : {other} (voir « help »)")),

@@ -40,6 +40,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"], optional = true }
 rust-embed = { version = "8", features = ["debug-embed", "mime-guess", "interpolate-folder-path"], optional = true }
 clap = { version = "4", features = ["derive"], optional = true }
+gimli = { version = "0.34.0", default-features = false, features = ["read", "std", "endian-reader"] }
 
 [dev-dependencies]
 png = "0.18"

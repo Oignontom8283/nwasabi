@@ -6,12 +6,12 @@ use std::collections::{HashMap, HashSet};
 use super::relocate::{self, Target};
 use super::runtime::linker_symbols as ls;
 use super::{
-    APP_SECTOR_SIZE, DataSegment, LayoutParams, LinkError, LinkWarning, LinkedApp, LinkedSymbol,
-    Origin, PlacedSection, Region, SectionClass,
+    APP_SECTOR_SIZE, DataSegment, DebugSection, LayoutParams, LinkError, LinkWarning, LinkedApp,
+    LinkedSymbol, Origin, PlacedSection, Region, SectionClass,
 };
 use crate::elf::{
-    ElfObject, R_ARM_NONE, SHF_TLS, SHT_ARM_EXIDX, Section, Symbol, SymbolBind, SymbolKind,
-    SymbolSection,
+    ElfObject, R_ARM_ABS32, R_ARM_NONE, R_ARM_TARGET1, SHF_TLS, SHT_ARM_EXIDX, Section, Symbol,
+    SymbolBind, SymbolKind, SymbolSection,
 };
 
 /// Un objet ELF en entrée de l'édition de liens.
@@ -825,6 +825,8 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         });
     }
 
+    let debug = debug_sections(objects, &layout);
+
     let api_level = header[1];
     Ok(LinkedApp {
         name,
@@ -839,6 +841,74 @@ pub(super) fn run(objects: &[Obj<'_>], params: &LayoutParams) -> Result<LinkedAp
         heap: layout.heap,
         sections: layout.sections,
         symbols,
+        debug,
         warnings,
     })
+}
+
+/// Les sections `.debug_*` des objets de l'application, avec leurs relocations appliquées.
+///
+/// Ces sections ne vont pas dans l'image : elles n'ont pas d'adresse. Une relocation qui vise du code
+/// reçoit son adresse définitive ; une qui vise une autre section de débogage vaut un décalage dans
+/// cette section ; une qui vise du code supprimé à l'édition de liens vaut 0 (le lecteur DWARF ignore
+/// alors la fonction). Le bit Thumb des fonctions n'est pas ajouté : DWARF donne des adresses paires.
+fn debug_sections(objects: &[Obj<'_>], layout: &Layout) -> Vec<DebugSection> {
+    let mut out: Vec<DebugSection> = Vec::new();
+    for (o, obj) in objects.iter().enumerate() {
+        if obj.origin != Origin::App {
+            continue;
+        }
+        let elf = &obj.elf;
+        for (s, section) in elf.sections.iter().enumerate() {
+            if !section.name.starts_with(".debug_") || section.is_alloc() {
+                continue;
+            }
+            let mut bytes = elf.section_data(s).to_vec();
+            for reloc in elf.relocations(s) {
+                let Some(sym) = elf.symbols.get(reloc.symbol as usize) else {
+                    continue;
+                };
+                // `discarded` : le code visé a été supprimé à l'édition de liens.
+                let (base, discarded) = match sym.section {
+                    SymbolSection::Absolute => (sym.value, false),
+                    SymbolSection::Section(target) => {
+                        if elf.sections[target].name.starts_with(".debug_") {
+                            (sym.value, false)
+                        } else {
+                            match layout.placements.get(&(o, target)) {
+                                Some(p) => (p.vma.wrapping_add(sym.value), false),
+                                None => (0, true),
+                            }
+                        }
+                    }
+                    _ => (0, false),
+                };
+                let at = reloc.offset as usize;
+                let Some(slot) = bytes.get_mut(at..at + 4) else {
+                    continue;
+                };
+                let addend = u32::from_le_bytes(slot.try_into().expect("4 octets"));
+                let value = match reloc.kind {
+                    R_ARM_ABS32 | R_ARM_TARGET1 => base.wrapping_add(addend),
+                    _ => continue,
+                };
+                // Le code supprimé reste à zéro ; une adresse de fonction Thumb ne porte pas son bit 0.
+                let value = if discarded {
+                    0
+                } else {
+                    value & !u32::from(sym.is_thumb_function())
+                };
+                slot.copy_from_slice(&value.to_le_bytes());
+            }
+            // Plusieurs objets : on les met bout à bout (les décalages ne sont valables que pour un seul objet de l'application).
+            match out.iter_mut().find(|d| d.name == section.name) {
+                Some(existing) => existing.data.extend_from_slice(&bytes),
+                None => out.push(DebugSection {
+                    name: section.name.clone(),
+                    data: bytes,
+                }),
+            }
+        }
+    }
+    out
 }

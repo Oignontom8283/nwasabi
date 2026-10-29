@@ -4,6 +4,7 @@ import { nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
 import { runCommand } from "../../gdbConsole.js";
+import { source, sourceLines } from "../../sourceStore.js";
 import type { Backend } from "../../gdbConsole.js";
 
 const { t } = useI18n();
@@ -29,6 +30,8 @@ const backend: Backend = {
   resume: () => emulator.start() as Promise<void>,
   pause: () => emulator.stop(),
   refresh: () => emulator.bump(),
+  sourceText: (path) => sourceLines(path),
+  frame: { get: () => source.frame, set: (index) => void (source.frame = index) },
 };
 
 async function scrollDown() {

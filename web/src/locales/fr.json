@@ -94,10 +94,11 @@
     "zoneClear": "Effacer",
     "shiftF11": "Maj + F11",
     "noApp": "Chargez une application pour la déboguer.",
-    "views": { "label": "Outils de débogage", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système", "gdb": "GDB" },
+    "views": { "label": "Outils de débogage", "source": "Source", "code": "Code", "points": "Points", "watch": "Observation", "console": "Console", "profile": "Profil", "calls": "Appels système", "gdb": "GDB" },
     "intro": {
       "points": "Tous vos points d'arrêt et d'observation : posez-en (avec une condition si besoin), désactivez-les sans les perdre, retirez-les.",
       "console": "Les mêmes actions au clavier, avec des commandes à la GDB (break, x, bt, stepi…). Tapez help pour la liste.",
+      "source": "Le code source de l'application (compilée avec -g) : la ligne en cours, les points d'arrêt par ligne, la pile d'appels, les variables et les expressions.",
       "code": "Le code de l'application, instruction par instruction : arrêtez-la où vous voulez, avancez pas à pas, regardez les registres et la pile d'appels.",
       "watch": "Surveille des octets de la mémoire et indique quelle instruction de l'application les lit ou les écrit. Repérez l'adresse d'un score avec la recherche de valeurs, observez-la en écriture, et vous saurez quelle instruction la modifie."
     },
@@ -209,6 +210,7 @@
     "colView": "Vue",
     "colRole": "À quoi elle sert",
     "tools": "Les outils",
+    "source": "le code source, ligne par ligne, avec les variables et la pile d'appels, quand l'application est compilée avec -g.",
     "code": "le code désassemblé, les points d'arrêt, le pas-à-pas, les registres et la pile d'appels.",
     "points": "tous les points d'arrêt (conditionnels si besoin) et d'observation, que l'on peut désactiver sans les perdre.",
     "watch": "quelle instruction lit ou écrit une zone de mémoire.",
@@ -437,6 +439,37 @@
       "lists": { "move": "Ligne précédente ou suivante", "extend": "Étendre la sélection", "all": "Tout sélectionner", "copy": "Copier la sélection", "menu": "Ouvrir le menu d'une ligne ou d'une adresse", "clear": "Désélectionner", "breakpoint": "Point d'arrêt sur la ligne active (code)", "follow": "Suivre le saut de la ligne active (code)" }
     }
   },
+  "source": {
+    "none": "Cette application n'a pas d'informations de débogage du code source.",
+    "noneHelp": "Compilez-la avec -g (par exemple arm-none-eabi-gcc -g) et ne retirez pas les symboles à l'édition de liens : Nwasabi lit alors les lignes, les fonctions et les variables.",
+    "pausedIn": "En pause dans {function}, ligne {line}",
+    "into": "Entrer",
+    "intoHint": "Exécute la ligne ; entre dans la fonction appelée",
+    "overHint": "Exécute la ligne, appels compris",
+    "outHint": "Exécute jusqu'au retour de la fonction",
+    "file": "Fichier source",
+    "load": "Charger les sources…",
+    "loadHint": "Donnez les fichiers source : le navigateur ne peut pas les lire seul (ils sont gardés pour cette application). Vous pouvez aussi les glisser ici.",
+    "noMatch": "Aucun de ces fichiers ne correspond aux sources de l'application (le nom du fichier doit être le même).",
+    "code": "Code source",
+    "missing": "Le texte de {path} n'est pas chargé.",
+    "missingHelp": "Les informations de débogage donnent les lignes, pas le texte : donnez le fichier.",
+    "hint": "Clic sur le point : point d'arrêt. Clic sur un numéro de ligne : exécuter jusque-là. Survolez une variable pour voir sa valeur.",
+    "runHere": "Exécuter jusqu'à cette ligne",
+    "stack": "Pile d'appels",
+    "estimatedHint": "Pile estimée : cette partie n'a pas d'informations de débogage",
+    "variables": "Variables",
+    "noVariables": "Aucune variable visible ici.",
+    "expressions": "Expressions suivies",
+    "expressionHint": "n, shape->corner.x, flags[2], *p…",
+    "add": "Suivre",
+    "remove": "Ne plus suivre",
+    "collapse": "Replier",
+    "expand": "Déplier",
+    "editHint": "Double-clic pour modifier",
+    "pointee": "pointé",
+    "badValue": "Une valeur numérique est attendue (12, -3, 0x2a, 1.5)."
+  },
   "gdb": {
     "driven": "Un débogueur GDB est connecté : c'est lui qui conduit l'émulation.",
     "intro": "Branche un débogueur externe (GDB, LLDB, VS Code…) sur l'émulation de cette page : celle que vous voyez et que vous commandez. Points d'arrêt, pas à pas, registres et mémoire se pilotent depuis le débogueur, et la page suit.",
@@ -448,7 +481,10 @@
     "statusOff": "Désactivé : le serveur refuse les débogueurs.",
     "statusWaiting": "En attente d'un débogueur…",
     "statusConnected": "{n} débogueur connecté | {n} débogueurs connectés",
-    "note": "Les touches de la calculatrice restent utilisables pendant le débogage. GDB ne lit pas les informations de débogage du code source : il travaille sur les adresses et le désassemblage."
+    "exportElf": "Télécharger l'ELF de l'application",
+    "elfHelp": "Donnez-le à GDB avec « file » : il lira les fonctions, les lignes de source et les variables (list, info locals, print…).",
+    "elfNoDebug": "Sans informations de débogage (application compilée sans -g), GDB n'aura que les symboles.",
+    "note": "Les touches de la calculatrice restent utilisables pendant le débogage."
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",

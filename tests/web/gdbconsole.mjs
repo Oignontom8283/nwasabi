@@ -77,8 +77,77 @@ assert.match((await run("frobnicate"))[0], /commande inconnue/);
 assert.match((await run("p $nope"))[0], /registre inconnu/);
 assert.match((await run("break unknown_fn"))[0], /symbole inconnu/);
 assert.match((await run("x/4x"))[0], /adresse attendu/);
-assert.match((await run("info line"))[0], /Non disponible/);
+assert.match((await run("info line"))[0], /informations de débogage/);
 assert.deepEqual(await run(""), []);
 state.running = true;
 assert.match((await run("stepi"))[0], /tapez « pause »/);
 console.log("ok   console GDB : points, mémoire, registres, pas-à-pas, erreurs");
+
+state.running = false;
+// ---- avec les informations de débogage du code source ----------------------------------------------------------
+const lines = ["#include <x.h>", "int add(int a, int b) {", "  int sum = a + b;", "  return sum;", "}", "int main(void) {", "  return add(2, 3);", "}"];
+const code = { frame: 0, steps: [], assigned: null, watches: [], stepped: false };
+const sourceBackend = {
+  ...backend,
+  sourceText: (path) => (path === "src/app.c" ? lines : null),
+  frame: { get: () => code.frame, set: (i) => (code.frame = i) },
+  async request(req) {
+    const frame = (i) => [{ index: 0, pc: 0x90000110, function: "add", path: "src/app.c", line: 3 }, { index: 1, pc: 0x90000150, function: "main", path: "src/app.c", line: 7 }][i];
+    switch (req.cmd) {
+      case "debug_info": return { ok: true, available: true, files: [{ id: 0, path: "src/app.c" }] };
+      case "frames": return { ok: true, frames: code.stepped ? [{ ...frame(1), index: 0 }] : [frame(0), frame(1)] };
+      case "locals": return req.frame === 0 ? { ok: true, params: [{ name: "a", value: "2", type: "int" }, { name: "b", value: "3", type: "int" }], locals: [{ name: "sum", value: "5", type: "int" }] } : { ok: true, params: [], locals: [] };
+      case "eval":
+        if (req.expr === "sum") return { ok: true, type: "int", value: "5", address: 0x2000ff00, size: 4 };
+        if (req.expr === "a + b") return { ok: true, type: "int", value: "5", size: 4 };
+        return { ok: false, error: `symbole inconnu : ${req.expr}` };
+      case "break_line": return { ok: true, line: req.line < 2 ? 2 : req.line, addresses: [0x90000104] };
+      case "break_function": return req.name === "add" ? { ok: true, address: 0x90000108, line: 3, path: "src/app.c", function: "add" } : { ok: false, error: "fonction inconnue" };
+      case "step_source": code.steps.push(req.mode); code.stepped = true; return { ok: true, function: "main", path: "src/app.c", line: 7, pc: 0x90000150 };
+      case "ptype": return req.expr === "Point" ? { ok: true, type: "struct Point {\n    int x;\n} /* 4 octets */" } : { ok: true, type: "int" };
+      case "assign": code.assigned = req; return { ok: true };
+      case "globals": return { ok: true, globals: [{ name: "counter", type: "int", value: "7" }] };
+      case "watch": code.watches.push(req); return { ok: true, id: 9 };
+      default: return backend.request(req);
+    }
+  },
+};
+const src = (line) => runCommand(line, sourceBackend);
+assert.deepEqual(await src("break src/app.c:3"), ["Point d'arrêt à src/app.c:3 (0x90000104)"]);
+assert.deepEqual(await src("b 1"), ["Point d'arrêt à src/app.c:2 (0x90000104)"], "une ligne sans code se pose sur la suivante");
+assert.match((await src("break add"))[0], /Point d'arrêt à 0x90000108, src\/app.c:3 \(add\)/);
+assert.match((await src("break nowhere.c:3"))[0], /fichier inconnu/);
+const listing = await src("list");
+assert.equal(listing[0], "src/app.c :");
+assert.match(listing[3], /^=> {1}\s*3\t {2}int sum = a \+ b;$/, "la ligne en cours est marquée");
+assert.deepEqual((await src("list 6")).slice(0, 2), ["src/app.c :", "      1\t#include <x.h>"]);
+assert.deepEqual(await src("step"), ["main () at src/app.c:7", "7\t  return add(2, 3);"]);
+assert.deepEqual(await src("next"), ["main () at src/app.c:7", "7\t  return add(2, 3);"]);
+assert.deepEqual(code.steps, ["into", "over"]);
+assert.match((await src("finish"))[0], /Exécuté jusqu'au retour : main \(\) at src\/app.c:7/);
+assert.deepEqual(code.steps.at(-1), "out");
+code.stepped = false;
+assert.deepEqual(await src("print sum"), ["$1 = 5"]);
+assert.deepEqual(await src("p a + b"), ["$2 = 5"]);
+assert.match((await src("print nothing"))[0], /symbole inconnu/);
+assert.deepEqual(await src("p $r0+4"), ["5 (0x5)"], "une expression de registre retombe sur l'évaluation d'adresse");
+assert.deepEqual(await src("ptype Point"), ["type = struct Point {\n    int x;\n} /* 4 octets */"]);
+assert.deepEqual(await src("whatis sum"), ["type = int"]);
+assert.deepEqual(await src("info locals"), ["sum = 5"]);
+assert.deepEqual(await src("info args"), ["a = 2", "b = 3"]);
+assert.deepEqual(await src("info source"), ["Fichier courant : src/app.c", "  src/app.c"]);
+assert.match((await src("info frame"))[0], /Cadre 0 : add \(a=2, b=3\) at src\/app.c:3/);
+assert.deepEqual(await src("bt"), ["#0  0x90000110 in add (a=2, b=3) at src/app.c:3", "#1  0x90000150 in main () at src/app.c:7"]);
+assert.match((await src("up"))[0], /^#1 {2}0x90000150 in main/);
+assert.equal(code.frame, 1);
+assert.match((await src("up"))[0], /pas de cadre 2/);
+assert.match((await src("down"))[0], /^#0 {2}0x90000110 in add/);
+assert.match((await src("frame 1"))[1], /^7\t/);
+code.frame = 0;
+assert.deepEqual(await src("set var sum = 9"), ["sum = 9"]);
+assert.equal(code.assigned.expr, "sum");
+assert.equal(code.assigned.value, 9);
+assert.match((await src("watch sum"))[0], /Point d'observation 9 : sum \(0x2000ff00, 4 octets, write/);
+assert.deepEqual(code.watches[0], { cmd: "watch", address: 0x2000ff00, length: 4, kind: "write", stop: true });
+assert.deepEqual(await src("info variables"), ["int counter = 7"]);
+console.log("gdbconsole : ok");

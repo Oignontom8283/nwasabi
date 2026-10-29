@@ -276,6 +276,9 @@ pub fn link_cmd(args: LinkArgs) -> Outcome {
     )
     .map_err(|e| e.to_string())?;
 
+    if let Some(path) = &args.elf {
+        write_file(path, &app.to_elf())?;
+    }
     let range = |a: u32, n: u32| Value::object().with("start", a).with("end", a + n);
     let mut out = Value::object()
         .with("name", app.name.as_str())

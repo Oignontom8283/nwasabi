@@ -12,6 +12,10 @@ export interface Backend {
   pause(): void;
   /** Dit à l'interface que l'état a changé (rafraîchir les vues). */
   refresh(): void;
+  /** Le texte d'un fichier source (par chemin DWARF), s'il a été donné. Sans lui, `list` ne montre rien. */
+  sourceText?(path: string): string[] | null;
+  /** Le cadre de la pile choisi (`frame`, `up`, `down`) : partagé avec la vue Source. */
+  frame?: { get(): number; set(index: number): void };
 }
 
 const REGISTERS = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "sp", "lr", "pc", "xpsr"];
@@ -32,7 +36,16 @@ export const HELP = [
   "  set $reg = valeur                 modifier un registre",
   "  x/NFU <adresse>                   lire la mémoire : N éléments, format x d u o t c a s i, taille b h w g",
   "  disassemble [adresse] [n]         désassembler                  backtrace (bt)           pile d'appels",
-  "  info symbol <adresse>             nom de la fonction            info line / list         (non disponibles)",
+  "  info symbol <adresse>             nom de la fonction",
+  "Avec les informations de débogage du code source (application compilée avec -g) :",
+  "  break <fichier>:<ligne> | <ligne> | <fonction>   point d'arrêt sur une ligne ou après le prologue d'une fonction",
+  "  list [<ligne>|<fonction>|<fichier>:<ligne>]       montrer le code source (les fichiers sont donnés dans la vue Source)",
+  "  step (s) / next (n) / finish                      avancer d'une ligne, en entrant / sans entrer dans les appels / jusqu'au retour",
+  "  print (p) <expression>            valeur d'une variable ou d'une expression C (a.b, p->x, t[2], *p, &x, n + 1)",
+  "  ptype <expression|type>           décrire un type            whatis <expression>     son type seul",
+  "  set var <expression> = <valeur>   modifier une variable      info locals / args / frame / source / line / variables",
+  "  frame [n] / up / down             choisir un cadre de la pile (les variables et print en dépendent)    backtrace (bt) avec fonctions et lignes",
+  "  watch <variable|expression>       observer l'adresse d'une variable (en écriture)",
   "Une adresse peut être un nombre (0x20000000), un registre ($sp, $pc…), un nom de fonction, avec +N ou -N.",
 ];
 
@@ -150,6 +163,107 @@ export async function runCommand(line: string, backend: Backend): Promise<string
   }
 }
 
+// ---- code source ---------------------------------------------------------------------------------------
+
+/** Les informations de débogage du code source de l'application, relues à chaque commande (c'est peu de chose). */
+async function sourceInfo(backend: Backend): Promise<{ files: Array<{ id: number; path: string }> } | null> {
+  const info = await backend.request({ cmd: "debug_info" });
+  return info.ok && info.available ? (info as unknown as { files: Array<{ id: number; path: string }> }) : null;
+}
+
+const frameIndex = (backend: Backend) => backend.frame?.get() ?? 0;
+let printCount = 0;
+
+interface SourceFrame {
+  index: number;
+  pc: number;
+  function?: string;
+  symbol?: string;
+  path?: string;
+  line?: number;
+  estimated?: boolean;
+}
+
+async function framesOf(backend: Backend, max = 64): Promise<SourceFrame[]> {
+  const reply = await backend.request({ cmd: "frames", max });
+  if (!reply.ok) throw new Error(String(reply.error));
+  return reply.frames as SourceFrame[];
+}
+
+const shortPath = (path: string | undefined) => (path ?? "").split("/").slice(-2).join("/");
+
+/** `fonction (a=1, b=2) at fichier:ligne`, comme GDB. */
+async function describeFrame(backend: Backend, f: SourceFrame, withArgs: boolean): Promise<string> {
+  const name = f.function ?? f.symbol?.replace(/\+0x[0-9a-f]+$/, "") ?? "??";
+  let args = "";
+  if (withArgs && f.function) {
+    const locals = await backend.request({ cmd: "locals", frame: f.index });
+    if (locals.ok) args = (locals.params as Array<{ name: string; value: string }>).map((p) => `${p.name}=${p.value}`).join(", ");
+  }
+  const where = f.line ? ` at ${shortPath(f.path)}:${f.line}` : "";
+  return `${name} (${args})${where}`;
+}
+
+/** La ligne de source `n`, avec le marqueur de la ligne en cours. */
+function sourceListing(lines: string[], from: number, to: number, here?: number): string[] {
+  const out: string[] = [];
+  for (let n = Math.max(1, from); n <= Math.min(lines.length, to); n++) out.push(`${n === here ? "=>" : "  "} ${String(n).padStart(4)}\t${lines[n - 1] ?? ""}`);
+  return out;
+}
+
+async function currentLocation(backend: Backend): Promise<SourceFrame | null> {
+  const frames = await framesOf(backend, frameIndex(backend) + 1).catch(() => []);
+  return frames[frameIndex(backend)] ?? frames[0] ?? null;
+}
+
+/** Traduit une cible de `break` / `list` : `fichier:ligne`, `ligne`, ou `fonction`. */
+async function lineTarget(text: string, backend: Backend, info: { files: Array<{ id: number; path: string }> }): Promise<{ file: number; line: number } | { name: string } | null> {
+  const m = /^(?:(.+?):)?(\d+)$/.exec(text.trim());
+  if (m) {
+    const line = Number(m[2]);
+    if (m[1]) {
+      const wanted = m[1].replace(/\\/g, "/");
+      const file = info.files.find((f) => f.path === wanted || f.path.endsWith(`/${wanted}`)) ?? info.files.find((f) => f.path.split("/").pop() === wanted.split("/").pop());
+      if (!file) throw new Error(`fichier inconnu : ${m[1]}`);
+      return { file: file.id, line };
+    }
+    const here = await currentLocation(backend);
+    const path = here?.path ?? info.files[0]?.path;
+    const file = info.files.find((f) => f.path === path) ?? info.files[0];
+    return file ? { file: file.id, line } : null;
+  }
+  if (/^[A-Za-z_]\w*$/.test(text.trim())) return { name: text.trim() };
+  return null;
+}
+
+/** Un pas d'instruction (`stepi`) ou par-dessus les appels (`nexti`), `count` fois. */
+async function instructionStep(kind: "stepi" | "nexti", rest: string, backend: Backend): Promise<string[]> {
+  const count = rest ? Math.max(1, Number(rest) || 1) : 1;
+  for (let i = 0; i < count; i++) {
+    if (kind === "nexti") {
+      const here = ((await backend.request({ cmd: "disasm", address: (await registers(backend)).pc, count: 1 })).lines as Array<{ address: number; size: number; mnemonic: string }>)[0];
+      if (here && /^blx?$/.test(here.mnemonic)) {
+        const target = here.address + here.size;
+        await backend.request({ cmd: "break", address: target });
+        await backend.resume();
+        for (let wait = 0; wait < 100 && backend.isRunning(); wait++) await new Promise((r) => setTimeout(r, 30));
+        await backend.request({ cmd: "unbreak", address: target });
+        continue;
+      }
+    }
+    const r = await backend.request({ cmd: "step" });
+    if (!r.ok) throw new Error(String(r.error));
+  }
+  return [await stopped(backend)];
+}
+
+/** Après un pas à la ligne : le texte d'arrivée, suivi de la ligne de source si le fichier est connu. */
+async function withSourceLine(backend: Backend, arrival: string): Promise<string[]> {
+  const here = await currentLocation(backend);
+  const text = here?.path && here.line ? backend.sourceText?.(here.path)?.[here.line - 1] : undefined;
+  return text === undefined || !here?.line ? [arrival] : [arrival, `${here.line}\t${text}`];
+}
+
 async function dispatch(text: string, backend: Backend): Promise<string[]> {
   const m = /^(\S+?)(?:\/(\S+))?(?:\s+(.*))?$/.exec(text) as RegExpExecArray;
   const word = (m[1] ?? "").toLowerCase();
@@ -167,6 +281,25 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
   switch (word) {
     case "break": case "b": case "br": case "tbreak": {
       need("adresse ou fonction");
+      // Avec les informations de débogage : une ligne (`fichier:ligne`, `ligne`) ou une fonction (après son prologue).
+      const src = await sourceInfo(backend);
+      if (src && !/\s+if\s+/.test(rest)) {
+        const target = await lineTarget(rest, backend, src);
+        if (target && "line" in target) {
+          const r = await backend.request({ cmd: "break_line", file_id: target.file, line: target.line });
+          if (!r.ok) throw new Error(String(r.error));
+          backend.refresh();
+          const path = src.files.find((f) => f.id === target.file)?.path;
+          return [`Point d'arrêt à ${shortPath(path)}:${r.line} (${(r.addresses as number[]).map((a) => hex0x(a, 8)).join(", ")})`];
+        }
+        if (target && "name" in target) {
+          const r = await backend.request({ cmd: "break_function", name: target.name });
+          if (r.ok) {
+            backend.refresh();
+            return [`Point d'arrêt à ${hex0x(r.address, 8)}${r.line ? `, ${shortPath(r.path)}:${r.line}` : ""} (${target.name})`];
+          }
+        }
+      }
       // `break <adresse> if <registre> <comparaison> <valeur>`
       const [target = "", condition = ""] = rest.split(/\s+if\s+/);
       const address = await evaluate(target, backend);
@@ -195,6 +328,18 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
     }
     case "watch": case "rwatch": case "awatch": {
       need("adresse");
+      // Une variable ou une expression du programme : on observe l'endroit où elle se trouve.
+      if (!/^(0x[0-9a-f]+|\d+|\$\w+)(\s+\d+)?$/i.test(rest) && (await sourceInfo(backend))) {
+        const v = await backend.request({ cmd: "eval", expr: rest, frame: frameIndex(backend) });
+        if (v.ok && typeof v.address === "number") {
+          const kind = word === "watch" ? "write" : word === "rwatch" ? "read" : "readwrite";
+          const reply = await backend.request({ cmd: "watch", address: v.address, length: Math.max(1, v.size ?? 4), kind, stop: true });
+          if (!reply.ok) throw new Error(String(reply.error));
+          backend.refresh();
+          return [`Point d'observation ${reply.id} : ${rest} (${hex0x(v.address, 8)}, ${v.size} octets, ${kind}, interrompt l'application)`];
+        }
+        if (!v.ok) throw new Error(String(v.error));
+      }
       const [target, length] = rest.split(/\s+/);
       const address = await evaluate(target ?? "", backend);
       const kind = word === "watch" ? "write" : word === "rwatch" ? "read" : "readwrite";
@@ -234,7 +379,36 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
         const where = await whereIs(address, backend);
         return [where ? `${where.trim().slice(1, -1)}` : "Aucun symbole à cette adresse."];
       }
-      if (["line", "source", "locals", "args", "frame"].includes(sub)) return ["Non disponible : nwasabi ne lit pas les informations de débogage du code source (voir l'aide du débogage)."];
+      if (["line", "source", "locals", "args", "frame", "variables", "globals"].includes(sub)) {
+        const src = await sourceInfo(backend);
+        if (!src) return ["Cette application n'a pas d'informations de débogage du code source (compilez avec -g)."];
+        const here = await currentLocation(backend);
+        if (sub === "source") {
+          return [`Fichier courant : ${here?.path ?? "(aucun)"}`, ...src.files.map((f) => `  ${f.path}`)];
+        }
+        if (sub === "line") {
+          const target = arg ? await lineTarget(arg, backend, src) : here?.line ? { file: src.files.find((f) => f.path === here.path)?.id ?? 0, line: here.line } : null;
+          if (!target || !("line" in target)) throw new Error("ligne attendue (info line 12 ou fichier:12)");
+          const r = await backend.request({ cmd: "break_line", file_id: target.file, line: target.line });
+          if (!r.ok) throw new Error(String(r.error));
+          for (const a of r.addresses as number[]) await backend.request({ cmd: "unbreak", address: a });
+          return [`La ligne ${r.line} commence à ${(r.addresses as number[]).map((a) => hex0x(a, 8)).join(", ")}.`];
+        }
+        if (sub === "frame") {
+          const frames = await framesOf(backend);
+          const f = frames[frameIndex(backend)];
+          if (!f) return ["Pas de cadre."];
+          return [`Cadre ${f.index} : ${await describeFrame(backend, f, true)}`, `  pc = ${hex0x(f.pc, 8)}${f.estimated ? " (estimé)" : ""}`];
+        }
+        if (sub === "variables" || sub === "globals") {
+          const r = await backend.request({ cmd: "globals", query: arg });
+          return ((r.globals as Array<{ name: string; type: string; value: string }>) ?? []).map((g) => `${g.type} ${g.name} = ${g.value}`);
+        }
+        const r = await backend.request({ cmd: "locals", frame: frameIndex(backend) });
+        if (!r.ok) throw new Error(String(r.error));
+        const list = (sub === "args" ? r.params : r.locals) as Array<{ name: string; value: string }>;
+        return list.length ? list.map((v) => `${v.name} = ${v.value}`) : [sub === "args" ? "Pas d'arguments." : "Pas de variables locales."];
+      }
       throw new Error(`info ${sub || "?"} : sous-commande inconnue`);
     }
     case "continue": case "c": case "cont": case "run": case "r":
@@ -244,29 +418,35 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
       backend.pause();
       await new Promise((r) => setTimeout(r, 60));
       return [`Arrêté à ${await stopped(backend)}`];
-    case "stepi": case "si": case "step": case "s": case "nexti": case "ni": case "next": case "n": {
+    case "step": case "s": case "next": case "n": {
       paused();
-      const count = rest ? Math.max(1, Number(rest) || 1) : 1;
-      const over = ["nexti", "ni", "next", "n"].includes(word);
-      for (let i = 0; i < count; i++) {
-        if (over) {
-          const here = ((await backend.request({ cmd: "disasm", address: (await registers(backend)).pc, count: 1 })).lines as Array<{ address: number; size: number; mnemonic: string }>)[0];
-          if (here && /^blx?$/.test(here.mnemonic)) {
-            const target = here.address + here.size;
-            await backend.request({ cmd: "break", address: target });
-            await backend.resume();
-            for (let wait = 0; wait < 100 && backend.isRunning(); wait++) await new Promise((r) => setTimeout(r, 30));
-            await backend.request({ cmd: "unbreak", address: target });
-            continue;
-          }
+      if (await sourceInfo(backend)) {
+        const count = rest ? Math.max(1, Number(rest) || 1) : 1;
+        let out = "";
+        for (let i = 0; i < count; i++) {
+          const r = await backend.request({ cmd: "step_source", mode: word === "step" || word === "s" ? "into" : "over" });
+          if (!r.ok) throw new Error(String(r.error));
+          out = r.line ? `${r.function ?? "??"} () at ${shortPath(r.path)}:${r.line}` : `${hex0x(r.pc, 8)}${await whereIs(r.pc, backend)}`;
         }
-        const r = await backend.request({ cmd: "step" });
-        if (!r.ok) throw new Error(String(r.error));
+        backend.frame?.set(0);
+        backend.refresh();
+        return await withSourceLine(backend, out);
       }
-      return [await stopped(backend)];
+      return await instructionStep(word === "next" || word === "n" ? "nexti" : "stepi", rest, backend);
+    }
+    case "stepi": case "si": case "nexti": case "ni": {
+      paused();
+      return await instructionStep(word === "nexti" || word === "ni" ? "nexti" : "stepi", rest, backend);
     }
     case "finish": {
       paused();
+      if (await sourceInfo(backend)) {
+        const r = await backend.request({ cmd: "step_source", mode: "out" });
+        if (!r.ok) throw new Error(String(r.error));
+        backend.frame?.set(0);
+        backend.refresh();
+        return await withSourceLine(backend, `Exécuté jusqu'au retour : ${r.function ?? "??"} () at ${shortPath(r.path)}:${r.line ?? "?"}`);
+      }
       const lr = (await registers(backend)).lr ?? 0;
       const target = (lr & ~1) >>> 0;
       await backend.request({ cmd: "break", address: target });
@@ -275,12 +455,26 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
       await backend.request({ cmd: "unbreak", address: target });
       return [`Exécuté jusqu'au retour : ${await stopped(backend)}`];
     }
-    case "print": case "p": case "inspect": case "output": {
+    case "print": case "p": case "inspect": case "output": case "call": {
       need("expression");
+      // Une expression du programme (variables, champs, tableaux, pointeurs) : le cœur l'évalue. Sinon, l'adresse ou le registre.
+      if (await sourceInfo(backend)) {
+        const r = await backend.request({ cmd: "eval", expr: rest, frame: frameIndex(backend) });
+        if (r.ok) return [`$${++printCount} = ${r.value}`];
+        if (!/inconnu|expression|texte inattendu|caractère/.test(String(r.error))) throw new Error(String(r.error));
+      }
       const value = await evaluate(rest, backend);
       return [`${value >>> 0} (${hex0x(value, 1)})${await whereIs(value, backend)}`];
     }
     case "set": {
+      const v = /^(?:var(?:iable)?\s+)?([^$=][^=]*?)\s*=\s*(-?\d+(?:\.\d+)?|0x[0-9a-f]+)$/i.exec(rest);
+      if (v && (await sourceInfo(backend))) {
+        const value = /^0x/i.test(v[2] as string) ? parseInt(v[2] as string, 16) : Number(v[2]);
+        const r = await backend.request({ cmd: "assign", expr: v[1], value, frame: frameIndex(backend) });
+        if (!r.ok) throw new Error(String(r.error));
+        backend.refresh();
+        return [`${v[1]} = ${value}`];
+      }
       const m2 = /^(?:var\s+)?\$(\w+)\s*=\s*(.+)$/.exec(rest);
       if (!m2) throw new Error("syntaxe : set $registre = valeur");
       const name = ALIASES[(m2[1] as string).toLowerCase()] ?? (m2[1] as string).toLowerCase();
@@ -307,8 +501,61 @@ async function dispatch(text: string, backend: Backend): Promise<string[]> {
       );
     }
     case "backtrace": case "bt": case "where": {
+      if (await sourceInfo(backend)) {
+        const frames = await framesOf(backend);
+        const out: string[] = [];
+        for (const f of frames.slice(0, 32)) out.push(`#${f.index}  ${hex0x(f.pc, 8)} in ${await describeFrame(backend, f, true)}${f.estimated ? "  (estimé)" : ""}`);
+        return out;
+      }
       const frames = ((await backend.request({ cmd: "backtrace" })).frames as Array<{ address: number; symbol?: string }>) ?? [];
       return frames.map((f, i) => `#${i}  ${hex0x(f.address, 8)}${f.symbol ? ` in ${f.symbol}` : ""}`);
+    }
+    case "list": case "l": {
+      const src = await sourceInfo(backend);
+      if (!src) throw new Error("pas d'informations de débogage du code source (compilez avec -g)");
+      const here = await currentLocation(backend);
+      let path = here?.path;
+      let center = here?.line ?? 1;
+      if (rest) {
+        const target = await lineTarget(rest, backend, src);
+        if (target && "line" in target) {
+          path = src.files.find((f) => f.id === target.file)?.path;
+          center = target.line;
+        } else if (target && "name" in target) {
+          const r = await backend.request({ cmd: "break_function", name: target.name });
+          if (!r.ok) throw new Error(`fonction inconnue : ${target.name}`);
+          await backend.request({ cmd: "unbreak", address: r.address });
+          path = r.path;
+          center = r.line ?? 1;
+        }
+      }
+      if (!path) throw new Error("aucun fichier courant");
+      const lines = backend.sourceText?.(path);
+      if (!lines) return [`Le texte de ${path} n'est pas chargé : donnez-le dans la vue Source.`];
+      return [`${path} :`, ...sourceListing(lines, center - 5, center + 4, here?.path === path ? here.line : undefined)];
+    }
+    case "ptype": case "whatis": {
+      need("expression ou type");
+      const r = await backend.request({ cmd: "ptype", expr: rest, frame: frameIndex(backend) });
+      if (!r.ok) throw new Error(String(r.error));
+      if (word === "whatis") {
+        const v = await backend.request({ cmd: "eval", expr: rest, frame: frameIndex(backend) });
+        return [`type = ${v.ok ? v.type : String(r.type).split("\n")[0]}`];
+      }
+      return [`type = ${r.type}`];
+    }
+    case "frame": case "f": case "up": case "down": {
+      const frames = await framesOf(backend);
+      let index = frameIndex(backend);
+      if (word === "up") index += rest ? Number(rest) : 1;
+      else if (word === "down") index -= rest ? Number(rest) : 1;
+      else if (rest) index = Number(rest);
+      if (!Number.isInteger(index) || index < 0 || index >= frames.length) throw new Error(`pas de cadre ${rest || index}`);
+      backend.frame?.set(index);
+      backend.refresh();
+      const f = frames[index] as SourceFrame;
+      const line = f.path && f.line ? backend.sourceText?.(f.path)?.[f.line - 1] : undefined;
+      return [`#${index}  ${hex0x(f.pc, 8)} in ${await describeFrame(backend, f, true)}`, ...(line === undefined ? [] : [`${f.line}\t${line}`])];
     }
     default:
       throw new Error(`commande inconnue : ${word} (tapez « help »)`);
