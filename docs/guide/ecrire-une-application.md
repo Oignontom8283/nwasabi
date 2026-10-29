@@ -39,10 +39,21 @@ Les appels système inconnus arrêtent l'application avec une faute explicite (r
   Voir les [limites](../reference/compatibilite.md#le-processeur).
 - **Sortie texte** : `printf` vers la sortie standard est possible ; le texte apparaît dans la sortie de l'émulateur (et sur la sortie standard avec la ligne de commande).
 
-## Garder les noms de fonctions
+## Compiler pour le débogage
 
-Le débogage affiche les noms de fonctions (piles d'appels, désassemblage, profil) à partir des symboles du `.nwa`. Ne les
-retirez pas à la compilation (`strip`) pendant que vous déboguez : sans symboles, seules les adresses s'affichent.
+- **`-g`** : le compilateur écrit dans le `.nwa` les informations de débogage (lignes de source, variables, types, tables d'appel).
+  Nwasabi les lit : points d'arrêt par ligne, pile exacte, variables, expressions (voir
+  [Déboguer le code source](../debug/index.md#deboguer-le-code-source)). Elles ne changent pas le code produit ni le fichier flashé
+  sur la calculatrice : elles ne sont pas dans l'image.
+- **`-O0`** pour la partie que l'on suit pas à pas : en `-O2`, les variables vivent dans des registres, disparaissent, les fonctions
+  sont fondues dans leur appelante.
+- **`-fdebug-prefix-map=$(pwd)=.`** réécrit le dossier de compilation dans les chemins des sources : le fichier ne contient pas le chemin de
+  votre machine, et il est identique d'une machine à l'autre.
+- Ne retirez ni les symboles ni les informations de débogage (`strip`) pendant que vous déboguez : sans symboles, seules les
+  adresses s'affichent.
+
+Pour **GDB**, `nwasabi-cli link jeu.nwa --elf jeu.elf` écrit l'application liée au format ELF, avec les adresses définitives :
+voir [Utiliser GDB](../debug/index.md#utiliser-gdb).
 
 ## Quand l'application plante
 

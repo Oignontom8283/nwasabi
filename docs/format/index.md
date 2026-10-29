@@ -9,6 +9,8 @@ chacun avec un champ de version obligatoire. Les fichiers invalides sont refusé
 | [`.nfs`](./nfs.md) | Nwasabi File System | les fichiers de la calculatrice (scripts Python, réglages…) |
 | [`.nfd`](./nfd.md) | Nwasabi Flash Data | les données auxiliaires en flash d'une application, à des adresses de la flash externe |
 | [`.nds`](./nds.md) | Nwasabi Dump State | l'état d'une émulation en pause, à reprendre plus tard |
+| [`.nrp`](./nrp.md) | Nwasabi RePlay | l'enregistrement d'une exécution (touches, temps), à rejouer et à vérifier |
 
 Chaque format peut être chargé par un paramètre de l'adresse de l'émulateur web (`?nmk=`, `?nfs=`, `?flash=`, `?nds=`),
-une option du serveur `nwasabi` et de l'outil `nwasabi-cli`, comme `?nwa=` pour l'application.
+une option du serveur `nwasabi` et de l'outil `nwasabi-cli`, comme `?nwa=` pour l'application (le `.nrp`, lui, se rejoue avec
+`nwasabi-cli replay`).

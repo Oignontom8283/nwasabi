@@ -6,8 +6,8 @@ sur la calculatrice ; ce n'est pas une reproduction de la puce, et il faut garde
 ## Ce qui est reproduit
 
 - **Le processeur** : un Cortex-M7 (jeu d'instructions Thumb-2, ARMv7E-M), avec les accès mémoire, les indicateurs, les blocs `it`, les
-  divisions, les multiplications longues, les instructions DSP courantes (`smul`, `uadd8`…), les champs de bits et l'unité flottante
-  FPv5.
+  divisions, les multiplications longues, **toute l'extension DSP** (arithmétique parallèle en huit et seize bits, saturations,
+  doubles produits, `usad8`…), les champs de bits et l'unité flottante FPv5 (D0 à D15).
 - **Les appels système vus par l'application** : écran, clavier, temps, hasard, luminosité, données externes, tas, sortie texte
   ([la liste](./appels-systeme.md)).
 - **La carte mémoire** : flash externe, SRAM, mémoire réservée au noyau, en-têtes et structures du système lus par certaines
@@ -42,11 +42,12 @@ des fonctions écrites pour Nwasabi. Conséquences :
 - **Pas de périphériques STM32** (horloges, DMA, bus de communication…) : l'application ne les voit pas.
 - **Pas de MPU** : les droits d'accès se limitent à ceux de la carte mémoire (flash en lecture et exécution, mémoire du noyau
   inaccessible).
-- **Le jeu d'instructions n'est pas prouvé exhaustif.** Les instructions ont été vérifiées par lots comparés à un émulateur de
-  référence et par des applications compilées, mais aucun test ne prouve que *toutes* les instructions d'un Cortex-M7 sont gérées.
-  Une instruction manquante arrête l'application avec « instruction non gérée par l'émulateur » et son code : c'est une limite de
-  l'émulateur, pas de l'application. Un test de couverture complet est prévu pour une version ultérieure.
-- La double précision est gérée pour les opérations courantes (D0 à D15) ; les conversions en demi-précision ne le sont que partiellement.
+- **Le jeu d'instructions** est celui d'ARMv7E-M avec FPv5-D16. Il a été contrôlé de deux façons : l'espace des encodages (les 16 bits
+  et les 32 bits) a été parcouru en le comparant à des désassembleurs indépendants, et des centaines de programmes d'essai (toutes
+  les familles d'instructions, y compris l'extension DSP et la virgule flottante) ont été exécutés par QEMU, dont les résultats
+  sont comparés octet pour octet à ceux de Nwasabi. Une instruction qui n'existe pas sur un Cortex-M7 (les instructions de
+  coprocesseur, le calcul vectoriel NEON, les registres D16 à D31, les instructions d'ARMv8-A) arrête l'application avec une
+  instruction indéfinie, comme sur la puce, sauf que le registre de faute n'en précise pas la cause exacte (coprocesseur absent).
 
 ### L'écran, le clavier
 

@@ -27,15 +27,48 @@ variable ? ». Avec l'option d'interruption, l'exécution s'arrête juste **apr�
 
 ## Pile d'appels
 
-Le jeu d'instructions Thumb n'enchaîne pas les cadres de pile : la pile d'appels est **estimée**. Nwasabi cherche dans la pile les
-adresses de retour plausibles (celles qui suivent un `bl` ou un `blx` du code de l'application). Une vieille adresse restée dans la
-pile peut s'y glisser.
+Avec les informations de débogage (application compilée avec `-g`), la pile est **exacte** : Nwasabi lit les tables d'appel
+(`.debug_frame`, CFI) qui disent, pour chaque adresse, où la fonction a rangé son adresse de retour et comment retrouver le
+cadre de l'appelant. Chaque cadre donne sa fonction, sa ligne, ses paramètres et ses variables.
+
+Sans elles (ou dans du code qu'elles ne décrivent pas, comme une bibliothèque compilée sans `-g`), le jeu d'instructions Thumb
+n'enchaîne pas les cadres de pile : la pile est alors **estimée**. Nwasabi cherche dans la pile les adresses de retour plausibles
+(celles qui suivent un `bl` ou un `blx` du code de l'application) ; une vieille adresse restée dans la pile peut s'y glisser. Les
+cadres estimés sont signalés comme tels.
 
 ## Noms de fonctions
 
-Ils viennent des symboles du fichier `.nwa` (voir [Écrire une application](../guide/ecrire-une-application.md)) ; sans eux, seules
-les adresses sont connues. Il n'y a ni lignes, ni variables locales, ni types : le débogage se fait sur les instructions et la
-mémoire.
+Ils viennent des informations de débogage s'il y en a, sinon des symboles du fichier `.nwa` (voir
+[Écrire une application](../guide/ecrire-une-application.md)) ; sans eux, seules les adresses sont connues.
+
+## Déboguer le code source
+
+Quand l'application est compilée avec `-g`, son `.nwa` contient des informations de débogage DWARF (versions 2 à 5) : Nwasabi en
+tire les **lignes de source**, les **fonctions**, les **variables** (paramètres, locales, globales, blocs imbriqués), les
+**types** (entiers, flottants, caractères, booléens, pointeurs, structures, unions, tableaux, énumérations, `typedef`, champs de
+bits) et les **tables d'appel**. Elles sont relues à chaque chargement, avec les adresses définitives de l'application liée.
+
+**Le texte des sources** n'est pas dans le `.nwa` : il ne contient que les noms des fichiers et les numéros de lignes. La page web
+demande les fichiers (choix ou glisser-déposer, rattachés par leur nom) et les garde pour l'application.
+
+Ce que l'on peut faire :
+
+- **points d'arrêt par ligne** (`fichier:ligne`, ou `ligne`) : une ligne sans code se pose sur la suivante qui en a ; **par fonction**,
+  l'arrêt a lieu après le prologue ;
+- **pas à la ligne** : *entrer* (entre dans la fonction appelée si elle a des lignes, sinon l'exécute), *par-dessus* (exécute les
+  appels en entier) et *sortir* (jusqu'au retour dans la fonction appelante, en tenant compte de la récursion) ;
+- **expressions** en C, évaluées dans le cadre choisi de la pile : variables, `a.b`, `p->b`, `t[2]`, `*p`, `&x`, constantes
+  d'énumération, registres (`$r0`, `$sp`), arithmétique, comparaisons et opérateurs logiques, entiers comme flottants ;
+- **valeurs** lues d'après le type : structures et tableaux dépliables, chaînes de `char *`, énumérations par leur nom, pointeurs que
+  l'on déplie pour voir ce qu'ils désignent ;
+- **modification** d'une variable ou d'un champ en mémoire (`set var x = 5`, ou un double-clic sur sa valeur) ;
+- **observation d'une variable** : le point d'observation est posé à l'adresse de l'objet, avec sa taille ;
+- **types** : `ptype` décrit une structure (champs, positions, taille) ou une énumération, `whatis` donne le type d'une expression.
+
+Les limites sont celles du code compilé : en `-O2`, une variable peut vivre dans un registre un instant puis disparaître
+(`<optimisé>`), une fonction « en ligne » n'a plus son propre cadre, et les lignes sautent. Pour suivre un programme pas à pas, compilez
+la partie qui vous intéresse avec `-O0 -g`. Les expressions n'appellent pas de fonctions de l'application, et `a[i][j]` sur un tableau à
+plusieurs dimensions n'est pas géré (écrivez `a[i]` puis le suivant).
 
 ## Profil
 
@@ -77,8 +110,23 @@ Les actions ci-dessus ont des commandes inspirées de GDB dans la console de la 
 | `x/5i main`, `disassemble main 8` | désassemble |
 | `backtrace`, `info symbol 0x…` | pile d'appels, nom de la fonction |
 
-Une adresse peut être un nombre, un registre (`$sp`, `$pc`…) ou un nom de fonction, avec `+N` ou `-N` (`main+8`). Les commandes qui
-dépendent des informations de débogage du code source (`list`, `info line`, `info locals`…) n'existent pas.
+Une adresse peut être un nombre, un registre (`$sp`, `$pc`…) ou un nom de fonction, avec `+N` ou `-N` (`main+8`).
+
+Avec les informations de débogage du code source, les commandes de GDB sur les lignes et les variables s'ajoutent :
+
+| Commande | Effet |
+|---|---|
+| `break fichier:ligne`, `break 42`, `break fonction` | point d'arrêt sur une ligne, ou après le prologue d'une fonction |
+| `list [ligne\|fonction\|fichier:ligne]` | montre le code source autour de la ligne en cours (les fichiers sont donnés dans la vue Source) |
+| `step`, `next`, `finish` | avance d'une ligne en entrant dans les appels, sans y entrer, jusqu'au retour de la fonction |
+| `print expr`, `p expr` | valeur d'une expression C (`shape->flags[1]`, `*p`, `n + 1`) |
+| `ptype expr\|type`, `whatis expr` | décrit un type, donne le type d'une expression |
+| `set var x = 5` | modifie une variable |
+| `info locals`, `info args`, `info frame`, `info source`, `info line [n]`, `info variables [nom]` | variables locales, arguments, cadre, fichiers, adresses d'une ligne, variables globales |
+| `frame [n]`, `up`, `down` | choisit un cadre de la pile : `print` et `info locals` le suivent |
+| `backtrace`, `watch variable` | pile avec fonctions, lignes et arguments ; observe l'adresse d'une variable |
+
+Sans ces informations, `step` et `next` restent des pas d'instruction, comme `stepi` et `nexti`.
 
 ## Registres de faute
 
@@ -115,11 +163,15 @@ Ce n'est **pas activé par défaut**, ni côté serveur ni côté page : la page
 « Accepter un débogueur GDB » de la vue GDB, décochée à chaque ouverture). Tant qu'elle ne l'est pas, une connexion est refusée.
 Le serveur sert d'intermédiaire : la page vient chercher les commandes du débogueur par une requête longue et y répond.
 
-Puis, dans GDB :
+Pour que GDB connaisse les **fonctions, les lignes et les variables**, donnez-lui l'application liée au format ELF (le bouton
+« Télécharger l'ELF » de la vue GDB, ou `nwasabi-cli link jeu.nwa --elf jeu.elf` avec le même `--model` et le même `--firmware`
+que la page : les adresses en dépendent) :
 
 ```
+(gdb) file jeu.elf
 (gdb) target remote 127.0.0.1:3333
 (gdb) break main
+(gdb) list
 (gdb) continue
 (gdb) x/8xw $sp
 (gdb) stepi
@@ -138,13 +190,15 @@ Ce qui est pris en charge : lecture et écriture des registres et de la mémoire
 - pour un débogueur sans page ouverte, `--gdb-headless 3333` (avec `--nwa`) lance une émulation à part, qui charge l'application
   telle qu'elle est sur le disque et repart de zéro à chaque connexion ;
 - le protocole est le Remote Serial Protocol de GDB, avec description XML des registres du Cortex-M, mode sans acquittement, `vCont`, points d'arrêt logiciels et matériels, `ReverseStep` et `ReverseContinue` ;
-- GDB ne lit pas les informations de débogage du code source (fonctions, variables, lignes) : il travaille sur les adresses et le
-  désassemblage.
+- sans `file jeu.elf`, GDB ne connaît que les adresses et le désassemblage ; avec lui (et une application compilée avec `-g`), `list`,
+  `info locals`, `print`, `next`, `finish`, `backtrace` et les points d'arrêt sur une ligne fonctionnent comme sur n'importe quelle cible.
 
 ## Les limites
 
 - **Le système est simulé** : ni périphériques STM32, ni amorçage, ni cache, ni temps d'accès à la flash.
 - **Pas de gestionnaires d'exception** : une faute arrête l'application ; seuls les registres de faute sont remplis.
-- **La pile d'appels est estimée**, et les noms de fonctions dépendent des symboles du fichier.
-- **Pas d'informations de débogage du code source.**
+- **Le code optimisé se débogue mal** : variables optimisées, lignes qui sautent, fonctions en ligne (compilez en `-O0 -g` pour
+  suivre un programme).
+- **Sans `-g`**, la pile d'appels est estimée et il n'y a ni lignes ni variables, seulement les symboles du fichier.
+- **Les sources ne sont pas dans le `.nwa`** : il faut les donner à la page.
 - **L'historique est borné** et repart de zéro quand on modifie à la main la mémoire ou les registres.

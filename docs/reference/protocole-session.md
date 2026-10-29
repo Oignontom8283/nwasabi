@@ -59,6 +59,27 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 | `step` | une instruction |
 | `history` (`start`, `stop`, `status`), `step_back`, `reverse_continue`, `history_goto` | [remonter le temps](../debug/index.md#remonter-le-temps) |
 
+## Déboguer le code source
+
+Elles demandent une application compilée avec `-g` (sinon, elles répondent par une erreur qui le dit) : [Déboguer le code
+source](../debug/index.md#deboguer-le-code-source). `frame` (0 : l'instruction en cours) choisit le cadre de la pile.
+
+| Commande | Effet |
+|---|---|
+| `debug_info` | `available`, les fichiers source (`id`, `path`), le nombre de fonctions, de variables globales, de lignes |
+| `line_at` (`address`) | fonction, fichier, ligne et colonne de cette adresse |
+| `source_lines` (`file` ou `file_id`) | les numéros de ligne qui ont du code |
+| `break_line`, `unbreak_line` (`file`/`file_id`, `line`) | pose ou retire les points d'arrêt d'une ligne (une ligne sans code se pose sur la suivante) ; rend la ligne et les adresses |
+| `break_function` (`name`) | point d'arrêt après le prologue de la fonction |
+| `frames` (`max`) | la pile d'appels : fonction, fichier, ligne, `pc`, `sp` ; `estimated` si une partie vient de l'estimation |
+| `locals` (`frame`) | paramètres et variables locales visibles, avec valeurs (arbre : champs, éléments) |
+| `globals` (`query`) | variables globales |
+| `eval` (`expr`, `frame`) | valeur d'une expression C : type, résumé, adresse, `children` |
+| `assign` (`expr`, `value`, `frame`) | écrit un nombre dans la variable que désigne l'expression |
+| `ptype` (`expr`, `frame`) | décrit un type, ou le type d'une expression |
+| `step_source` (`mode` : `into`, `over`, `out`) | pas à la ligne ; rend la nouvelle position et le motif d'arrêt |
+| `export_elf` | l'application liée au format ELF (`elf`, en base64), pour GDB |
+
 ## Fichiers de la calculatrice
 
 `fs_list`, `fs_stats`, `fs_read`, `fs_write` (un script Python avec `python: true` et `text`, ou un contenu `content` en base64),
@@ -67,4 +88,4 @@ La commande `help` renvoie la liste à jour avec les paramètres de chacune ; ce
 ## Octets en flash
 
 `flash_load` (`nfd` : un document [`.nfd`](../format/nfd.md)) place des [données auxiliaires](./donnees-flash.md) à des adresses de la flash externe, `flash_export` rend celles
-qui sont placés. Ils ne peuvent pas recouvrir le firmware ni les applications installées.
+qui sont placées. Ils ne peuvent pas recouvrir le firmware ni les applications installées.
