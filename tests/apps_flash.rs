@@ -20,29 +20,14 @@ fn call(session: &mut Session, request: Value) -> Value {
     reply
 }
 
-/// Les données que `aux_flash` attend : le programme à 0x90400000 (signature puis `movs r0, #42 ; bx lr`) et la table à 0x90260000.
+/// Les données que `aux_flash` attend : le fichier `aux_flash.nfd` de `tests/apps/bin/` (le programme à 0x90400000 et la table à
+/// 0x90260000), fabriqué par `tests/apps/build.sh`.
 fn aux_data() -> Value {
-    let mut program = b"NWAUX\0\0\0".to_vec();
-    program.extend_from_slice(&[0x2a, 0x20, 0x70, 0x47]); // movs r0, #42 ; bx lr
-    let table: Vec<u8> = (0..16u32)
-        .flat_map(|n| (0x1000 + 7 * n).to_le_bytes())
-        .collect();
-    segments(&[(0x9040_0000, program), (0x9026_0000, table)])
-}
-
-fn segments(list: &[(u32, Vec<u8>)]) -> Value {
-    let items: Vec<Value> = list
-        .iter()
-        .map(|(address, bytes)| {
-            Value::object()
-                .with("address", *address)
-                .with("content", json::base64_encode(bytes))
-        })
-        .collect();
-    Value::object()
-        .with("nfd", 1u64)
-        .with("active_slot", "a")
-        .with("segments", items)
+    let path = format!(
+        "{}/tests/apps/bin/aux_flash.nfd",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    json::parse(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 
 fn load(name: &str, nfd: Option<Value>) -> Session {

@@ -41,6 +41,7 @@ Exécute l'application et résume l'arrêt, l'écran et la sortie standard.
 | `inspect [APP]` | affiche en JSON les structures de l'OS lues en mémoire (en-têtes, applications, stockage) |
 | `link APP` | résultat de l'édition de liens ; `--map` ajoute les sections et les symboles ; `--elf FICHIER.elf` écrit l'application liée au format ELF, pour [GDB](../debug/index.md#utiliser-gdb) |
 | `flash pack`, `flash list` | rassemble des fichiers à leur adresse dans un `.nfd` (`pack -o aux.nfd [--active-slot a] 0x90400000=programme.tar …`), liste ses segments ([données auxiliaires](../reference/donnees-flash.md)) |
+| `check FICHIER…` | vérifie des fichiers de Nwasabi (`.nwa`, `.nmk`, `.nfs`, `.nfd`, `.nds`, `.nrp`, reconnus à l'extension) et résume leur contenu ; code 1 si l'un est illisible |
 | `replay ENREGISTREMENT.nrp APP` | rejoue un enregistrement et vérifie les arrêts, le nombre d'instructions et l'écran ; code de sortie 4 s'ils diffèrent |
 | `fs --image FICHIER …` | manipule une image du système de fichiers : `list`, `stats`, `read`, `write`, `remove`, `rename`, `export`, `import` |
 | `survey DOSSIER…` | lance chaque application d'un dossier sans touche et résume ce qui s'est passé |

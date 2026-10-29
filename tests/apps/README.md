@@ -20,6 +20,22 @@ Elles sont lancées par `tests/emulator_apps.rs`.
 Chaque application se vérifie elle-même (macro `CHECK`) et rend `0` si tout va bien, sinon le numéro de
 ligne de la première vérification ratée.
 
+## Les fichiers des autres formats
+
+`bin/` ne contient pas que des `.nwa` : `build.sh` fabrique aussi, avec `nwasabi-cli`, un fichier de chaque format de Nwasabi, que les
+tests chargent (`tests/fixtures.rs`, `tests/apps_flash.rs`). Ils sont versionnés comme les `.nwa`.
+
+| Fichier | Format | Ce qu'il sert à vérifier |
+|---|---|---|
+| `aux_flash.nfd` | données auxiliaires en flash | `aux_flash.nwa` y lit une table et exécute du code |
+| `aux_flash.nds` | état | une exécution commencée, reprise avec ses données auxiliaires |
+| `keys.nds` | état | reprendre donne exactement la même chose que l'exécution continue |
+| `keys.nrp`, `flash_rw.nrp`, `debugme.nrp` | enregistrement | rejouer redonne les mêmes arrêts, instructions et écrans |
+| `files.nfs` | fichiers de la calculatrice | chargement, lecture, conservation dans un état |
+
+Les mappings de touches (`.nmk`) ont leur propre dossier, `tests/nmk/`, avec le résultat attendu de chacun. `nwasabi-cli check bin/*` les
+contrôle tous (build.sh le fait à la fin).
+
 ## Les fichiers `.nwa` sont versionnés
 
 Les binaires de `bin/` sont dans le dépôt : **il n'est pas nécessaire de les recompiler** pour lancer

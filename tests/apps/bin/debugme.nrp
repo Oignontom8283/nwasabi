@@ -1,0 +1,1 @@
+{"app":{"crc32":"72f207d8","name":"debugme.nwa"},"created_by":"nwasabi 0.1.0","device":{"firmware":"24","model":"n0110"},"entries":[{"expect":{"instructions":321,"stop":"exited"},"request":{"cmd":"run"}},{"expect":{"crc32":"066e64a1"},"request":{"cmd":"screen","rgb565":false,"rgba":false}},{"expect":{"text_crc32":"00000000"},"request":{"cmd":"stdout"}}],"nrp":1}

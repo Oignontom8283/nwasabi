@@ -100,6 +100,8 @@ pub enum Command {
     Keys(KeysArgs),
     /// Fabrique ou lit un fichier .nfd (octets à placer en flash)
     Flash(FlashArgs),
+    /// Vérifie des fichiers de Nwasabi (.nwa, .nmk, .nfs, .nfd, .nds, .nrp) : lisibles, cohérents, avec un résumé de leur contenu
+    Check(CheckArgs),
     /// Rejoue un enregistrement .nrp et vérifie qu'il donne les mêmes arrêts, le même nombre d'instructions et le même écran
     Replay(ReplayArgs),
 }
@@ -278,6 +280,16 @@ pub struct SessionArgs {
     /// Enregistre les requêtes qui changent l'état (touches, temps, exécution…) avec ce qu'on en a observé, dans ce fichier .nrp
     #[arg(long, value_name = "FICHIER.nrp")]
     pub record: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct CheckArgs {
+    /// Les fichiers à vérifier : le format se reconnaît à l'extension
+    #[arg(required = true, value_name = "FICHIER")]
+    pub files: Vec<PathBuf>,
+    /// Sortie en JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args)]

@@ -16,8 +16,8 @@ use nwasabi::session::Session;
 use nwasabi::storage::records;
 
 use crate::options::{
-    DeviceOpts, FirmwareOpt, FlashArgs, FlashOp, FsArgs, FsOp, InspectArgs, KeysArgs, LinkArgs,
-    ReplayArgs, RunArgs, SessionArgs, SurveyArgs,
+    CheckArgs, DeviceOpts, FirmwareOpt, FlashArgs, FlashOp, FsArgs, FsOp, InspectArgs, KeysArgs,
+    LinkArgs, ReplayArgs, RunArgs, SessionArgs, SurveyArgs,
 };
 
 /// Taille du tampon du système de fichiers d'un N0110 (octets).
@@ -906,4 +906,96 @@ pub fn flash_cmd(args: FlashArgs) -> Outcome {
             Ok(0)
         }
     }
+}
+
+// ---- check ---------------------------------------------------------------------------------------
+
+/// Vérifie un fichier d'après son extension ; rend un résumé de son contenu.
+fn check_file(path: &Path) -> Result<String, String> {
+    let extension = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    match extension.as_str() {
+        "nwa" => {
+            let device = DeviceImage::new(FirmwareProfile::default_for(Model::N0110))
+                .map_err(|e| e.to_string())?;
+            let bytes = read_file(path)?;
+            let layout = device.app_layout();
+            // Une application qui réclame des données externes se lie avec des données vides.
+            let app = link(&bytes, None, &layout, &LinkOptions::default())
+                .or_else(|first| {
+                    link(&bytes, Some(&[]), &layout, &LinkOptions::default()).map_err(|_| first)
+                })
+                .map_err(|e| e.to_string())?;
+            Ok(format!(
+                "application « {} », {} octets en flash, {} symboles, {} sections de débogage",
+                app.name,
+                app.flash.len(),
+                app.symbols.len(),
+                app.debug.len()
+            ))
+        }
+        "nmk" => {
+            let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
+            let map = KeyMap::parse(&text).map_err(|e| e.to_string())?;
+            Ok(format!("mapping « {} »", map.name().unwrap_or("sans nom")))
+        }
+        "nfs" => {
+            let files = formats::nfs::parse(&read_json(path)?)?;
+            Ok(format!("{} fichier(s) de la calculatrice", files.len()))
+        }
+        "nfd" => {
+            let document = read_json(path)?;
+            let segments = nfd::parse(&document)?;
+            let bytes: usize = segments.iter().map(|s| s.data.len()).sum();
+            Ok(format!("{} segment(s), {bytes} octets", segments.len()))
+        }
+        "nds" => {
+            let restored = formats::nds::restore(&read_json(path)?, None)?;
+            Ok(format!(
+                "état de {}, firmware {}, parties : {}",
+                restored.emulator.device.profile.model.name(),
+                restored.firmware,
+                restored.parts.join(", ")
+            ))
+        }
+        "nrp" => {
+            let document = read_json(path)?;
+            let entries = nrp::parse(&document)?;
+            Ok(format!("{} entrée(s)", entries.len()))
+        }
+        other => Err(format!(
+            "extension inconnue : « .{other} » (nwa, nmk, nfs, nfd, nds, nrp)"
+        )),
+    }
+}
+
+pub fn check_cmd(args: CheckArgs) -> Outcome {
+    let mut failures = 0;
+    let mut results = Vec::new();
+    for path in &args.files {
+        let result = check_file(path);
+        failures += usize::from(result.is_err());
+        let entry = Value::object().with("file", path.display().to_string());
+        results.push(match &result {
+            Ok(summary) => entry.with("ok", true).with("summary", summary.as_str()),
+            Err(error) => entry.with("ok", false).with("error", error.as_str()),
+        });
+        if !args.json {
+            match result {
+                Ok(summary) => println!("ok      {} : {summary}", path.display()),
+                Err(error) => println!("ERREUR  {} : {error}", path.display()),
+            }
+        }
+    }
+    if args.json {
+        println!(
+            "{}",
+            Value::object()
+                .with("files", results)
+                .with("failures", failures)
+        );
+    }
+    Ok(i32::from(failures > 0))
 }
