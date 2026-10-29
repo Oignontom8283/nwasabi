@@ -78,3 +78,27 @@ existe : toutes les entrées de la table, plus les événements spéciaux.
 
 Le noyau ne connaît que les **touches de la calculatrice**. Le lien entre le clavier de l'ordinateur ou les gestes tactiles et ces touches est dans `keymap/` (module de règles) et dans `@nwasabi/js` (`input.ts`,
 `gestures.ts` : reconnaissance des gestes au plus près des événements du navigateur). Voir le format [`.nmk`](../../reference/formats/nmk.md).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Key`](code:src/kernel/keyboard.rs#Key), [`KEY_NAMES`](code:src/kernel/keyboard.rs#KEY_NAMES) | les 46 touches et leurs noms |
+| [`Keyboard::press`](code:src/kernel/keyboard.rs#press), [`release`](code:src/kernel/keyboard.rs#release) | la logique de `shift` et d'`alpha` |
+| [`is_repeatable`](code:src/kernel/keyboard.rs#is_repeatable), [`REPEAT_FIRST_MS`](code:src/kernel/mod.rs#REPEAT_FIRST_MS) | la répétition |
+| [`next_event`](code:src/kernel/mod.rs#next_event) | file d'abord, répétition ensuite |
+| [`event_text.rs`](code:src/kernel/event_text.rs) | la table des 216 textes |
+| [`keymap/`](code:src/keymap/mod.rs) | le lien clavier de l'ordinateur → touches (côté Rust) |
+| [`input.ts`](code:packages/js/src/input.ts), [`gestures.ts`](code:packages/js/src/gestures.ts), [`keymap.ts`](code:packages/js/src/keymap.ts) | le même, côté navigateur |
+
+## Pourquoi ainsi
+
+- **La logique de `shift`/`alpha` est dans le noyau**, pas dans la page : c'est l'application qui la voit (par `event_get`), et un `.nrp` ou un test en ligne de commande doit la reproduire sans interface.
+- **La répétition est générée à la demande** (`next_event`), pas par un minuteur : tout reste déterministe et sans fil ; elle dépend seulement de `micros()`.
+- **Les touches de l'ordinateur ne sont pas dans le noyau** : le noyau ne connaît que les touches de la calculatrice. Le mapping clavier/gestes est un format séparé ([`.nmk`](../../reference/formats/nmk.md)), lu par `keymap/` (Rust) et `keymap.ts` (JavaScript), dont la **parité** est testée.
+
+## Pour modifier
+
+- **Un événement qui n'a pas le bon numéro** : `press`, puis la table [`event_text.rs`](code:src/kernel/event_text.rs).
+- **Changer la répétition** : [`is_repeatable`](code:src/kernel/keyboard.rs#is_repeatable) et les constantes de délai.
+- **Modifier le format `.nmk`** : [`keymap/mod.rs`](code:src/keymap/mod.rs) **et** [`keymap.ts`](code:packages/js/src/keymap.ts) **et** la [spécification](../../reference/formats/nmk.md) ; le test [`keymap.mjs`](code:tests/wasm/keymap.mjs) compare les deux implémentations.

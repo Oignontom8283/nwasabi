@@ -54,3 +54,27 @@ Voir [Expressions](./expressions.md#c-methodes-this-surcharges) : résolution du
 - **Constructeurs d'objets C++ globaux** : `_start` ne parcourt pas `.init_array` ; l'objet global est donc **non construit**. Construisez vos objets dans `main`.
 - **Exceptions et RTTI** : pas de déroulement (`.ARM.exidx` n'est ni placée ni lue) ; compilez en `-fno-exceptions -fno-rtti`.
 - **Rust** : `core` appelle des fonctions de panique que le projet doit fournir (ou on désactive les contrôles de dépassement et de bornes).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`symbols.rs`](code:src/symbols.rs) | [`demangle`](code:src/symbols.rs#demangle), [`qualified`](code:src/symbols.rs#qualified) |
+| [`prefix_pass`](code:src/debuginfo/parse.rs#prefix_pass) | les préfixes d'espaces de noms |
+| [`struct_members`](code:src/debuginfo/parse.rs#struct_members), [`variant_part`](code:src/debuginfo/parse.rs#variant_part) | membres, bases, méthodes, variantes Rust |
+| [`attach_symbols`](code:src/debuginfo/mod.rs#attach_symbols) | noms qualifiés depuis les symboles |
+| [`find_variable`](code:src/debuginfo/mod.rs#find_variable), [`functions_named`](code:src/debuginfo/mod.rs#functions_named), [`best_overload`](code:src/debuginfo/mod.rs#best_overload) | résolution des noms |
+| [`find_method`](code:src/debuginfo/mod.rs#find_method), [`method_address`](code:src/debuginfo/mod.rs#method_address) | méthodes |
+| [`Method`](code:src/debuginfo/mod.rs#Method), [`VariantPart`](code:src/debuginfo/mod.rs#VariantPart), [`Variant`](code:src/debuginfo/mod.rs#Variant) | les types qui les portent |
+| [`call_method`](code:src/debuginfo/expr.rs#call_method), [`find_field`](code:src/debuginfo/expr.rs#find_field) | côté expressions |
+| [`gdbConsole.ts`](code:web/src/gdbConsole.ts) | `break` par nom démanglé dans la console de la page |
+
+## Pourquoi passer par les symboles pour les noms de fonctions
+
+Le DWARF de GCC donne à une fonction membre son **nom court** (`grow`) et un lien vers sa déclaration, mais pas toujours un nom complet utilisable. Le **symbole** du fichier (`_ZN6shapes4Rect4growEi`) contient tout : espaces de noms, classe, paramètres. Le démangler donne `shapes::Rect::grow(int)`, qui, privé de ses paramètres, est le nom qu'écrit le programmeur. Cela marche **aussi pour Rust**, dont les noms qualifiés viennent du même mécanisme.
+
+## Pour modifier
+
+- **Un nouveau langage qui produit du DWARF** (Zig, Go…) : ouvrir un exemple compilé, lire ce que `gimli` rend dans [`parse.rs`](code:src/debuginfo/parse.rs) (les `DW_TAG_*` inconnus sont ignorés sans erreur), puis ajouter ce qui manque. Les noms manglés supplémentaires vont dans [`symbols.rs`](code:src/symbols.rs).
+- **Un format de démanglage de plus** : [`demangle`](code:src/symbols.rs#demangle) essaie `cpp_demangle` puis `rustc_demangle` ; ajouter un cas et un test avec un vrai symbole.
+- **Tester** : les tests unitaires de [`symbols.rs`](code:src/symbols.rs) (démanglage de vrais symboles C++ et Rust) et [`debugger.rs`](code:tests/debugger.rs) ; pour du C++ ou du Rust réels, compiler un petit projet comme dans le [guide](../../guide/deboguer-c-cpp-rust.md) et le déboguer avec un vrai GDB (`gdb_real.rs` automatise ce contrôle pour le C).

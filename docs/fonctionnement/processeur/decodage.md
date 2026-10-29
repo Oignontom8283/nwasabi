@@ -99,3 +99,26 @@ flowchart TD
 
 `pc4` (adresse + 4) est la valeur qu'une instruction lit quand elle utilise `PC` comme opérande, comme sur la puce ; le `pc` du registre, lui,
 désigne déjà l'instruction suivante pendant l'exécution (d'où `fault_pc`, qui garde l'adresse de l'instruction fautive).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`is_32bit`](code:src/cpu/decode.rs#is_32bit) | la règle des deux demi-mots |
+| [`decode16`](code:src/cpu/decode.rs#decode16), [`decode32`](code:src/cpu/decode.rs#decode32) | les deux décodeurs (un grand `match` sur des champs de bits) |
+| [`Instr`](code:src/cpu/instr.rs#Instr) | le résultat du décodage |
+| [`DecodeCache`](code:src/cpu/cache.rs#DecodeCache), [`lookup`](code:src/cpu/cache.rs#lookup), [`insert`](code:src/cpu/cache.rs#insert) | le cache |
+| [`step_inline`](code:src/cpu/exec.rs#step_inline) | où le cache est consulté |
+| [`code_epoch`](<code:src/memory/mod.rs#~code_epoch: u64>) | la source de l'époque dans la mémoire |
+
+## Pourquoi un cache « à correspondance directe »
+
+- Une instruction décodée se garde dans la **case** que désigne son adresse (`(adresse >> 1) & 4095`) : pas de table de hachage, pas de parcours, un accès par instruction. Un conflit (deux adresses pour la même case) remplace simplement l'ancienne : correct, juste un peu plus lent.
+- L'**époque** évite de **surveiller chaque écriture** dans le processeur : c'est la mémoire, qui voit déjà toutes les écritures, qui incrémente un compteur quand une ligne déjà exécutée change. Le processeur compare un entier par instruction.
+- Le cache est **dans `Cpu`**, pas dans `Memory` : il appartient à celui qui décode. Un `Bus` qui ne suit pas ses modifications (`code_epoch() = None`) désactive le cache : la correction ne dépend jamais de lui.
+
+## Pour modifier
+
+- **Changer la taille du cache** : [`SLOTS`](code:src/cpu/cache.rs#SLOTS) (une puissance de deux). Mesurer avec `just test-wasm` (le test `speed.mjs` donne un ordre de grandeur) avant et après.
+- **Ajouter un événement qui doit vider le cache** : le faire passer par `code_epoch` (ne jamais vider le cache à la main depuis l'extérieur). C'est ce que fait déjà [`restore_volatile`](code:src/memory/mod.rs#restore_volatile).
+- **Le cache ne doit jamais changer un résultat** : si un test donne une réponse différente avec et sans cache, c'est un bug d'invalidation, pas de décodage.

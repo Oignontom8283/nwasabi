@@ -71,3 +71,25 @@ morceaux avec leur taille) ou `OptimizedOut`.
 
 DWARF **compressé** (`SHF_COMPRESSED`, `.zdebug`) ; DWARF **séparé** (`.dwo`, `.dwp`, fichiers de débogage externes) ; `.eh_frame` et les tables d'exceptions ARM comme source de pile (voir [Pile d'appels](./pile.md)) ; les types de la bibliothèque standard
 C++ (aucune bibliothèque standard n'est liée). Du code compilé en `-O2` produit des variables `<optimisé>`, des fonctions « en ligne » sans cadre propre et des lignes qui sautent : ce sont des limites du code compilé, pas du lecteur.
+
+## Dans le code
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`debuginfo/mod.rs`](code:src/debuginfo/mod.rs) | les structures et les requêtes | [`DebugInfo`](code:src/debuginfo/mod.rs#DebugInfo), [`LineRow`](code:src/debuginfo/mod.rs#LineRow), [`Function`](code:src/debuginfo/mod.rs#Function), [`Variable`](code:src/debuginfo/mod.rs#Variable), [`Scope`](code:src/debuginfo/mod.rs#Scope), [`Location`](code:src/debuginfo/mod.rs#Location), [`TypeKind`](code:src/debuginfo/mod.rs#TypeKind), [`line_at`](code:src/debuginfo/mod.rs#line_at), [`addresses_for_line`](code:src/debuginfo/mod.rs#addresses_for_line), [`after_prologue`](code:src/debuginfo/mod.rs#after_prologue), [`visible_locals`](code:src/debuginfo/mod.rs#visible_locals) |
+| [`debuginfo/parse.rs`](code:src/debuginfo/parse.rs) | le lecteur `gimli` | [`parse`](code:src/debuginfo/parse.rs#parse), [`prefix_pass`](code:src/debuginfo/parse.rs#prefix_pass), [`OpenKind`](code:src/debuginfo/parse.rs#OpenKind) |
+| [`debuginfo/types.rs`](code:src/debuginfo/types.rs) | types ajoutés après lecture | [`complete`](code:src/debuginfo/types.rs#complete), [`type_named`](code:src/debuginfo/types.rs#type_named) |
+| [`debuginfo/eval.rs`](code:src/debuginfo/eval.rs) | emplacements et valeurs | [`locate`](code:src/debuginfo/eval.rs#locate), [`Place`](code:src/debuginfo/eval.rs#Place), [`read_value`](code:src/debuginfo/eval.rs#read_value), [`Value`](code:src/debuginfo/eval.rs#Value), [`Context`](code:src/debuginfo/eval.rs#Context) |
+| [`debuginfo/unwind.rs`](code:src/debuginfo/unwind.rs) | pile par CFI | [`unwind`](code:src/debuginfo/unwind.rs#unwind) |
+| [`emulator.rs`](code:src/emulator.rs#debug_info) | la lecture à la demande | [`debug_info`](code:src/emulator.rs#debug_info) |
+
+## Pourquoi des « structures simples » plutôt que de garder `gimli`
+
+`gimli` donne un accès paresseux, puissant et difficile à manier : des itérateurs, des décalages, des durées de vie. Chaque requête de la page (« quelles variables à cette adresse ? ») devrait le reparcourir. On **lit une fois** vers des `Vec` et des `HashMap`, et toutes les requêtes deviennent des recherches dans des tableaux. Le coût (mémoire, un seul parcours) est négligeable à l'échelle d'une application NumWorks.
+
+## Pour modifier
+
+- **Lire une nouvelle sorte d'entrée DWARF** : une branche dans la passe principale de [`parse.rs`](code:src/debuginfo/parse.rs) ; si elle contient des noms, tenir compte du préfixe d'espace de noms ([`prefix_pass`](code:src/debuginfo/parse.rs#prefix_pass)).
+- **Une nouvelle opération d'emplacement DWARF** : [`locate`](code:src/debuginfo/eval.rs#locate) (un numéro d'opcode, un test dans `eval.rs`).
+- **Une nouvelle forme de valeur** : [`TypeKind`](code:src/debuginfo/mod.rs#TypeKind) → [`read_value`](code:src/debuginfo/eval.rs#read_value) → [`summary`](code:src/debuginfo/eval.rs#summary) (texte) et [`to_json`](code:src/debuginfo/eval.rs#to_json) (page). Les trois doivent évoluer ensemble.
+- **Tests** : [`debugger.rs`](code:tests/debugger.rs) sur [`debugme.c`](code:tests/apps/src/debugme.c), [`debugger_corpus.rs`](code:tests/debugger_corpus.rs) sur le corpus.

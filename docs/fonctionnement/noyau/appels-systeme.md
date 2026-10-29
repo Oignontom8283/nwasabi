@@ -54,3 +54,34 @@ Le grand `match` de `Kernel::handle` regroupe :
 ## Pourquoi `Handled` presque partout
 
 Tant que le noyau traite l'appel lui-même, l'exécution reste dans `Cpu::run` : seul un `KernelStop` interrompt. Le noyau n'empile jamais de contexte d'exception : un `svc` est pour lui un appel de fonction.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Kernel::handle`](code:src/kernel/svc.rs#handle) | le `match` de tous les numéros |
+| [`on_svc`](code:src/kernel/svc.rs#on_svc) | l'entrée (`Hooks`), avec le journal des appels |
+| [`event_get`](code:src/kernel/svc.rs#event_get), [`sleep`](code:src/kernel/svc.rs#sleep) | les attentes rejouées |
+| [`erase_sector`](code:src/kernel/svc.rs#erase_sector), [`write_flash`](code:src/kernel/svc.rs#write_flash) | programmation de la flash |
+| [`copy_event_text`](code:src/kernel/svc.rs#copy_event_text) | texte d'un événement |
+| [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC) | la table nom → numéro côté liaison |
+| [`appels-systeme.md` (référence)](../../reference/appels-systeme.md) | la liste des numéros |
+| [`svcNames.ts`](code:web/src/svcNames.ts) | les noms affichés par la page |
+
+## Pourquoi ces choix
+
+- **Les numéros sont ceux d'Epsilon** : une application liée contre le vrai runtime n'a pas besoin d'être recompilée.
+- **Un numéro inconnu est ignoré par défaut** (comme sur l'appareil) mais arrête l'application avec `strict_svc` : on peut ainsi **trouver** les appels non gérés dans un corpus sans que le comportement par défaut diffère de la machine.
+- **Lire `r0`–`r3` une fois, à l'entrée** : un appel qui écrit `r0` ne doit pas lire un argument déjà écrasé.
+- **La flash est protégée par une borne** (`flash_protected_end`) et non par une liste d'appels : tout ce qui est avant la fin des applications installées est intouchable, tout ce qui est après est programmable (c'est ce que fait KhiCAS pour stocker des données).
+
+## Pour modifier
+
+**Ajouter un appel système** :
+
+1. Ajouter le numéro au `match` de [`handle`](code:src/kernel/svc.rs#handle) ; lire les arguments dans `r0`–`r3`, écrire le résultat dans `cpu.regs.r[0]` (ou `s[0]`).
+2. Si l'application doit pouvoir **le lier** (fonction `eadk_*`), l'ajouter à [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC) (appel du firmware officiel) ou à [`EADK_EXTENDED_SVC`](code:src/link/runtime.rs#EADK_EXTENDED_SVC) (facultatif).
+3. S'il doit **attendre**, renvoyer `stop_with(...)` après avoir reculé `pc` de 2 : voir [`event_get`](code:src/kernel/svc.rs#event_get).
+4. S'il lit un pointeur de l'application : utiliser le `Bus` reçu, et laisser l'erreur remonter en `BusFault` (elle devient `KernelStop::BusFault`).
+5. Ajouter son nom dans [`svcNames.ts`](code:web/src/svcNames.ts) et le tableau de la [référence](../../reference/appels-systeme.md).
+6. Tests : un cas dans [`kernel/tests.rs`](code:src/kernel/tests.rs) et, si c'est visible d'une application, dans une application de test de [`tests/apps/src/`](code:tests/apps/src/).

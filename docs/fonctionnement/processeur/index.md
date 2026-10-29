@@ -90,3 +90,44 @@ d'une application est celui d'un processeur idéal à la fréquence du modèle, 
 - [Virgule flottante](./virgule-flottante.md)
 - [Exceptions et fautes](./exceptions.md)
 - [Désassembleur](./desassembleur.md)
+
+## Dans le code
+
+Le module est le dossier [`src/cpu/`](code:src/cpu/). Chaque fichier a une seule responsabilité :
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`mod.rs`](code:src/cpu/mod.rs) | l'état et les arrêts | [`Cpu`](code:src/cpu/mod.rs#Cpu), [`Stop`](code:src/cpu/mod.rs#Stop), [`UsageFault`](code:src/cpu/mod.rs#UsageFault) |
+| [`bus.rs`](code:src/cpu/bus.rs) | la couture avec la mémoire | [`Bus`](code:src/cpu/bus.rs#Bus), [`BusFault`](code:src/cpu/bus.rs#BusFault), [`FaultKind`](code:src/cpu/bus.rs#FaultKind) |
+| [`hooks.rs`](code:src/cpu/hooks.rs) | la couture avec le noyau | [`Hooks`](code:src/cpu/hooks.rs#Hooks), [`SvcAction`](code:src/cpu/hooks.rs#SvcAction) |
+| [`regs.rs`](code:src/cpu/regs.rs) | registres, drapeaux, état `IT` | [`Registers`](code:src/cpu/regs.rs#Registers), [`advance_it`](code:src/cpu/regs.rs#advance_it) |
+| [`instr.rs`](code:src/cpu/instr.rs) | la représentation d'une instruction | [`Instr`](code:src/cpu/instr.rs#Instr), [`Rhs`](code:src/cpu/instr.rs#Rhs), [`FlagMode`](code:src/cpu/instr.rs#FlagMode) |
+| [`decode.rs`](code:src/cpu/decode.rs) | octets → `Instr` | [`decode16`](code:src/cpu/decode.rs#decode16), [`decode32`](code:src/cpu/decode.rs#decode32), [`is_32bit`](code:src/cpu/decode.rs#is_32bit) |
+| [`exec.rs`](code:src/cpu/exec.rs) | `Instr` → effet | [`step_inline`](code:src/cpu/exec.rs#step_inline), [`run`](code:src/cpu/exec.rs#run), [`execute`](code:src/cpu/exec.rs#execute) |
+| [`cache.rs`](code:src/cpu/cache.rs) | cache des instructions décodées | [`DecodeCache`](code:src/cpu/cache.rs#DecodeCache) |
+| [`alu.rs`](code:src/cpu/alu.rs) | arithmétique partagée | [`add_with_carry`](code:src/cpu/alu.rs#add_with_carry), [`thumb_expand_imm`](code:src/cpu/alu.rs#thumb_expand_imm) |
+| [`fpu.rs`](code:src/cpu/fpu.rs), [`fpu_double.rs`](code:src/cpu/fpu_double.rs) | virgule flottante | [`FpInstr`](code:src/cpu/fpu.rs#FpInstr), [`exec_fp`](code:src/cpu/fpu.rs#exec_fp), [`exec_double`](code:src/cpu/fpu_double.rs#exec_double) |
+| [`exception.rs`](code:src/cpu/exception.rs) | entrée et retour d'exception | [`take_exception`](code:src/cpu/exception.rs#take_exception) |
+| [`disasm.rs`](code:src/cpu/disasm.rs) | désassembleur | [`disassemble`](code:src/cpu/disasm.rs#disassemble) |
+| [`tests.rs`](code:src/cpu/tests.rs) | tests unitaires | |
+
+## Pourquoi cette découpe
+
+- **Décoder et exécuter sont séparés** : `decode.rs` ne connaît pas la mémoire, `exec.rs` ne connaît pas les encodages. On teste le décodeur seul, le désassembleur réutilise le décodeur (une seule vérité sur les encodages), et le résultat du décodage peut être **mis en cache**.
+- **Deux traits plutôt que des dépendances** : le processeur ne sait pas qu'il y a une NumWorks. Cela garde le module extractible en caisse autonome et testable avec une mémoire de trois lignes (voir [`cpu_vectors.rs`](code:tests/cpu_vectors.rs)). [`cpu_independence.rs`](code:tests/cpu_independence.rs) fait échouer la compilation de la suite si quelqu'un y glisse un `crate::`.
+- **Un cycle par instruction** : un modèle de temps plus fin (pipeline, cache, flash) serait faux sans mesures sur la vraie puce et rendrait l'exécution moins prévisible ; un modèle idéal est suffisant pour que les applications tournent à la bonne vitesse apparente.
+- **S'arrêter plutôt que continuer** : un encodage inconnu est un `Stop::Unimplemented`, pas un `nop`. Une exécution fausse qui continue est bien plus difficile à diagnostiquer qu'un arrêt qui dit où.
+
+## Pour modifier
+
+**Ajouter ou corriger une instruction** :
+
+1. Si elle n'est représentable par aucune variante, ajouter une variante à [`Instr`](code:src/cpu/instr.rs#Instr) (ou à `FpInstr` pour le flottant). Préférer **regrouper par famille** (un seul `Dp` pour tous les traitements de données) plutôt qu'une variante par encodage.
+2. La reconnaître dans [`decode16`](code:src/cpu/decode.rs#decode16) (16 bits) ou [`decode32`](code:src/cpu/decode.rs#decode32) (32 bits).
+3. L'exécuter dans le `match` de [`execute`](code:src/cpu/exec.rs#execute) : respecter le drapeau `FlagMode`, écrire dans `PC` par `write_result`/`bx_write_pc`, et remonter une `Stop` plutôt que de paniquer.
+4. L'afficher dans [`disasm.rs`](code:src/cpu/disasm.rs) (même variante, même syntaxe unifiée).
+5. La tester : un cas dans [`tests.rs`](code:src/cpu/tests.rs) pour la logique, et — pour le comportement exact — un lot dans [`generate_vectors.py`](code:tests/cpu/generate_vectors.py) rejoué par QEMU, dont les résultats sont versionnés dans `tests/golden/cpu/`.
+
+**À préserver** : le module ne doit utiliser que `std` et lui-même ; `Cpu::step` ne doit jamais appeler quelque chose qui lit l'heure ; un accès mémoire refusé doit poser `fault_pc`.
+
+**Tests à lancer** : `cargo test cpu` (unitaires), `cargo test --test cpu_vectors`, `cargo test --test cpu_independence`.

@@ -21,7 +21,7 @@ du `UserlandHeader`, par exemple, dépend de la version du firmware et pas seule
 
 `FirmwareProfile` : le modèle (`N0110`, `N0115`, `N0120`), la version d'Epsilon (`software_version`), la version du userland attendue, le commit, le niveau de sécurité, la taille de
 la charge signée, les deux slots, le slot actif, la taille de la SRAM et celle de la partie du noyau, l'adresse du système de fichiers et la taille de son tampon, la RAM des applications,
-les piles initiales du userland et du noyau, la fréquence en MHz, l'identifiant FCC, le numéro de série et le nom de l'appareil. `check()` vérifie la cohérence : chaînes ASCII de la bonne
+les piles initiales du userland et du noyau, la fréquence en MHz, l'identifiant FCC, le numéro de série et le nom de l'appareil. `validate()` vérifie la cohérence : chaînes ASCII de la bonne
 taille, adresses dans la bonne zone, plages qui ne se chevauchent pas (`ProfileError`).
 
 Deux dispositions, choisies par nom (`FirmwareProfile::for_layout("24", modèle)` ou `"26.4.0"`) :
@@ -123,3 +123,32 @@ mode examen cache les applications externes (seul l'effet est reproduit). Les se
 `read_structures` **relit** les structures dans la mémoire, pas dans la configuration : si une application les écrase, l'inspection le montre. Chaque structure revient avec son adresse (`Found<T>`)
 et un indicateur de validité (magics et pointeurs en place) plutôt que d'être cachée quand elle est abîmée. `detect_sram_base` distingue une SRAM en `0x2000_0000` (N0110, N0115, non
 distinguables par la mémoire) d'une en `0x2400_0000` (N0120).
+
+## Dans le code
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`profile/firmware.rs`](code:src/profile/firmware.rs) | le profil et ses vérifications | [`FirmwareProfile`](code:src/profile/firmware.rs#FirmwareProfile), [`ProfileError`](code:src/profile/firmware.rs#ProfileError) |
+| [`profile/presets.rs`](code:src/profile/presets.rs) | les profils prêts à l'emploi | [`epsilon_24`](code:src/profile/presets.rs#epsilon_24), [`epsilon_26_4_0`](code:src/profile/presets.rs#epsilon_26_4_0), [`for_layout`](code:src/profile/presets.rs#for_layout) |
+| [`profile/layout.rs`](code:src/profile/layout.rs) | la disposition de la flash externe | [`SlotLayout`](code:src/profile/layout.rs#SlotLayout), [`EXTERNAL_FLASH_BASE`](code:src/profile/layout.rs#EXTERNAL_FLASH_BASE) |
+| [`device/mod.rs`](code:src/device/mod.rs) | l'appareil fabriqué | [`DeviceImage`](code:src/device/mod.rs#DeviceImage), [`install`](code:src/device/mod.rs#install), [`update_profile`](code:src/device/mod.rs#update_profile) |
+| [`device/fabric.rs`](code:src/device/fabric.rs) | écriture des structures | [`write_structures`](code:src/device/fabric.rs#write_structures) |
+| [`device/map.rs`](code:src/device/map.rs) | la carte mémoire | [`build_memory`](code:src/device/map.rs#build_memory) |
+| [`device/apps.rs`](code:src/device/apps.rs) | relire les applications comme Epsilon | [`list_apps`](code:src/device/apps.rs#list_apps) |
+| [`structures/`](code:src/structures/) | les formats binaires des en-têtes | [`AppHeader`](code:src/structures/app.rs#AppHeader), [`KernelHeader`](code:src/structures/kernel.rs#KernelHeader), [`UserlandHeader`](code:src/structures/userland.rs#UserlandHeader) |
+| [`inspect/`](code:src/inspect/) | relire les structures en mémoire | [`read_structures`](code:src/inspect/read.rs#read_structures) |
+| [`scb.rs`](code:src/scb.rs) | registres de faute | [`record`](code:src/scb.rs#record), [`reset`](code:src/scb.rs#reset) |
+| [`settings.rs`](code:src/settings.rs) | réglages modifiables | [`Settings`](code:src/settings.rs#Settings) |
+
+## Pourquoi un profil, et pourquoi deux dispositions
+
+Les applications **regardent** la mémoire : certaines devinent le modèle d'après l'adresse du `UserlandHeader`, d'autres cherchent le système de fichiers à une adresse déduite de la version. Ces adresses changent d'une version d'Epsilon à l'autre. Les écrire en dur dans dix endroits ferait deviner une valeur fausse à l'un d'eux ; un **profil unique** les centralise, avec la **provenance** de chaque valeur (`Measured`, `Derived`) pour qu'on sache ce qui est relevé et ce qui est supposé. Deux dispositions existent parce qu'**un même modèle** (N0110) a des adresses différentes sous 24.x et 26.4.0, et que les applications d'aujourd'hui (`eadkp`, KhiCAS…) en dépendent.
+
+Les structures sont **fabriquées**, puis **relues** par `inspect` à partir de la mémoire : si une application les écrase, on le voit. C'est aussi ce qui permet de tester que `write_structures` produit ce que `read_structures` attend.
+
+## Pour modifier
+
+- **Ajouter une version d'Epsilon** : une nouvelle fonction dans [`presets.rs`](code:src/profile/presets.rs) (sur le modèle de `epsilon_24`), enregistrée dans [`for_layout`](code:src/profile/presets.rs#for_layout) ; indiquer la provenance de **chaque** valeur. [`validate`](code:src/profile/firmware.rs#validate) doit passer pour les trois modèles.
+- **Ajouter un modèle de calculatrice** : [`Model`](code:src/profile/mod.rs#Model), sa carte dans [`build_memory`](code:src/device/map.rs#build_memory), ses valeurs dans les deux dispositions, puis `Model::ALL`.
+- **Modifier une structure de l'OS** : l'encodage et le décodage vivent **ensemble** dans [`structures/`](code:src/structures/), pour ne pas diverger.
+- **Tests** : [`device_image.rs`](code:tests/device_image.rs), [`inspect_structures.rs`](code:tests/inspect_structures.rs), [`settings.rs`](code:tests/settings.rs).

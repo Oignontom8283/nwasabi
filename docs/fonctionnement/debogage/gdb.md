@@ -105,3 +105,32 @@ sequenceDiagram
 
 Les **symboles, les lignes, les variables et les types** viennent de l'**ELF** que GDB a chargé (`file app.elf`, [Application et export ELF](../edition-de-liens/application.md#export-elf-pour-gdb)) : Nwasabi ne les renvoie pas sur le fil. C'est ce qui permet à `list`, `info locals`, `print`, `next`, `finish`
 et `backtrace` de fonctionner sans extension de protocole. Les expressions sont évaluées **par GDB**, pas par `expr.rs` : celui-ci sert la console de la page et la zone d'expressions.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`serve_connection`](code:src/gdb.rs#serve_connection) | la boucle d'un client |
+| [`Debuggee`](code:src/gdb.rs#Debuggee) | « quelque chose qui répond à des commandes JSON » |
+| [`answer`](code:src/gdb.rs#answer) | le `match` sur la première lettre du paquet |
+| [`query`](code:src/gdb.rs#query), [`TARGET_XML`](code:src/gdb.rs#TARGET_XML) | `qSupported`, `qXfer` |
+| [`resume`](code:src/gdb.rs#resume), [`step`](code:src/gdb.rs#step), [`reverse`](code:src/gdb.rs#reverse) | exécuter |
+| [`stop_reply`](code:src/gdb.rs#stop_reply) | la réponse d'arrêt |
+| [`breakpoint_packet`](code:src/gdb.rs#breakpoint_packet) | `Z` / `z` |
+| [`Bridge`](code:src/gdb.rs#Bridge) | le pont avec la page |
+| [`serve_gdb`](code:src/server/main.rs#serve_gdb), [`gdb_session`](code:src/server/main.rs#gdb_session) | les deux modes du serveur |
+| [`gdbBridge.ts`](code:web/src/gdbBridge.ts), [`GdbView.vue`](code:web/src/components/debug/GdbView.vue) | le côté page |
+| [`gdb.rs` (tests)](code:tests/gdb.rs), [`gdb_real.rs`](code:tests/gdb_real.rs) | simulé / avec un vrai GDB |
+
+## Pourquoi traduire plutôt que d'implémenter un « stub » GDB complet
+
+Un stub complet duplique la logique d'exécution et de points d'arrêt. Ici, **chaque paquet devient une commande de session** (`m` → `memory_read`, `Z0` → `break`, `bc` → `reverse_continue`) : GDB, la page et la ligne de commande exercent **le même code**, donc les mêmes bugs sont corrigés une fois. C'est aussi ce qui donne le **retour en arrière** à GDB gratuitement : il suffit d'exposer `bs` et `bc`.
+
+Le **pont** existe parce que l'émulation de la page vit dans le navigateur, qui ne sait pas **écouter** un port : le serveur écoute, la page vient chercher le travail (requête longue) et rend le résultat. Le débogueur ne sait pas qu'il y a un navigateur au bout.
+
+## Pour modifier
+
+- **Un paquet de plus** : une branche dans [`answer`](code:src/gdb.rs#answer) qui appelle une commande de session ; si la commande n'existe pas, l'ajouter d'abord à la [session](./session.md#pour-modifier). Ne jamais lire la mémoire de l'appareil depuis `gdb.rs`.
+- **Décrire plus de registres** (FPU) : [`TARGET_XML`](code:src/gdb.rs#TARGET_XML), [`registers`](code:src/gdb.rs#registers) et `REGISTER_COUNT` ensemble, et les paquets `g`/`G`.
+- **Un arrêt de plus** : [`stop_reply`](code:src/gdb.rs#stop_reply).
+- **Tester** : [`tests/gdb.rs`](code:tests/gdb.rs) rejoue des paquets sans GDB ; [`gdb_real.rs`](code:tests/gdb_real.rs) lance un vrai GDB si `NWASABI_GDB` ou `gdb-multiarch` est disponible.

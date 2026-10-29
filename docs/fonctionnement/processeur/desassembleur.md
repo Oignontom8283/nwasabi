@@ -23,3 +23,19 @@ Les blocs `it` sont suivis le long d'une suite d'instructions : celles qu'ils re
 
 Il sert à la vue **Code** de la page, à la commande `disasm` de la [session](../debogage/session.md), à `x/Ni` et `disassemble` de la console et
 à la pile estimée (reconnaître l'instruction qui précède une adresse de retour : `bl` ou `blx`).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`disassemble`](code:src/cpu/disasm.rs#disassemble) | l'entrée : une plage d'adresses → des [`Line`](code:src/cpu/disasm.rs#Line) |
+| [`decode16`](code:src/cpu/decode.rs#decode16), [`decode32`](code:src/cpu/decode.rs#decode32) | le décodage réutilisé |
+| [commande `disasm`](<code:src/session/mod.rs#~"disasm" =>) | la commande JSON |
+
+## Pourquoi réutiliser le décodeur
+
+Un désassembleur indépendant dériverait du processeur : une instruction exécutée d'une façon et affichée d'une autre. Ici, **une instruction qu'on ne sait pas afficher est une instruction qu'on ne sait pas exécuter**, et réciproquement : les deux listes sont celles de `Instr`.
+
+## Pour modifier
+
+Ajouter une variante à `Instr` oblige le compilateur à demander un cas dans le `match` de `disasm.rs` (les `match` sont exhaustifs, sans `_ =>` sur `Instr`). La syntaxe suit celle d'ARM (**unifiée** : `adds`, `ldr.w`, suffixes conditionnels des blocs `it`).

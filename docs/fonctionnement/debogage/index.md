@@ -51,3 +51,28 @@ symboles du fichier `.nwa` (qui donnent les noms de fonctions). `step` et `next`
 - **Un appel de fonction est exécuté sur l'émulateur**, avec un retour piégé par un point d'arrêt, puis le processeur et le noyau sont **restaurés** ; la mémoire garde les effets de l'appel, comme avec GDB.
 - **Le rejeu ignore points d'arrêt et d'observation** (`suspend_debugging`) pour reconstituer un état exactement, puis les rétablit.
 - **Pas de modèle de temps pour les exceptions** : une faute arrête l'application ; ses causes sont dans les [registres de faute](../memoire/appareil.md#registres-de-faute).
+
+## Dans le code
+
+| Dossier ou fichier | Contenu |
+|---|---|
+| [`src/debuginfo/`](code:src/debuginfo/) | lecture DWARF, types, valeurs, expressions, pile |
+| [`src/session/`](code:src/session/) | la session, l'historique, les commandes de source |
+| [`src/gdb.rs`](code:src/gdb.rs) | le serveur GDB et le pont |
+| [`src/symbols.rs`](code:src/symbols.rs) | noms lisibles (démanglage) |
+| [`web/src/gdbConsole.ts`](code:web/src/gdbConsole.ts) | la console à la GDB de la page |
+| [`web/src/components/debug/`](code:web/src/components/debug/) | les vues de l'onglet Débogage |
+
+Les pages suivantes détaillent chaque brique avec ses fichiers et des recettes de modification.
+
+## Pourquoi cette organisation
+
+- **`debuginfo` ne dépend pas de l'émulateur** : il lit des octets et produit des structures ; l'accès à la mémoire de l'appareil passe par un trait ([`Target`](code:src/debuginfo/eval.rs#Target)). Cela le rend testable sans appareil, et réutilisable par l'ELF exporté.
+- **La session fait le lien** : elle seule connaît à la fois l'émulateur et `DebugInfo`. Ajouter une commande, c'est toujours ajouter une branche à la session.
+- **GDB ne duplique rien** : il ne contient aucune logique de débogage, seulement de la traduction de paquets.
+
+## Pour modifier
+
+- **Ajouter une commande de débogage** : voir [La session](./session.md#pour-modifier).
+- **Ajouter un langage** : il faut du DWARF qui décrit ses types ; voir [C++ et Rust](./langages.md#pour-modifier).
+- **Ajouter une vue à la page** : un composant dans [`components/debug/`](code:web/src/components/debug/), une entrée dans [`DebugTab.vue`](code:web/src/components/tabs/DebugTab.vue), des clés de traduction dans les **deux** langues (`locales.mjs` vérifie les deux).

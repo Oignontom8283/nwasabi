@@ -55,3 +55,27 @@ sequenceDiagram
 ## Options
 
 Voir [Le serveur](../../guide/serveur.md) (guide) : `--nwa`, `--data`, `--nmk`, `--nfs`, `--flash`, `--nds`, `--src`, `--model`, `--firmware`, `--host`, `--port`, `--gdb`, `--gdb-headless`.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`main.rs`](code:src/server/main.rs) | tout le serveur |
+| [`Options`](code:src/server/main.rs#Options) | les options de la ligne de commande |
+| [`Served`](code:src/server/main.rs#Served) | ce que le serveur sait servir |
+| [`preload`](code:src/server/main.rs#preload), [`version`](code:src/server/main.rs#version), [`stamp`](code:src/server/main.rs#stamp) | le chargement et l'empreinte |
+| [`source`](code:src/server/main.rs#source), [`source_files`](code:src/server/main.rs#source_files) | les sources de `--src` |
+| [`gdb_next`](code:src/server/main.rs#gdb_next), [`gdb_answer`](code:src/server/main.rs#gdb_answer) | le pont GDB |
+| [`gdb_session`](code:src/server/main.rs#gdb_session), [`serve_gdb`](code:src/server/main.rs#serve_gdb) | `--gdb-headless` et `--gdb` |
+| [`build.rs`](code:build.rs) | construction du site embarqué |
+| [`server.rs`](code:tests/server.rs) | les tests |
+
+## Pourquoi relire les fichiers à chaque requête
+
+Le serveur sert un **fichier que vous recompilez** : le lire une fois au démarrage obligerait à le relancer. L'empreinte (`stamp`) rend le rechargement bon marché : la page ne rechargera que ce qui a changé. Aucun chemin de la requête n'étant jamais lu, on ne peut pas faire sortir un fichier d'ailleurs que de ceux qui ont été donnés au démarrage.
+
+## Pour modifier
+
+- **Servir un fichier de plus** : un champ de [`Served`](code:src/server/main.rs#Served), une option, une route, et son empreinte dans [`version`](code:src/server/main.rs#version) ; le valider **au démarrage** (une erreur de format ne doit pas attendre la première requête).
+- **Une nouvelle route** : toujours sous `/__nwasabi/` pour ne jamais entrer en conflit avec la page.
+- **Sécurité** : toute route qui prend un nom (comme `source`) doit le **comparer à une liste** de ce que le serveur connaît, jamais l'ouvrir.

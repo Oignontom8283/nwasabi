@@ -37,3 +37,32 @@ Une instruction Thumb-2 de 32 bits s'écrit en deux demi-mots `hw1`, `hw2`. `cla
 - Un type de relocation inconnu : `RelocError::Unsupported`. Un emplacement qui dépasse la section : `RelocError::OutOfSection`.
 
 Chaque erreur remonte en `LinkError::Relocation` avec le **symbole**, la **section** et l'**objet** concernés.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`apply`](code:src/link/relocate.rs#apply) | une relocation : le `match` sur le type |
+| [`RelocError`](code:src/link/relocate.rs#RelocError) | les erreurs |
+| [`classify_branch`](code:src/link/thumb.rs#classify_branch), [`decode_branch_offset`](code:src/link/thumb.rs#decode_branch_offset), [`encode_branch_offset`](code:src/link/thumb.rs#encode_branch_offset) | les branchements longs |
+| [`classify_mov16`](code:src/link/thumb.rs#classify_mov16), [`encode_mov16`](code:src/link/thumb.rs#encode_mov16) | `movw` / `movt` |
+| [`NOP_W`](code:src/link/thumb.rs#NOP_W) | le remplaçant d'un appel faible non défini |
+| [`elf/reloc.rs`](code:src/elf/reloc.rs) | les constantes de types |
+| l'application d'une relocation à une section | [`linker.rs`](code:src/link/linker.rs#~relocate::apply) |
+
+## Pourquoi seulement ces types
+
+Ce sont ceux que **GCC et `rustc`** produisent pour du code Thumb-2 sans PIC : adresses absolues (`ABS32`), relatives (`REL32`, `PREL31`), appels et sauts longs (`THM_CALL`, `THM_JUMP24`) et constantes 16 bits (`MOVW`/`MOVT`). Le corpus d'applications tierces n'en emploie pas d'autres ; l'éditeur de liens refuse avec `Unsupported(type)` plutôt que de deviner : l'erreur donne le numéro de relocation, qu'on cherche dans la documentation ELF d'ARM.
+
+**Symptômes en pratique** :
+
+| Message | Cause probable |
+|---|---|
+| `Unsupported(n)` | le compilateur a utilisé un mode (PIC, GOT, TLS…) que l'EADK ne prévoit pas |
+| `Interworking` | un appel vers du code ARM (non Thumb) : le fichier mélange deux modes |
+| `Overflow` sur un branchement | la cible est à plus de ±16 Mio : le code de l'application est trop grand ou mal placé |
+| `BadInstruction` | la relocation ne tombe pas sur l'instruction attendue : fichier objet corrompu |
+
+## Pour modifier
+
+Pour ajouter un type : une branche dans [`apply`](code:src/link/relocate.rs#apply), la constante dans [`reloc.rs`](code:src/elf/reloc.rs), et **deux tests** (une valeur qui passe, une qui déborde) dans [`relocate.rs`](code:src/link/relocate.rs). Écrire la formule dans le tableau de cette page.

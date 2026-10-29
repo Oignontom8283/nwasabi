@@ -53,3 +53,21 @@ C'est une **estimation** : une vieille adresse de retour restée dans la pile pe
 
 Un nom de fonction vient des informations de débogage s'il y en a, sinon des **symboles du fichier `.nwa`** (`LinkedApp::symbols`) ; sans eux, seules les adresses sont connues. `session/debug.rs::symbol_text` rend `fonction+0x10`. Les noms C++ et
 Rust sont **démanglés** ([C++ et Rust](./langages.md#noms-lisibles-demanglage)).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`unwind`](code:src/debuginfo/unwind.rs#unwind), [`caller`](code:src/debuginfo/unwind.rs#caller), [`cfa_at`](code:src/debuginfo/unwind.rs#cfa_at) | la pile exacte |
+| [`backtrace`](code:src/session/debug.rs#backtrace), [`call_before`](code:src/session/debug.rs#call_before) | la pile estimée |
+| [`frames_of`](code:src/session/source.rs#frames_of) | les cadres utilisés par le débogage du code source |
+| [`symbol_text`](code:src/session/debug.rs#symbol_text) | « fonction+0x10 » |
+
+## Pourquoi deux méthodes
+
+L'estimation fonctionne **partout** (code sans `-g`, bibliothèques) mais peut se tromper ; la CFI est **exacte** mais ne décrit que ce que le compilateur a décrit. Garder les deux permet d'avoir **toujours** une pile, avec le niveau de confiance affiché. La CFI s'appuie sur `.debug_frame` plutôt que `.eh_frame` ou les tables ARM (`.ARM.exidx`) : ces dernières ne sont pas placées par l'éditeur de liens et leur format est moins général.
+
+## Pour modifier
+
+- **Mieux déboguer du code écrit à la main** (assembleur) : ajouter des directives `.cfi_*` dans le source assembleur ; la pile devient exacte sans toucher à Nwasabi.
+- **Une pile fausse au premier cadre** : regarder si le pc est dans du code **non décrit** (la fonction est alors traitée comme une feuille).

@@ -63,3 +63,26 @@ relâchée jusqu'à ce qu'une tranche l'ait vue.
 ## Entrées
 
 `InputMapper` traduit un `KeyboardEvent` (position `code` ou caractère `key`) en touches de la calculatrice d'après le `KeyMap`, avec la logique des **accords** (une touche de l'ordinateur → plusieurs touches de la calculatrice) ; `attachPointer` ajoute la reconnaissance de **gestes** tactiles (`gestures.ts`) liés par les règles du fichier de mapping. La répétition des touches est faite par le **noyau** ([Clavier](../noyau/clavier.md)), pas par la bibliothèque.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Player`](code:packages/js/src/player.ts#Player) | la classe principale : [`create`](code:packages/js/src/player.ts#create), [`tick`](code:packages/js/src/player.ts#tick), [`attach`](code:packages/js/src/player.ts#attach), [`call`](code:packages/js/src/player.ts#call) |
+| [`PlayerState`](code:packages/js/src/player.ts#PlayerState), [`Scheduler`](code:packages/js/src/player.ts#Scheduler) | l'état et le planificateur |
+| [`defaultScheduler`](code:packages/js/src/player.ts#defaultScheduler) | navigateur ou Node.js |
+| [`Nwasabi`](code:packages/js/src/nwasabi.ts#Nwasabi) | l'enveloppe du module |
+| [`InputMapper`](code:packages/js/src/input.ts#InputMapper) | clavier de l'ordinateur → touches |
+| [`gestures.ts`](code:packages/js/src/gestures.ts), [`keymap.ts`](code:packages/js/src/keymap.ts) | gestes et mapping |
+| [`index.ts`](code:packages/js/src/index.ts) | ce qui est exporté |
+| [`player.mjs`](code:tests/wasm/player.mjs), [`speed.mjs`](code:tests/wasm/speed.mjs) | les tests de cadence |
+
+## Pourquoi un `Scheduler` injectable
+
+Le `Player` doit tourner dans un navigateur (`requestAnimationFrame`), dans un Worker (pas de `requestAnimationFrame`) et sous Node.js (tests, scripts). Plutôt que de tester l'environnement dans la boucle, on **lui passe** `now`, `request` et `cancel`. Les tests donnent un faux planificateur : on fait avancer le temps à la main, sans attendre, et le comportement est reproductible.
+
+## Pour modifier
+
+- **Changer la cadence** : [`tick`](code:packages/js/src/player.ts#tick) ; l'invariant à respecter est « l'application ne voit jamais plus de temps qu'il n'en est réellement passé, et rien en pause ».
+- **Ajouter une méthode au `Player`** que la page appelle : l'ajouter aussi à `PlayerMethod` de [`worker-protocol.ts`](code:web/src/worker-protocol.ts#PlayerMethod), sinon le Worker ne la transmettra pas.
+- **Publier** : `just build-npm`, `just pack-npm` ; les deux paquets partagent la même version.

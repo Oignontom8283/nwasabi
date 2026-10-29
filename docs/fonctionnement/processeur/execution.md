@@ -94,3 +94,31 @@ Les vecteurs de test de ces instructions viennent de QEMU ([Vérification](../ve
 Un encodage que le décodeur ne reconnaît pas arrête l'application sur `Stop::Unimplemented` : l'application s'arrête, avec l'adresse et le premier
 demi-mot, plutôt que de continuer sur une exécution fausse. Sont dans ce cas les instructions de coprocesseur, de NEON (sans objet sur un
 Cortex-M7) et les instructions du jeu ARM.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`step`](code:src/cpu/exec.rs#step), [`step_inline`](code:src/cpu/exec.rs#step_inline), [`run`](code:src/cpu/exec.rs#run) | une instruction, une boucle |
+| [`cond_passed`](code:src/cpu/exec.rs#cond_passed) | les 14 conditions ARM |
+| [`execute`](code:src/cpu/exec.rs#execute) | le `match` principal sur [`Instr`](code:src/cpu/instr.rs#Instr) |
+| [`exec_dp`](code:src/cpu/exec.rs#exec_dp) | traitement de données (drapeaux, `FlagMode`) |
+| [`exec_ldm`](code:src/cpu/exec.rs#exec_ldm), [`exec_stm`](code:src/cpu/exec.rs#exec_stm) | accès multiples |
+| [`exec_exclusive`](code:src/cpu/exec.rs#exec_exclusive) | `ldrex` / `strex` |
+| [`read_sysreg`](code:src/cpu/exec.rs#read_sysreg), [`write_sysreg`](code:src/cpu/exec.rs#write_sysreg) | `mrs` / `msr` |
+| [`parallel`](code:src/cpu/exec.rs#parallel), [`extend`](code:src/cpu/exec.rs#extend) | opérations DSP |
+| [`advance_it`](code:src/cpu/regs.rs#advance_it) | avancer l'état `IT` |
+
+## Pourquoi ainsi
+
+- **`pc` avance avant d'exécuter** : c'est ce que voit une instruction qui lit `PC`, et cela simplifie les sauts (écrire `pc` remplace la valeur). D'où `fault_pc`, la mémoire de l'adresse fautive.
+- **Une instruction sautée dans un bloc `IT` compte un cycle** : sur la vraie puce, elle occupe son créneau ; le temps virtuel du noyau en dépend.
+- **L'arrêt est une valeur de retour (`Result<(), Stop>`)**, pas une panique : `?` suffit pour remonter, et `run` a un seul point de sortie.
+- **La mémoire est appelée un accès à la fois** (`read8/16/32`), jamais par blocs, dans le processeur : un comportement à effet de bord (point d'observation, faute) doit survenir **à l'instruction exacte**.
+
+## Pour modifier
+
+- **Un drapeau faux** : commencer par [`exec_dp`](code:src/cpu/exec.rs#exec_dp) et [`alu.rs`](code:src/cpu/alu.rs) ; vérifier `FlagMode` (une forme 16 bits met à jour les drapeaux **hors** d'un bloc `IT` seulement).
+- **Une faute à signaler** : renvoyer un `Stop` ; ne pas écrire dans les registres de faute depuis le processeur (c'est le travail de [`scb::record`](code:src/scb.rs#record), côté émulateur).
+- **Changer le comportement des accès exclusifs** : [`Memory::allow_exclusive_accesses`](code:src/memory/mod.rs#allow_exclusive_accesses), pas le processeur : la règle (« la RAM de la calculatrice les refuse ») est une propriété de la **mémoire**.
+- **Tests** : [`tests.rs`](code:src/cpu/tests.rs) (blocs `IT`, exclusivité, exceptions), [`cpu_vectors.rs`](code:tests/cpu_vectors.rs) (comparaison à QEMU).

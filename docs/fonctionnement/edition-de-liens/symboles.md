@@ -46,3 +46,23 @@ variables sont placées **après `.bss`**, donc **hors de la zone que `_start` m
 
 `TLS` (variables locales aux threads) est refusé (`LinkError::Unsupported`). Une section qui n'est pas allouée en mémoire (`!SHF_ALLOC`) n'est pas placée ; les `.debug_*` suivent un chemin à part
 ([Application et export ELF](./application.md#informations-de-debogage)).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Obj`](code:src/link/linker.rs#Obj) | un objet en entrée (origine + ELF) |
+| [`resolve`](code:src/link/linker.rs#resolve), [`Resolved`](code:src/link/linker.rs#Resolved) | résolution d'un symbole |
+| [`rank`](code:src/link/linker.rs#rank), [`build_globals`](code:src/link/linker.rs#build_globals) | force fort / faible / commun, et table des définitions |
+| [`Reachability`](code:src/link/linker.rs#Reachability) | les sections utiles et les communs utilisés |
+| [`LINKER_SYMBOLS`](code:src/link/linker.rs#LINKER_SYMBOLS), [`linker_symbols`](code:src/link/runtime.rs#linker_symbols) | les symboles du « script de link » |
+
+## Pourquoi « la première définition gagne »
+
+Le runtime est lié **avant** l'application, comme `eadk.o` avant l'application dans l'outil officiel, et l'éditeur de liens officiel est lancé avec l'équivalent de `--allow-multiple-definition`. Reproduire ce comportement, y compris pour les cas où il peut surprendre (une application qui redéfinit `eadk_random` utilise celle du runtime), est ce qui rend les images **identiques**.
+
+## Pour modifier
+
+- **Changer l'ordre des objets** : [`link`](code:src/link/mod.rs#link) construit le vecteur ; l'ordre change **quelle définition gagne**.
+- **Ajouter un symbole du script de link** : [`linker_symbols`](code:src/link/runtime.rs#linker_symbols), [`LINKER_SYMBOLS`](code:src/link/linker.rs#LINKER_SYMBOLS), et sa valeur dans [`layout`](code:src/link/linker.rs#layout).
+- **Symptôme « symbole non défini » sur une application qui marche sur l'appareil** : regarder si la fonction manque au runtime ([`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC)) ou si elle est **faible** et non définie (valeur 0, branchement remplacé par `nop.w`).

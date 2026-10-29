@@ -54,3 +54,26 @@ comptent que pour une. La page s'en sert pour ne relire la liste que quand c'est
 
 Une structure abîmée **n'est pas une erreur** : `parse` rend ce qui a pu être lu avant, et `corrupt_at`. La lecture de ce qui précède reste possible, l'**écriture est refusée** (`FsError::Corrupt { offset }`), pour ne pas
 écraser davantage. Un fichier qui ne tient plus donne `FsError::NoSpace { needed }` ; un nom absent, `NotFound`.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`storage/mod.rs`](code:src/storage/mod.rs) | l'API : [`Storage`](code:src/storage/mod.rs#Storage), [`Fs`](code:src/storage/mod.rs#Fs), [`FsError`](code:src/storage/mod.rs#FsError), [`generation`](code:src/storage/mod.rs#generation) |
+| [`storage/records.rs`](code:src/storage/records.rs) | le format, sans accès mémoire : [`parse`](code:src/storage/records.rs#parse), [`write`](code:src/storage/records.rs#write), [`remove`](code:src/storage/records.rs#remove), [`rename`](code:src/storage/records.rs#rename), [`check_name`](code:src/storage/records.rs#check_name) |
+| [`formats/nfs.rs`](code:src/formats/nfs.rs) | le format `.nfs` (fichiers exportés) |
+| [`Session::fs`](code:src/session/mod.rs#fs) | les commandes `fs_*` |
+| [`emulator_fs.rs`](code:tests/emulator_fs.rs) | les tests |
+
+## Pourquoi ainsi
+
+- **Deux couches** : `records.rs` ne connaît que des `&[u8]` ; `Fs` lit et écrit le tampon dans la mémoire émulée. La première se teste sans appareil, la seconde ne contient que de la plomberie.
+- **Aucune copie en mémoire de la liste** : l'application peut ajouter, supprimer ou **abîmer** un fichier à tout moment ; un index gardé par l'hôte serait faux au premier tour.
+- **Écrire dans un tampon abîmé est refusé** : on évite d'aggraver un dégât qu'on ne sait pas interpréter.
+- **`generation()` détecte les changements par comparaison** : l'hôte n'est pas prévenu d'une écriture de l'application ; il doit donc comparer. Deux modifications entre deux appels comptent pour une : suffisant pour savoir **s'il faut relire**.
+
+## Pour modifier
+
+- **Ajouter un type de fichier** : [`FileKind`](code:src/storage/mod.rs#FileKind) (reconnu par extension). Le corps d'un type inconnu est traité comme des octets.
+- **Changer le format d'enregistrement** : seulement [`records.rs`](code:src/storage/records.rs) ; vérifier que `parse` rend toujours « ce qui a pu être lu » et la position du dégât, sans erreur fatale.
+- **Tests** : unitaires dans `records.rs`/`mod.rs`, intégration dans [`emulator_fs.rs`](code:tests/emulator_fs.rs) et [`fixtures.rs`](code:tests/fixtures.rs).

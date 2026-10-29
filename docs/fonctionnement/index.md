@@ -109,6 +109,10 @@ Le trait `cpu::Bus` (la mémoire) et le trait `cpu::Hooks` (les `svc`) sont les 
 | comprendre le débogueur | [Session](./debogage/session.md) → [DWARF](./debogage/dwarf.md) → [Pile](./debogage/pile.md) → [GDB](./debogage/gdb.md) → [Historique](./debogage/historique.md) |
 | modifier l'interface web | [Hôtes](./hotes/index.md) → [Page web](./hotes/web.md) → [Bibliothèque JavaScript](./hotes/bibliotheque-js.md) |
 
+## Liens vers le code
+
+Les pages citent les fichiers et les fonctions, et leurs liens mènent **aux lignes** de la définition sur GitHub. Ils sont écrits `code:chemin#symbole` dans les sources de la documentation et **résolus à la construction du site** : si une fonction est renommée ou supprimée, `just build-docs` **échoue** au lieu de laisser un lien faux. Chaque grande page se termine par trois parties : *Dans le code* (où regarder), *Pourquoi* (les raisons du choix) et *Pour modifier* (par où commencer, quoi préserver, quels tests lancer).
+
 ## Lire cette section
 
 Les pages vont du bas vers le haut : [processeur](./processeur/index.md), [mémoire](./memoire/index.md), [noyau](./noyau/index.md),

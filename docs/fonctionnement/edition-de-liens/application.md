@@ -46,3 +46,25 @@ section par section placée (`.text`, `.rodata`, `.data`, `.bss`, avec leurs adr
 adresses définitives ; **le code et les données d'exécution viennent de Nwasabi** par la connexion `target remote`.
 
 Les adresses dépendent du modèle et du micrologiciel (disposition `24` ou `26.4.0`) : un ELF produit pour une disposition ne vaut pas pour l'autre.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`AppHeader`](code:src/structures/app.rs#AppHeader), [`APP_MAGIC`](code:src/structures/app.rs#APP_MAGIC) | l'en-tête |
+| [`run`](code:src/link/linker.rs#run) (fin) | écriture de l'en-tête et des avertissements |
+| [`debug_sections`](code:src/link/linker.rs#debug_sections) | les sections `.debug_*` avec relocations appliquées |
+| [`DebugSection`](code:src/link/mod.rs#DebugSection), [`LinkedApp::debug`](code:src/link/mod.rs#LinkedApp) | leur conteneur |
+| [`to_elf`](code:src/link/export.rs#to_elf) | l'export pour GDB |
+| [`DeviceImage::install`](code:src/device/mod.rs#install) | l'installation en flash |
+| [`list_apps`](code:src/device/apps.rs#list_apps) | la relecture comme Epsilon |
+| [`export_elf`](<code:src/session/source.rs#~"export_elf">) | la commande qui exporte l'ELF |
+
+## Pourquoi les relocations de débogage sont appliquées à l'édition de liens
+
+Un fichier DWARF est plein d'adresses qui ne valent rien avant la liaison. Les appliquer **une fois** ici (et non dans le lecteur DWARF) garde le lecteur simple et fait que l'ELF exporté pour GDB contient les **mêmes** octets que ce que Nwasabi lit : GDB et la page voient exactement les mêmes lignes.
+
+## Pour modifier
+
+- **Un champ de plus dans l'en-tête** : [`AppHeader`](code:src/structures/app.rs#AppHeader) (encodage et décodage ensemble), l'écriture dans `run`, [`list_apps`](code:src/device/apps.rs#list_apps) et la [spécification](../memoire/appareil.md) ; l'outil officiel ne lit que les champs qu'il connaît : ne pas en ajouter sans raison.
+- **Un format de débogage de plus** (DWARF compressé, par exemple) : d'abord ici ([`debug_sections`](code:src/link/linker.rs#debug_sections) devrait décompresser), pas dans [`debuginfo`](code:src/debuginfo/mod.rs).

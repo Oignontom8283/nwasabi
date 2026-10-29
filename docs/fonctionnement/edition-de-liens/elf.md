@@ -21,3 +21,23 @@ Les constantes de relocation utiles sont dans `elf/reloc.rs`.
 `elf/writer.rs` écrit un objet ELF relogeable minimal : sections, symboles, relocations. Il sert à **fabriquer des objets sans compilateur** : les stubs d'appels système du runtime, l'objet des données externes, les objets des tests de l'éditeur
 de liens. Le résultat est un `.o` valide que `ElfObject::parse` relit et que les outils GNU savent lire. L'ELF **exécutable** que GDB lit (`LinkedApp::to_elf`) est écrit par le module `link/export.rs` : voir
 [Application et export ELF](./application.md#export-elf-pour-gdb).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`ElfObject::parse`](code:src/elf/mod.rs#parse) | l'entrée du lecteur |
+| [`Limits`](code:src/elf/mod.rs#Limits) | les bornes anti-démesure |
+| [`header.rs`](code:src/elf/header.rs), [`section.rs`](code:src/elf/section.rs), [`symbol.rs`](code:src/elf/symbol.rs), [`reloc.rs`](code:src/elf/reloc.rs), [`reader.rs`](code:src/elf/reader.rs) | les morceaux du format |
+| [`ElfError`](code:src/elf/error.rs#ElfError) | les erreurs, toutes avec leur position |
+| [`ObjectWriter`](code:src/elf/writer.rs#ObjectWriter) | l'écriture d'un objet minimal |
+| [`elf/tests.rs`](code:src/elf/tests.rs) | tests (y compris des fichiers tronqués ou malformés) |
+
+## Pourquoi un lecteur qui ne panique jamais
+
+Le fichier peut être **déposé par n'importe qui dans une page web**. Un lecteur qui paniquerait sur un décalage faux ferait planter l'onglet (en WebAssembly, `panic = "abort"`). Chaque position et chaque taille est donc vérifiée par `reader.rs`, et les erreurs disent **où** elles se produisent. Les bornes de [`Limits`](code:src/elf/mod.rs#Limits) empêchent aussi un petit fichier de demander des gigaoctets.
+
+## Pour modifier
+
+- **Lire un nouveau champ** : l'ajouter à la structure concernée (`section.rs`…), lire par `reader.rs` (jamais indexer directement), ajouter un test avec une valeur invalide.
+- **Prendre en charge `RELA`** (relocations avec addend explicite) : aujourd'hui `RelaNotSupported` ; il faudrait la lecture ici et l'application dans [`relocate.rs`](code:src/link/relocate.rs) (qui suppose `REL`).

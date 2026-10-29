@@ -120,3 +120,29 @@ Dès qu'un point d'observation existe, le chemin rapide des blocs est désactiv�
 
 `allow_exclusive_accesses(false)` (le défaut) fait refuser `ldrex`/`strex` en RAM (`FaultKind::ExclusiveUnsupported`) : sur la calculatrice, la RAM est partageable et sans moniteur
 global. La flash accepte les accès exclusifs.
+
+## Dans le code
+
+Le module est [`src/memory/`](code:src/memory/) :
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`mod.rs`](code:src/memory/mod.rs) | la mémoire et son API d'hôte | [`Memory`](code:src/memory/mod.rs#Memory), [`add_region`](code:src/memory/mod.rs#add_region), [`snapshot_volatile`](code:src/memory/mod.rs#snapshot_volatile), [`changes_since`](code:src/memory/mod.rs#changes_since) |
+| [`bus.rs`](code:src/memory/bus.rs) | l'implémentation du trait [`Bus`](code:src/cpu/bus.rs#Bus) | [`read_access`](code:src/memory/bus.rs#read_access), [`write_access`](code:src/memory/bus.rs#write_access), [`block_region`](code:src/memory/bus.rs#block_region) |
+| [`region.rs`](code:src/memory/region.rs) | stockage d'une zone : pages, indicateurs, dates | [`Region`](code:src/memory/region.rs#Region), [`Perms`](code:src/memory/region.rs#Perms), [`PAGE_SIZE`](code:src/memory/region.rs#PAGE_SIZE) |
+| [`watch.rs`](code:src/memory/watch.rs) | points d'observation | [`Watchpoints`](code:src/memory/watch.rs#Watchpoints), [`check`](code:src/memory/watch.rs#check) |
+| [`error.rs`](code:src/memory/error.rs) | erreurs de l'API d'hôte | [`MemoryError`](code:src/memory/error.rs#MemoryError) |
+
+## Pourquoi ainsi
+
+- **Pages paresseuses** : la flash externe fait 8 Mio et la SRAM 256 Kio ; allouer tout pour chaque appareil (et pour chaque **point de reprise** de l'historique) serait gaspilleur. Seules les pages touchées existent, ce qui rend un instantané proportionnel à ce que l'application a utilisé.
+- **Deux sortes d'accès** : si l'hôte (page, débogueur) lisait par le chemin du programme, il marquerait des lignes « lues » et déclencherait des points d'observation : **observer changerait l'observation**. D'où `read_bytes` / `write_bytes` côté hôte, qui ne touchent à rien.
+- **Les points d'observation et le suivi sont dans la mémoire**, pas dans le processeur : c'est elle qui voit **tous** les accès (processeur, appels système du noyau) au même endroit.
+- **L'époque du code** est le seul canal entre mémoire et cache d'instructions : voir [Décodage et cache](../processeur/decodage.md).
+
+## Pour modifier
+
+- **Ajouter une zone** (par exemple un autre modèle de calculatrice) : [`device/map.rs`](code:src/device/map.rs#build_memory) (jamais directement dans `Memory`). `add_region` refuse les zones qui se recouvrent ou ne sont pas alignées sur 4 Kio : les tests de `build_memory` le vérifient pour les trois modèles.
+- **Changer ce que le suivi retient** (par exemple une granularité plus fine que 32 octets) : [`LINE_SIZE`](code:src/memory/region.rs#LINE_SIZE), mais attention : `usage`, les cartes d'accès d'un `.nds` et l'éditeur de mémoire de la page en dépendent.
+- **Un chemin rapide qui change une observation** est un bug : [`block_region`](code:src/memory/bus.rs#block_region) se retire quand un point d'observation existe, pour que les blocs produisent **les mêmes** fautes et déclenchements que l'accès octet par octet.
+- **Tests** : [`memory/tests.rs`](code:src/memory/tests.rs), [`emulator_memory.rs`](code:tests/emulator_memory.rs).
