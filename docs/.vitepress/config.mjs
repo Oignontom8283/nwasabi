@@ -131,6 +131,17 @@ export default withMermaid(defineConfig({
           items: [{ text: "Vue d'ensemble", link: "/fonctionnement/" }],
         },
         {
+          text: "Introduction à l'émulation",
+          collapsed: false,
+          items: [
+            { text: "Présentation", link: "/fonctionnement/introduction/" },
+            { text: "Un processeur", link: "/fonctionnement/introduction/processeur" },
+            { text: "La mémoire", link: "/fonctionnement/introduction/memoire" },
+            { text: "Du source au programme", link: "/fonctionnement/introduction/du-source-au-programme" },
+            { text: "Émuler", link: "/fonctionnement/introduction/emuler" },
+          ],
+        },
+        {
           text: "Processeur",
           collapsed: false,
           items: [

@@ -14,6 +14,10 @@ Cette section décrit **comment** Nwasabi émule une application NumWorks, et **
 veut lire, vérifier ou prolonger le code : les pages donnent les structures, les constantes, les invariants et les cas limites, avec le nom
 des modules. Pour s'en servir, voir plutôt le [Guide](../guide/index.md) ; pour les formats et les numéros d'appels, la [Référence](../reference/compatibilite.md).
 
+::: info Nouveau dans l'émulation ?
+Si les mots « registre », « éditeur de liens » ou « svc » ne vous disent rien, commencez par l'[Introduction à l'émulation](./introduction/index.md) : quatre courtes pages pour quelqu'un qui sait programmer.
+:::
+
 ## Ce qui est émulé, et ce qui ne l'est pas
 
 Nwasabi n'exécute pas Epsilon, le système de la calculatrice. Il exécute **l'application seule**, sur un processeur ARM Cortex-M7 émulé, et
@@ -92,6 +96,18 @@ Le trait `cpu::Bus` (la mémoire) et le trait `cpu::Hooks` (les `svc`) sont les 
 | `session/`, `gdb.rs` | protocole JSON, historique, serveur GDB | [Session](./debogage/session.md), [GDB](./debogage/gdb.md) |
 | `formats/`, `keymap/`, `json.rs` | formats `.nds`, `.nfd`, `.nfs`, `.nrp`, `.nmk` | [Formats](../reference/formats/index.md) |
 | `wasm.rs`, `server/`, `cli/`, `packages/`, `web/` | hôtes | [Hôtes](./hotes/index.md) |
+
+## Par où commencer selon ce que l'on veut faire
+
+| Si je veux… | Je commence par… |
+|---|---|
+| comprendre ce qu'est un émulateur | [Introduction à l'émulation](./introduction/index.md) |
+| comprendre l'architecture globale | cette page, puis [Exécution](./execution/index.md) |
+| ajouter une instruction ARM | [Processeur](./processeur/index.md) → [Décodage](./processeur/decodage.md) → [Exécution](./processeur/execution.md) → [Vérification](./verification/index.md) |
+| modifier un appel système | [Noyau simulé](./noyau/index.md) → [Appels système](./noyau/appels-systeme.md) → [Vérification](./verification/index.md) |
+| corriger un problème de chargement d'application | [Édition de liens](./edition-de-liens/index.md) → [Relocations](./edition-de-liens/relocations.md) → [Placement](./edition-de-liens/placement.md) |
+| comprendre le débogueur | [Session](./debogage/session.md) → [DWARF](./debogage/dwarf.md) → [Pile](./debogage/pile.md) → [GDB](./debogage/gdb.md) → [Historique](./debogage/historique.md) |
+| modifier l'interface web | [Hôtes](./hotes/index.md) → [Page web](./hotes/web.md) → [Bibliothèque JavaScript](./hotes/bibliotheque-js.md) |
 
 ## Lire cette section
 
