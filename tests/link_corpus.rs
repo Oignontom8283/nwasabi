@@ -114,6 +114,9 @@ fn every_nwa_of_the_corpus_links_into_a_consistent_image() {
     for (name, line) in &results {
         match expected.get(name.as_str()) {
             Some(want) => assert_eq!(line, want, "{name}: l'image liée a changé"),
+            None if support::corpus_required() => panic!(
+                "{name} absent de {GOLDEN} (NWASABI_UPDATE_GOLDEN=1 pour l'ajouter)"
+            ),
             None => eprintln!(
                 "{name} absent de {GOLDEN} : comparaison ignorée (NWASABI_UPDATE_GOLDEN=1 pour l'ajouter)"
             ),

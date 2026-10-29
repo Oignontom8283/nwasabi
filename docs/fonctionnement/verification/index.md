@@ -41,7 +41,7 @@ produit par un compilateur traverse **toute** la chaîne (lecture, liaison, exé
 
 ## 3. Le corpus de tiers
 
-Si le dossier `local/nwa` (ignoré par git) contient des `.nwa` de tiers, des tests les exploitent ; sinon ils sont **ignorés sans bruit**. `just test-corpus <dossier>` en donne un autre.
+Si le dossier `local/nwa` (ignoré par git) contient des `.nwa` de tiers, des tests les exploitent ; sinon ils sont **ignorés avec un message** sur la sortie d'erreur. `just test-corpus <dossier>` en donne un autre et rend le corpus **obligatoire** : sans lui, ou avec une application absente des références, les tests échouent. `NWASABI_REQUIRE_CORPUS=1` donne le même comportement à n'importe quelle commande (par exemple dans une intégration continue qui dispose d'un corpus).
 
 | Test | Ce qu'il vérifie |
 |---|---|

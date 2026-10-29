@@ -39,8 +39,20 @@ pub fn corpus() -> Option<Vec<(String, Vec<u8>)>> {
     )
 }
 
-/// Appelée quand un test est ignoré faute de corpus : volontairement silencieuse.
-pub fn skip_without_corpus() {}
+/// Mode strict (`NWASABI_REQUIRE_CORPUS=1`) : le corpus est obligatoire et une référence manquante est une erreur.
+pub fn corpus_required() -> bool {
+    std::env::var_os("NWASABI_REQUIRE_CORPUS").is_some_and(|v| !v.is_empty() && v != "0")
+}
+
+/// Appelée quand un test est ignoré faute de corpus. Le dire sur la sortie d'erreur (visible avec `--nocapture`) ; en mode strict,
+/// échouer : une validation qui disparaît sans signal ne doit pas passer pour un succès.
+pub fn skip_without_corpus() {
+    assert!(
+        !corpus_required(),
+        "NWASABI_REQUIRE_CORPUS est demandé mais aucun corpus n'est disponible (NWASABI_CORPUS ou local/nwa)"
+    );
+    eprintln!("test ignoré : pas de corpus d'applications (NWASABI_CORPUS ou local/nwa)");
+}
 
 use nwasabi::elf::{
     ObjectWriter, R_ARM_ABS32, R_ARM_THM_CALL, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SectionId,

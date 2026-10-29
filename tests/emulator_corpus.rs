@@ -126,6 +126,9 @@ fn corpus_apps_run_and_draw_the_same_screen() {
     for (name, line) in &results {
         match expected.get(name.as_str()) {
             Some(want) => assert_eq!(line, want, "{name}: l'exécution a changé"),
+            None if support::corpus_required() => {
+                panic!("{name} absent de {GOLDEN} (NWASABI_UPDATE_GOLDEN=1 pour l'ajouter)")
+            }
             None => eprintln!("{name} absent de {GOLDEN} : comparaison ignorée"),
         }
     }

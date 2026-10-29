@@ -10,7 +10,7 @@ repository = "https://github.com/Oignontom8283/nwasabi"
 homepage = "https://github.com/Oignontom8283/nwasabi"
 documentation = "https://github.com/Oignontom8283/nwasabi/tree/main/docs"
 readme = "README.md"
-rust-version = "1.85"
+rust-version = "1.88"
 keywords = ["numworks", "emulator", "wasm", "cortex-m", "gdb"]
 categories = ["emulators", "wasm", "development-tools::debugging"]
 # Le paquet publié ne contient que ce qui sert à compiler : le code (`src/`), le script de
