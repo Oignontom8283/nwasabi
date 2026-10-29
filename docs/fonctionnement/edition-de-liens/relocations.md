@@ -5,6 +5,11 @@ description: "Les types de relocation gérés, la formule S + A − P, l'encodag
 
 # Relocations
 
+::: tip En bref
+Une relocation est une **adresse à compléter**. Le compilateur écrit « ici, mettre l'adresse de `ma_fonction` » ; l'éditeur de liens, qui connaît enfin les adresses, remplit le trou.
+:::
+
+
 Les fichiers ARM utilisent des relocations de type **REL** : la valeur déjà présente à l'emplacement sert d'**addend** `A`. On y ajoute l'adresse du symbole `S` et, si la valeur est relative, on retranche l'adresse de l'emplacement
 lui-même `P`. `T` vaut 1 quand le symbole est une **fonction Thumb** : le bit 0 de `S` signale alors le mode Thumb. `relocate::apply(kind, section, offset, place, target)` calcule la valeur et l'écrit.
 

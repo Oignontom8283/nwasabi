@@ -5,6 +5,11 @@ description: "Comment Nwasabi transforme un .nwa (objet ELF relogeable) en image
 
 # L'édition de liens
 
+::: tip En bref
+Un `.nwa` est un **puzzle dont les pièces n'ont pas encore d'adresse**. L'éditeur de liens choisit où poser chaque pièce en flash et en RAM, puis calcule toutes les adresses qui s'y réfèrent.
+:::
+
+
 Un fichier `.nwa` **n'est pas un programme** : c'est un objet ELF 32 bits ARM **relogeable** (`-Wl,--relocatable`), avec des relocations qui n'ont pas encore d'adresse. L'outil de flashage officiel de NumWorks le lie avec un petit objet
 de support (le **runtime EADK**) avant de l'écrire dans la flash de la calculatrice. Nwasabi refait ce travail : `link::link` produit une image, que `DeviceImage::install` place en flash comme l'outil de flashage. Les images
 obtenues sont **identiques octet pour octet** à celles de l'éditeur de liens GNU (`arm-none-eabi-ld`) avec le même script de link, à la fusion des chaînes près (Nwasabi ne fusionne pas les chaînes identiques, sans conséquence).
@@ -27,6 +32,18 @@ Trois objets sont liés, dans cet ordre : **runtime**, **application**, éventue
 le runtime l'emporte donc sur une application qui définirait elle-même une fonction EADK.
 
 ## Les cinq temps
+
+```mermaid
+flowchart LR
+  in1[".nwa<br/>de l'application"] --> P
+  in2["runtime EADK<br/>(fabriqué par Nwasabi)"] --> P
+  in3["données externes<br/>(si l'application en veut)"] --> P
+  P["1. Symboles<br/>table des définitions,<br/>résolution"] --> G["2. Sections utiles<br/>gc depuis _start"]
+  G --> L["3. Placement<br/>flash et RAM,<br/>ordre du script de link"]
+  L --> R["4. Relocations<br/>S + A − P,<br/>branchements Thumb-2"]
+  R --> H["5. En-tête et image<br/>32 octets, assemblage,<br/>avertissements"]
+  H --> out(["LinkedApp"])
+```
 
 1. **Symboles** ([Symboles et sections utiles](./symboles.md)) : table des définitions globales (forte > faible > commune), résolution de chaque symbole utilisé.
 2. **Sections inutiles** : parcours d'accessibilité à partir de `_start` et des trois sections d'en-tête ; ce que rien n'utilise est écarté (équivalent de `--gc-sections`).

@@ -5,6 +5,11 @@ description: "Les quatre façons d'exécuter le cœur de Nwasabi : navigateur (W
 
 # Les hôtes
 
+::: tip En bref
+Le cœur ne sait pas ce qu'est « maintenant » ni « un fichier ». Un **hôte** lui apporte tout cela : la page web, le serveur, la ligne de commande ou la bibliothèque JavaScript.
+:::
+
+
 Le cœur est pur : il ne dort pas, ne lit pas d'horloge, n'ouvre pas de fichier. Un **hôte** lui apporte ce qu'il lui manque : le temps réel, les touches, le disque, le réseau, l'affichage. Quatre hôtes existent ; les trois premiers partagent le même
 protocole de [session](../debogage/session.md).
 

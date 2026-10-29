@@ -5,6 +5,11 @@ description: "Détails de l'exécution Thumb-2 de Nwasabi : blocs IT, drapeaux, 
 
 # Exécution des instructions
 
+::: tip En bref
+Les cas qui demandent de la méthode : un bloc `IT` rend des instructions **conditionnelles**, écrire dans `PC` est un **saut**, et un accès **exclusif** est une réservation d'adresse qui peut échouer.
+:::
+
+
 `exec.rs` contient `Cpu::step`, `Cpu::run` et le grand `match` de `execute`. Cette page note ce qui n'est pas évident à la lecture.
 
 ## Blocs `IT`
@@ -33,11 +38,27 @@ est à zéro. Les accès passent par `Bus` un octet, un demi-mot ou un mot à la
 
 ## Accès exclusifs
 
-`ldrex`, `ldrexb`, `ldrexh`, `strex`, `strexb`, `strexh` passent par `exec_exclusive`. L'accès est **d'abord soumis au bus** (`check_exclusive`),
-qui peut le refuser avec `FaultKind::ExclusiveUnsupported`. C'est ce que fait la calculatrice : sa RAM est « partageable » et le système n'a pas de
-moniteur global, donc `ldrex` sur la pile y provoque une `BusFault`. `Memory` reproduit ce refus par défaut (`allow_exclusive_accesses(false)`) ;
-la flash, elle, accepte `ldrex`. Si le bus accepte, le moniteur **local** (`Cpu::exclusive`) suit l'adresse : `strex` rend 0 et écrit si l'adresse
-correspond, 1 sinon. `clrex` et toute exception l'effacent.
+`ldrex`, `ldrexb`, `ldrexh`, `strex`, `strexb`, `strexh` passent par `exec_exclusive`. Le principe de l'architecture : `ldrex` **réserve** une adresse ; `strex` n'écrit que si la réservation tient toujours.
+
+```mermaid
+flowchart TD
+  A(["ldrex / strex à l'adresse A"]) --> B{"A alignée sur la taille<br/>de l'accès ?"}
+  B -- non --> E1(["UsageFault::Unaligned"])
+  B -- oui --> C["bus.check_exclusive(A)"]
+  C -->|"refusé (RAM de la calculatrice)"| E2(["BusFault::ExclusiveUnsupported"])
+  C --> D{"ldrex ou strex ?"}
+  D -- ldrex --> L["lire la valeur → Rt<br/>exclusive = A"]
+  D -- strex --> S{"exclusive == A ?"}
+  S -- oui --> W["écrire Rt à A<br/>Rd = 0 (réussi)"]
+  S -- non --> F["rien écrit<br/>Rd = 1 (échec)"]
+  W --> X["exclusive = aucune"]
+  F --> X
+
+  classDef arret fill:#fde2e2,stroke:#d9534f,color:#5a0000
+  class E1,E2 arret
+```
+
+Le contrôle du bus passe **d'abord** : il peut refuser l'accès avec `FaultKind::ExclusiveUnsupported`. C'est ce que fait la calculatrice, dont la RAM est « partageable » sans moniteur global : `ldrex` sur la pile y provoque une `BusFault`. `Memory` reproduit ce refus par défaut (`allow_exclusive_accesses(false)`) ; la flash, elle, accepte `ldrex`. Le moniteur **local** (`Cpu::exclusive`) est effacé par `clrex` et par toute exception.
 
 ## Registres système : `mrs`, `msr`, `cps`
 

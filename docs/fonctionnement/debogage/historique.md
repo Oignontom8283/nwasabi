@@ -5,16 +5,50 @@ description: "L'historique déterministe de Nwasabi : points de reprise du proce
 
 # Remonter le temps
 
+::: tip En bref
+Remonter le temps, c'est **recharger une photo** de l'appareil puis **rejouer** jusqu'à l'instant voulu. Cela marche parce que l'émulation est déterministe : mêmes entrées, même résultat.
+:::
+
+
 L'émulation est **déterministe** : le même départ et les mêmes entrées donnent toujours la même suite. Reculer, c'est donc **rétablir un point de reprise** puis **rejouer** jusqu'à l'instruction voulue. `session/history.rs` le réalise sans rien enregistrer d'autre que quelques
 copies et le journal des entrées de l'hôte.
 
 ## Ce qui est gardé
 
-```text
-History { interval, capacity, checkpoints: VecDeque<Checkpoint>, inputs: Vec<Input>, flash_cursor }
-Checkpoint { cycles, cpu: Cpu, kernel: Kernel, memory: VolatileImage, frames }
-Input      { cycles, request: Value }          // une touche ou un passage de temps de l'hôte
+```mermaid
+classDiagram
+  class History {
+    interval : 250 000 instructions
+    capacity : 100 points
+    checkpoints : file de Checkpoint
+    inputs : journal des entrées
+    flash_cursor
+  }
+  class Checkpoint {
+    cycles
+    cpu : Cpu (cache d'instructions compris)
+    kernel : Kernel (écran, clavier, temps, attentes)
+    memory : VolatileImage (tout sauf la flash)
+    frames
+  }
+  class Input {
+    cycles
+    request : une touche ou un passage de temps
+  }
+  History "1" o-- "*" Checkpoint
+  History "1" o-- "*" Input
 ```
+
+Sur une ligne de temps, cela donne :
+
+```mermaid
+flowchart LR
+  c0["point de reprise<br/>cycle 0"] --> c1["point<br/>250 000"] --> c2["point<br/>500 000"] --> c3["point<br/>750 000"] --> now(["maintenant<br/>≈ 900 000"])
+  k1(("touche OK")) -.-> c1
+  k2(("touche ↓")) -.-> c3
+```
+
+Les points sont des **photos** de l'appareil ; les touches du journal sont les **seules entrées** de l'extérieur : avec les deux, on sait refaire l'exécution à l'identique.
 
 - **Points de reprise** : une copie du processeur (cache d'instructions compris), du noyau (écran, clavier, temps, attentes…) et de la mémoire **volatile** (toutes les zones qui ne sont pas de la flash : RAM, registres simulés). Un point est pris tous les
   **250 000 instructions** (`DEFAULT_INTERVAL`) et **100** sont gardés (`DEFAULT_CAPACITY`) : l'historique couvre `250 000 × 100 = 25 millions d'instructions`. `history start` accepte d'autres valeurs (`interval` d'au moins 1000, `capacity` entre 2 et 2000).
@@ -25,9 +59,42 @@ Input      { cycles, request: Value }          // une touche ou un passage de te
 
 ## Reculer : `restore_before` et `replay_to`
 
-1. **`restore_before(target)`** cherche, du plus récent au plus ancien, le point de reprise dont `cycles <= target`, rétablit processeur, noyau et mémoire (`restore_volatile` **vide le cache d'instructions** : de la RAM exécutable a pu changer) et le compteur d'images ;
-2. **`replay_to(target, scan)`** rejoue, instruction après instruction, depuis cet état jusqu'à `target` : les **entrées** du journal sont appliquées aux bons instants, les **points d'arrêt et d'observation sont suspendus** (`suspend_debugging`), pour reconstituer exactement l'état.
+Pour aller à l'instant `cible` : on prend la **photo la plus proche avant**, puis on **rejoue** jusqu'à `cible`.
+
+```mermaid
+sequenceDiagram
+  participant S as Session
+  participant H as History
+  participant E as Emulator
+  S->>H: restore_before(cible)
+  H->>E: rétablir le plus récent point dont cycles ≤ cible<br/>(processeur, noyau, mémoire volatile)
+  Note over E: restore_volatile vide le cache d'instructions
+  S->>E: replay_to(cible)
+  loop jusqu'à cycles = cible
+    S->>E: appliquer les entrées du journal à leur instant
+    S->>E: exécuter (points d'arrêt et d'observation suspendus)
+  end
+  E-->>S: état exact à l'instant « cible »
+```
+
+1. **`restore_before(target)`** cherche, du plus récent au plus ancien, le point de reprise dont `cycles <= target`, rétablit processeur, noyau et mémoire, et le compteur d'images ;
+2. **`replay_to(target, scan)`** rejoue instruction après instruction : les **entrées** du journal sont appliquées aux bons instants, les **points d'arrêt et d'observation sont suspendus** (`suspend_debugging`), pour reconstituer exactement l'état.
    Si `scan` est donné, il recueille chaque arrêt qu'un point d'arrêt ou d'observation **aurait** provoqué, avec son instant (utilisé par `reverse_continue`). Une garde de **100 000 tours sans progrès** (`STALL_LIMIT`) évite de tourner en rond.
+
+### `reverse_continue` : chercher en arrière
+
+```mermaid
+flowchart TD
+  A(["reverse_continue"]) --> B["upper = cycles actuels"]
+  B --> C{"Un point de reprise<br/>strictement avant upper ?"}
+  C -- non --> D["aller au plus ancien point<br/>stop = history_start"]
+  C -- oui --> E["restaurer ce point (start)"]
+  E --> F["rejouer start → upper − 1,<br/>points actifs, en notant<br/>chaque arrêt qu'ils auraient causé"]
+  F --> G{"Un arrêt noté<br/>avant upper et avant maintenant ?"}
+  G -- oui --> H["aller au plus récent de ces arrêts"]
+  G -- non --> I["upper = start"]
+  I --> C
+```
 
 Commandes qui en découlent :
 

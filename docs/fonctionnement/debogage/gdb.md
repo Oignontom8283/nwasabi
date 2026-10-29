@@ -5,6 +5,11 @@ description: "Le Remote Serial Protocol de GDB tel que Nwasabi le parle : paquet
 
 # Le serveur GDB
 
+::: tip En bref
+GDB parle un protocole texte très simple (des paquets `$…#somme`). Nwasabi **traduit** chaque paquet en commande de session. Quand l'émulation vit dans le navigateur, le serveur sert de **facteur** entre GDB et la page.
+:::
+
+
 `gdb.rs` permet à GDB (ou à un éditeur qui le pilote) de se brancher par TCP « comme sur une sonde ST-Link » et de piloter un appareil émulé. Le protocole est le **Remote Serial Protocol** de GDB : des paquets `$données#somme`, où la somme est la somme des octets modulo 256.
 Tout passe par les commandes JSON de la [session](./session.md) (`run`, `step`, `break`, `watch`, `cpu`, `memory_read`…) : **GDB voit exactement ce que voit la page**, sans second chemin d'exécution.
 
@@ -53,8 +58,18 @@ Tout paquet inconnu reçoit une **réponse vide**, la convention du protocole po
 
 ## Reprendre : `resume`
 
-`c` boucle sur `run` par tranches de **200 000 instructions** (`SLICE`) : entre deux tranches, il regarde si le débogueur a demandé l'interruption (`0x03` dans le tampon) et répond alors `T02`. Les arrêts `budget`, `frame` et `sleep` continuent ;
-`wait_event` (l'application attend une touche) fait **passer 16 ms** de temps et dort 4 ms, pour ne pas occuper tout le processeur ; tout autre arrêt est rapporté.
+```mermaid
+flowchart TD
+  A(["paquet « c » (continue)"]) --> B{"GDB a envoyé<br/>Ctrl+C (0x03) ?"}
+  B -- oui --> T02(["répondre T02"])
+  B -- non --> C["run { instructions: 200 000 }"]
+  C --> D{"stop.kind"}
+  D -- "budget, frame, sleep" --> B
+  D -- wait_event --> E["advance 16 ms<br/>dormir 4 ms"] --> B
+  D -- "autre (breakpoint, watchpoint,<br/>fault, exited…)" --> F(["stop_reply : T05…, T0b, T04, W…"])
+```
+
+`c` boucle sur `run` par tranches de **200 000 instructions** (`SLICE`) : entre deux tranches, il regarde si le débogueur a demandé l'interruption. `wait_event` (l'application attend une touche) fait **passer 16 ms** de temps virtuel et dort 4 ms, pour ne pas occuper tout le processeur.
 
 ## Retour en arrière
 
@@ -65,12 +80,21 @@ tels que l'historique les a enregistrées.
 
 Quand l'émulation est dans le **navigateur**, le serveur ne la possède pas. Le `Bridge` inverse les rôles :
 
-```text
-GDB ──TCP──► serveur (serve_connection, Debuggee = Bridge)
-                │ dépose la commande JSON, attend la réponse (ANSWER_TIMEOUT = 15 s)
-                ▼
-page web ──GET /__nwasabi/gdb/next (requête longue, 20 s)──► reçoit { id, request }
-page web exécute dans son Worker ; ──POST /__nwasabi/gdb/answer { id, reply }──►
+```mermaid
+sequenceDiagram
+  participant G as GDB
+  participant S as Serveur (Bridge)
+  participant P as Page web (Worker)
+  loop requête longue (20 s)
+    P->>S: GET /__nwasabi/gdb/next
+    Note over P,S: la page signale qu'elle est là
+  end
+  G->>S: paquet RSP (ex. « m20000000,4 »)
+  S->>S: traduit en commande JSON, la dépose
+  S-->>P: { id, request } (réponse à la requête longue)
+  P->>P: exécute la commande dans le Worker
+  P->>S: POST /__nwasabi/gdb/answer { id, reply }
+  S->>G: réponse RSP (au plus 15 s d'attente)
 ```
 
 - la **page est la seule à décider** : elle interroge `/__nwasabi/gdb/next` seulement si l'utilisateur a coché « Accepter un débogueur GDB » (décoché à chaque ouverture) ; chaque interrogation signale que la page est là (`ATTACH_TIMEOUT = 25 s` sans interrogation, et la page est crue partie) ;

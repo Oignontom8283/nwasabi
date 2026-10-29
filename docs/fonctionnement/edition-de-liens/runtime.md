@@ -5,6 +5,11 @@ description: "L'objet que Nwasabi fabrique à la place du runtime officiel : stu
 
 # Le runtime EADK
 
+::: tip En bref
+Le runtime est le **kit de démarrage** de toute application : les fonctions `eadk_*` (qui se réduisent à un `svc`) et `_start`, qui prépare la mémoire puis appelle `main`.
+:::
+
+
 Sur la calculatrice, une application appelle par exemple `eadk_display_push_rect` ; cette fonction n'existe pas dans le `.nwa` : elle vient d'un objet fourni à l'édition de liens, fait de quelques instructions (`svc #N` puis retour).
 `link::runtime::build_runtime(extended)` **fabrique** cet objet en octets (avec `ObjectWriter`), instruction par instruction, vérifiées avec l'assembleur GNU pour ARM.
 
@@ -12,6 +17,36 @@ Sur la calculatrice, une application appelle par exemple `eadk_display_push_rect
 
 Chaque fonction EADK est `svc #N ; bx lr` (`0xDF00 | N` puis `0x4770`) : les résultats sont déjà dans `r0`, `r1` ou `s0` quand le noyau rend la main. `EADK_SVC` donne la table (nom → numéro, ceux du noyau
 d'Epsilon) ; `EADK_EXTENDED_SVC` ajoute `eadk_battery_is_charging` (3), `eadk_battery_level` (4), `eadk_battery_voltage` (5) et `eadk_usb_is_plugged` (52) si `extended_runtime` est vrai.
+
+## En deux images
+
+Un appel EADK n'est qu'un **tremplin** vers le noyau :
+
+```mermaid
+sequenceDiagram
+  participant A as Application (C, C++, Rust)
+  participant R as Runtime EADK (stub)
+  participant K as Noyau simulé
+  A->>R: bl eadk_display_push_rect
+  R->>K: svc #19
+  K->>K: copie les pixels dans l'écran
+  K-->>R: (résultat dans r0 si besoin)
+  R-->>A: bx lr
+```
+
+Et `_start` prépare la mémoire avant d'appeler `main` :
+
+```mermaid
+flowchart TD
+  A(["_start"]) --> B["empiler r4, lr"]
+  B --> C{"r0 (RAM de .data) < r2 (fin) ?"}
+  C -- oui --> D["copier un octet de la flash vers la RAM"] --> C
+  C -- non --> E{"r0 (début de .bss) < r2 (fin) ?"}
+  E -- oui --> F["écrire un octet à zéro"] --> E
+  E -- non --> G["r0 = 0, r1 = 0<br/>(argc, argv)"]
+  G --> H["bl main"]
+  H --> I["pop {r4, pc}<br/>→ saute à lr = stub de fin (svc #0x89)"]
+```
 
 ## `_start`
 

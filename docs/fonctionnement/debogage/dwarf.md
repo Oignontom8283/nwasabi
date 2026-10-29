@@ -5,6 +5,11 @@ description: "Lecture des sections DWARF avec gimli, structures simples DebugInf
 
 # Informations de débogage DWARF
 
+::: tip En bref
+DWARF est la **carte** que le compilateur joint au programme : quelle ligne de source correspond à quelle adresse, où vit chaque variable, quel est son type. Nwasabi la lit une fois et en tire des structures simples.
+:::
+
+
 `debuginfo/` lit les sections `.debug_*` **une fois**, au premier usage (`Emulator::debug_info`, mis en cache : `Some(None)` si l'application n'en a pas), vers des **structures simples** (`DebugInfo`) : les requêtes
 (adresse → ligne, ligne → adresses, variables visibles à une adresse, pile d'appels) n'ont plus besoin de `gimli`.
 

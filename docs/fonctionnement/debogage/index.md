@@ -5,6 +5,11 @@ description: "Vue d'ensemble de la pile de débogage de Nwasabi : points d'arrê
 
 # Le débogage
 
+::: tip En bref
+Tous les débogueurs (page web, GDB, ligne de commande) parlent à **la même session**, par des requêtes JSON. Il n'y a qu'un seul chemin d'exécution à maintenir, donc GDB voit exactement ce que voit la page.
+:::
+
+
 Le débogage de Nwasabi repose sur une idée : **une seule voie de contrôle**. La page web, `nwasabi-cli session`, la bibliothèque `@nwasabi/js` et le serveur GDB envoient tous des **requêtes JSON** à une `Session`, qui pilote un `Emulator`. Il n'y a
 aucun second chemin d'exécution à maintenir : un débogueur GDB voit exactement ce que voit l'interface web.
 

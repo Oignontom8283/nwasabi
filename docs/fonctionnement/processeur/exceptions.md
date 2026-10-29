@@ -5,6 +5,11 @@ description: "Ce que Nwasabi fait d'une exception ou d'une faute du processeur :
 
 # Exceptions et fautes
 
+::: tip En bref
+Sur Nwasabi, une **faute arrête** l'application au lieu de lancer un gestionnaire. Le mécanisme d'exception complet (empiler le contexte, sauter au vecteur) existe, mais il ne sert qu'aux `svc` non traités et aux tests.
+:::
+
+
 ## Deux cas bien séparés
 
 1. **Une faute de l'application** (accès interdit, instruction indéfinie, `bkpt`, `wfi`) : l'exécution **s'arrête** avec une raison (`Stop`). Aucun
@@ -18,14 +23,23 @@ description: "Ce que Nwasabi fait d'une exception ou d'une faute du processeur :
 
 `exception.rs` implémente l'entrée dans une exception (`Cpu::take_exception(bus, numéro)`) comme le décrit l'architecture ARMv7-M :
 
-1. le **moniteur d'exclusivité local** est effacé ;
-2. le **contexte** est empilé sur la pile active : `r0–r3`, `r12`, `lr`, l'adresse de retour (`pc`), `xpsr` — 8 mots (`0x20` octets), plus 18 mots
-   (`0x48` en tout) si le contexte flottant est actif (`CONTROL.FPCA`) ;
-3. si la pile n'est pas alignée sur 8 octets, un mot de remplissage est ajouté et le bit 9 de `xpsr` (`XPSR_ALIGN`) le mémorise ;
-4. `lr` reçoit la valeur **`EXC_RETURN`** qui dit d'où l'on vient : `0xFFFF_FFF1` (depuis le mode handler), `0xFFFF_FFF9` (mode thread, pile principale) ou
-   `0xFFFF_FFFD` (mode thread, pile de processus) ; le bit 4 est mis à zéro si un contexte flottant a été empilé ;
-5. le processeur passe en mode handler sur la pile principale (`SPSEL` et `FPCA` effacés, état `IT` remis à zéro), `IPSR` reçoit le numéro et `pc` le vecteur lu à
-   `vtor + 4 × numéro` (bit 0 retiré).
+```mermaid
+flowchart TD
+  A(["take_exception(numéro)"]) --> B["effacer le moniteur d'exclusivité local"]
+  B --> C{"Contexte flottant actif<br/>(CONTROL.FPCA) ?"}
+  C -- oui --> D1["cadre = 0x68 octets<br/>(8 mots + S0–S15 + FPSCR)"]
+  C -- non --> D2["cadre = 0x20 octets (8 mots)"]
+  D1 --> E
+  D2 --> E{"sp aligné sur 8 octets ?"}
+  E -- non --> F["ajouter 4 octets de remplissage<br/>et noter XPSR bit 9"]
+  E -- oui --> G
+  F --> G["empiler r0–r3, r12, lr, pc (adresse de retour), xpsr"]
+  G --> H["lr = EXC_RETURN<br/>F1 (depuis handler), F9 (thread, pile principale),<br/>FD (thread, pile de processus) ;<br/>bit 4 à zéro si contexte flottant"]
+  H --> I["mode handler, pile principale,<br/>SPSEL et FPCA effacés, IT remis à zéro,<br/>IPSR = numéro"]
+  I --> J["pc = vecteur lu à vtor + 4 × numéro<br/>(bit 0 retiré)"]
+```
+
+En mots : 1) le moniteur d'exclusivité local est effacé ; 2) le **contexte** est empilé (8 mots, plus ceux de la FPU si elle est active) ; 3) un mot de remplissage aligne la pile sur 8 octets si besoin ; 4) `lr` reçoit la valeur **`EXC_RETURN`** ; 5) le processeur passe en mode handler et saute au vecteur.
 
 Le retour se déclenche quand `bx`, `pop {pc}` ou un chargement dans `pc` écrit une valeur `EXC_RETURN` **en mode handler** (`bx_write_pc`) : le contexte est
 dépilé et l'état d'avant (mode, pile, `FPCA`) restauré.

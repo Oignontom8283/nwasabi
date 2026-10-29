@@ -5,12 +5,29 @@ description: "Le module cpu de Nwasabi : un Cortex-M7 (ARMv7E-M, Thumb-2, DSP, F
 
 # Le processeur
 
+::: tip En bref
+Le processeur est une **boucle** : lire une instruction, la reconnaître, l'exécuter, recommencer. Tout ce qu'il ne sait pas faire seul (lire la mémoire, répondre à un `svc`) est demandé à l'extérieur par deux « prises » : `Bus` et `Hooks`.
+:::
+
+
 Le module `src/cpu/` émule un **Cortex-M7** : jeu d'instructions **Thumb-2** (ARMv7E-M), extension **DSP**, unité flottante **FPv5-D16** en
 simple et double précision. Il est écrit pour pouvoir devenir une caisse à part : il n'utilise ni le reste de Nwasabi ni aucune dépendance
 externe, et ne contient rien de propre à NumWorks (ni carte mémoire, ni appels système). `tests/cpu_independence.rs` interdit tout chemin
 `crate::` dans ce dossier.
 
 ## Les coutures
+
+```mermaid
+flowchart LR
+  subgraph cpu["Module cpu (autonome)"]
+    C["Cpu<br/>registres, cache d'instructions"]
+  end
+  M["Memory<br/>(implémente Bus)"]
+  K["Kernel<br/>(implémente Hooks)"]
+  C -- "Bus : lire / écrire / charger une instruction" --> M
+  C -- "Hooks : un svc est exécuté" --> K
+  K -- "lit et écrit la mémoire de l'application" --> M
+```
 
 ```rust
 pub trait Bus   { read8/16/32, write8/16/32, fetch16, read_block, write_block,

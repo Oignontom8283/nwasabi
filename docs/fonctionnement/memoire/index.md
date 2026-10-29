@@ -5,6 +5,11 @@ description: "Le module memory : zones à pages paresseuses, droits d'accès, ch
 
 # La mémoire émulée
 
+::: tip En bref
+La mémoire est un **espace d'adresses découpé en zones** (flash, RAM…), avec des droits par zone. Elle ne réserve que les pages touchées, **note** ce qui est lu, écrit et exécuté, et sait prendre des **photos** de la RAM.
+:::
+
+
 `Memory` est ce que le processeur voit à travers le trait `cpu::Bus`, et ce que l'hôte inspecte. Elle n'est qu'un **espace d'adressage de 32 bits** découpé en
 **zones**, sans aucun périphérique : tout ce qui ressemble à un registre matériel est simulé par du contenu mémoire (voir
 [Appareil](./appareil.md)).
@@ -26,19 +31,51 @@ et `NONE` (SRAM du noyau). `add_region` refuse (`MemoryError::BadRegion`) une zo
 
 ## Chemin d'un accès du programme
 
-```text
-read_access<N>(adresse, fetch):
-    zone = find(adresse, N)                  sinon BusFault::Unmapped
-    droit = fetch ? execute : read           sinon BusFault::AccessDenied
-    octets = zone.read_small::<N>(offset)
-    marquer les lignes (EXECUTE si fetch, sinon READ)
-    si pas fetch et un point d'observation existe : watches.check(...)
-write_access<N>(adresse, octets):
-    zone = find(...)                         droit write sinon AccessDenied
-    tick += 1
-    si la ligne est marquée EXECUTE : code_epoch += 1      ← invalide le cache d'instructions
-    écrire ; marquer WRITE ; dater la ligne avec tick
-    points d'observation
+Chaque lecture ou écriture du processeur passe par un contrôle de zone et de droits, puis laisse des **traces** (lignes marquées, observation). Voici les deux chemins.
+
+### Lecture (et chargement d'une instruction)
+
+```mermaid
+flowchart TD
+  A(["read_access(adresse, fetch)"]) --> B{"Une zone contient<br/>tout l'accès ?"}
+  B -- non --> E1(["BusFault::Unmapped"])
+  B -- oui --> C{"fetch ?"}
+  C -- oui --> D1{"droit execute ?"}
+  C -- non --> D2{"droit read ?"}
+  D1 -- non --> E2(["BusFault::AccessDenied"])
+  D2 -- non --> E2
+  D1 -- oui --> F["lire les octets"]
+  D2 -- oui --> F
+  F --> G["marquer la ligne de 32 octets<br/>EXECUTE si fetch, sinon READ"]
+  G --> H{"Lecture de donnée<br/>et point d'observation ?"}
+  H -- oui --> I["watches.check(...)"]
+  H -- non --> OK(["octets rendus"])
+  I --> OK
+
+  classDef arret fill:#fde2e2,stroke:#d9534f,color:#5a0000
+  class E1,E2 arret
+```
+
+### Écriture
+
+```mermaid
+flowchart TD
+  A(["write_access(adresse, octets)"]) --> B{"Une zone contient<br/>tout l'accès ?"}
+  B -- non --> E1(["BusFault::Unmapped"])
+  B -- oui --> C{"droit write ?"}
+  C -- non --> E2(["BusFault::AccessDenied"])
+  C -- oui --> D["tick += 1"]
+  D --> E{"La ligne est marquée EXECUTE ?<br/>(du code a été exécuté ici)"}
+  E -- oui --> F["code_epoch += 1<br/>→ le cache d'instructions sera vidé"]
+  E -- non --> G
+  F --> G["écrire les octets<br/>marquer WRITE<br/>dater la ligne avec tick"]
+  G --> H{"Point d'observation ?"}
+  H -- oui --> I["watches.check(...)"]
+  H -- non --> OK(["écriture faite"])
+  I --> OK
+
+  classDef arret fill:#fde2e2,stroke:#d9534f,color:#5a0000
+  class E1,E2 arret
 ```
 
 `read_block` et `write_block` (utilisés par les appels système : pixels, textes, fichiers) ont un **chemin rapide** : un seul bloc recopié page par page

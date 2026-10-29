@@ -5,6 +5,11 @@ description: "L'ordre du script de link reproduit par Nwasabi, le calcul des ali
 
 # Placement en flash et en RAM
 
+::: tip En bref
+Le placement décide de l'**ordre** des sections en flash et en RAM. Il suit celui du script de link officiel : si l'ordre différait d'un octet, les adresses ne seraient plus les mêmes.
+:::
+
+
 `linker.rs::layout` reproduit le **script de link** de l'outil de flashage officiel : même ordre, mêmes alignements, donc mêmes adresses.
 
 ## Classes et rang
@@ -23,28 +28,34 @@ Dans une classe, on trie par rang puis par ordre d'apparition (objet, section) :
 
 ## Ordre en flash
 
-```text
-flash_start
-  [niveau d'API : 4 octets, juste après le magic de l'en-tête]
-  [en-tête de 32 octets]
-  noms          (.rodata.eadk_app_name)
-  icônes        (.rodata.eadk_app_icon)
-  .text, .text.*, orphelines exécutables
-  .rodata, .rodata.*, orphelines
-  ← app_end (valeur de _eadk_app_end, écrite dans l'en-tête)
-  copie initiale de .data (SANS alignement : `_start` la copie octet par octet)
+```mermaid
+flowchart TB
+  subgraph F["Flash : de flash_start vers le haut"]
+    direction TB
+    h["En-tête d'application (32 octets)<br/>niveau d'API juste après le magic"]
+    n["noms<br/>.rodata.eadk_app_name"]
+    ic["icônes<br/>.rodata.eadk_app_icon"]
+    t["code<br/>.text, .text.*, sections exécutables « orphelines »"]
+    r["constantes<br/>.rodata, .rodata.*, orphelines<br/>→ fin = app_end (_eadk_app_end)"]
+    d["copie initiale de .data<br/>(sans alignement : _start la recopie octet par octet)"]
+    h --> n --> ic --> t --> r --> d
+  end
 ```
 
 `place(cursor, ids, min_align)` aligne l'ensemble sur l'alignement le plus exigeant de ses membres (au moins `min_align`) puis chaque section sur le sien.
 
 ## RAM
 
-```text
-ram_start
-  .data  (aligné sur l'alignement maximal du groupe, au moins 4)
-  .bss   (idem)  ← _bss_section_start_ram … _bss_section_end_ram
-  variables COMMON  (après .bss)
-  tas    ← _heap_start … _heap_end = fin de la RAM réservée aux applications
+```mermaid
+flowchart TB
+  subgraph R["RAM des applications : de ram_start vers le haut"]
+    direction TB
+    d[".data<br/>aligné sur l'exigence maximale du groupe (au moins 4)<br/>copié depuis la flash par _start"]
+    b[".bss<br/>_bss_section_start_ram … _bss_section_end_ram<br/>mis à zéro par _start"]
+    c["variables COMMON utilisées<br/>(hors de la zone mise à zéro !)"]
+    h["tas<br/>_heap_start … _heap_end = fin de la RAM réservée"]
+    d --> b --> c --> h
+  end
 ```
 
 La **copie de `.data`** vit en flash juste après les constantes, à `data_flash`, et s'exécute en RAM à `data_ram` ; l'adresse de chaque section `.data` en flash est `data_flash + (adresse_ram − data_ram)`.

@@ -5,7 +5,26 @@ description: "Déroulement exact par les tables d'appel CFI de .debug_frame, est
 
 # La pile d'appels
 
+::: tip En bref
+Pour savoir « qui m'a appelé ? », il faut remonter la pile. Avec `-g`, le compilateur donne le **plan exact** ; sans lui, Nwasabi **devine** en cherchant, dans la pile, des adresses qui ressemblent à des retours d'appel.
+:::
+
+
 Un jeu d'instructions Thumb **n'enchaîne pas les cadres de pile** : aucun registre ne pointe vers le cadre de l'appelant. Nwasabi connaît donc deux méthodes.
+
+```mermaid
+flowchart TD
+  A(["Demande : la pile à l'arrêt"]) --> B{"L'application a des<br/>informations de débogage (.debug_frame) ?"}
+  B -- oui --> C["unwind() : tables CFI<br/>cadres EXACTS"]
+  B -- non --> D["backtrace() : on cherche dans la pile<br/>les mots qui suivent un bl / blx<br/>cadres ESTIMÉS"]
+  C --> E{"La CFI décrit-elle ce code ?"}
+  E -- oui --> F["cadre appelant : registres + CFA"]
+  E -- "non (fonction de eadk écrite à la main)" --> G["feuille : retour dans lr<br/>(valable pour le premier cadre seulement)"]
+  F --> H{"lr indéfini, ou aucun progrès ?"}
+  H -- oui --> Z(["sommet de la pile"])
+  H -- non --> C
+  G --> C
+```
 
 ## Exacte : les tables CFI (`debuginfo/unwind.rs`)
 

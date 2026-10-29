@@ -5,7 +5,22 @@ description: "Comment Nwasabi est vérifié : vecteurs de test du processeur pro
 
 # Vérification
 
+::: tip En bref
+On vérifie du plus petit au plus grand : une **instruction** contre QEMU, une **application** de test, des **applications de tiers**, le **WebAssembly** contre le natif, et un **vrai GDB**.
+:::
+
+
 Un émulateur n'a de valeur que s'il est juste. Les contrôles de Nwasabi sont à plusieurs étages, du plus petit (une instruction) au plus grand (une application de tiers, un vrai GDB). Aucun test ne dépend du réseau ni d'un fichier de NumWorks.
+
+```mermaid
+flowchart BT
+  A["1. Une instruction<br/>vecteurs QEMU, tests unitaires"] --> B["2. Une application<br/>apps C qui se vérifient elles-mêmes"]
+  B --> C["3. Des applications de tiers<br/>corpus : pas de faute, écran stable, image liée identique à ld"]
+  C --> D["4. Le cœur par le haut<br/>session, formats, fichiers, débogueur"]
+  D --> E["5. Natif contre WebAssembly<br/>parité, cadence du Player"]
+  E --> F["6. Un vrai GDB<br/>gdb_real contre --gdb-headless"]
+  F --> G["7. Le site<br/>types, traductions, liens, logique de l'interface"]
+```
 
 ## 1. Le processeur contre QEMU
 

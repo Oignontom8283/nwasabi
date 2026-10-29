@@ -24,6 +24,26 @@ description: "Le serveur nwasabi : site embarqué dans le binaire, routes /__nwa
 | `/__nwasabi/source?name=…` | texte d'un fichier source de `--src` |
 | `/__nwasabi/gdb`, `/gdb/next`, `/gdb/answer`, `/gdb/detach` | pont GDB ([GDB](../debogage/gdb.md#le-pont-avec-la-page-bridge)) |
 
+## Le rechargement automatique
+
+Le serveur ne pousse rien : c'est la **page** qui demande si les fichiers ont changé.
+
+```mermaid
+sequenceDiagram
+  participant D as Développeur
+  participant S as Serveur nwasabi
+  participant P as Page web
+  D->>D: recompile jeu.nwa
+  loop une fois par seconde
+    P->>S: GET /__nwasabi/version
+    S-->>P: empreintes { nwa, data, nmk, nfs, flash, nds }
+  end
+  Note over P: l'empreinte de « nwa » a changé
+  P->>S: GET /__nwasabi/preload
+  S-->>P: le nouveau .nwa (relu sur le disque)
+  P->>P: charge l'application
+```
+
 ## Garde-fous
 
 - **Aucun chemin de requête n'est jamais lu.** Les seuls fichiers lus sont ceux donnés au démarrage, **relus à chaque requête** pour que la page puisse les recharger ; les sources de `--src` sont choisies par la **fin de leur chemin** parmi la liste des fichiers du dossier

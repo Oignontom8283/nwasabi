@@ -5,6 +5,11 @@ description: "Convention d'appel, table des svc, gestion du tas et de la sortie 
 
 # Implémentation des appels système
 
+::: tip En bref
+Un appel système, c'est un `svc #N` : l'application dit « numéro N, voici mes arguments ». Le noyau lit `r0`–`r3`, fait le travail et répond dans `r0`.
+:::
+
+
 La liste des numéros est dans la [Référence](../../reference/appels-systeme.md). Cette page décrit comment `kernel/svc.rs` les traite.
 
 ## Convention

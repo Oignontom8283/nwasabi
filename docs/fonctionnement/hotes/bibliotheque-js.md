@@ -24,15 +24,30 @@ description: "Le Player de @nwasabi/js : cadence, planificateur, tranches, horlo
 
 La boucle `tick(now)` (une « image du navigateur ») :
 
-1. **cadence** : si l'écran est plus rapide que 60 Hz (`now − last < FRAME_MS − 1`), l'image est sautée ;
-2. **budget de temps** : `min(temps réel écoulé, maxElapsedMs)`. C'est le temps que l'application **voit passer** : elle ne voit jamais plus de temps qu'il n'en est réellement écoulé, et rien en pause (`stop()`) ;
-3. **instructions permises** : avec une fréquence (`limitMhz`, modes `model` ou `custom`), `room = floor(MHz × budget × 1000)` ; sans limite (`max`), autant que possible ;
-4. **`run { instructions: min(slice, room), frames: 1 }`** en boucle (au plus `MAX_RUNS_PER_TICK` fois) : après chaque tranche, le temps que le processeur a mis à exécuter les instructions (`exécutées / (MHz × 1000)`) est **donné à l'application** (`advance`) et
-   retiré du budget ;
-5. selon l'arrêt : `sleep` → le temps passe pour l'application dans la limite du budget, et la boucle continue s'il en reste ; `budget` → continue tant qu'il reste du temps de processeur (ou sans limite de vitesse) et que `maxWallMs` de temps réel n'est pas dépassé, sinon `capHits`
-   est incrémenté (l'application n'a pas pu tourner à la vitesse émulée) ; `frame`, `wait_event` → le budget restant est donné à l'application (`advance(budget)`) et l'image se termine ; tout autre arrêt (`exited`, `fault`, `breakpoint`, `watchpoint`, `home_pressed`…)
-   **arrête le lecteur** (`running = false`) ;
-6. **finitions** : `timeMs`, dessin de l'écran, `onFrame`, lecture de la sortie standard toutes les 10 images, puis replanification (ou `bump()` si arrêté).
+```mermaid
+flowchart TD
+  A(["tick(now)"]) --> B{"Trop tôt ?<br/>now − last &lt; 16,7 ms"}
+  B -- oui --> S1["replanifier"]
+  B -- non --> C["budget = min(temps réel écoulé, maxElapsedMs)<br/>(le temps que l'application va « voir »)"]
+  C --> D["room = MHz × budget × 1000<br/>(∞ sans limite de vitesse)"]
+  D --> E{"room &lt; 1 ?"}
+  E -- oui --> F["advance(budget)"] --> Z
+  E -- non --> G["run { instructions: min(slice, room), frames: 1 }"]
+  G --> H["donner à l'application le temps passé<br/>à exécuter : advance(exécutées / MHz)"]
+  H --> I{"stop.kind"}
+  I -- sleep --> J["advance(min(durée demandée, budget))"] --> K{"Il reste du budget ?"}
+  K -- oui --> E
+  K -- non --> Z
+  I -- budget --> L{"Du temps de processeur reste<br/>et moins de maxWallMs écoulé ?"}
+  L -- oui --> E
+  L -- non --> M["capHits++ si limité<br/>advance(budget restant)"] --> Z
+  I -- "frame, wait_event" --> N["advance(budget restant)"] --> Z
+  I -- "exited, fault, breakpoint,<br/>watchpoint, home_pressed…" --> O["running = false"] --> Z
+  Z["finitions : timeMs, dessin, onFrame,<br/>stdout toutes les 10 images"] --> S1
+  S1(["image suivante"])
+```
+
+La figure en mots : le **budget** est le temps que l'application a le droit de voir passer. Elle le consomme en exécutant des instructions (à la vitesse émulée), en dormant ou en attendant une touche ; ce qui reste lui est donné à la fin de l'image.
 
 Le noyau est en **horloge hôte** : `advance` reçoit le temps réellement écoulé, et rien pendant une pause. `PlayerState` expose entre autres `loaded`, `running`, `model`, `firmware`, `speed`, `customMhz`, `limitMhz`, `appName`, `stop`, `frames`, `instructions`, `error`, `stdout`,
 `timeMs`, `keymapName`, `needsData` (l'application demande des données externes qu'on ne lui a pas données : elle n'est pas lancée), `revision` (augmente quand les vues dérivées doivent se rafraîchir) et `capHits`.

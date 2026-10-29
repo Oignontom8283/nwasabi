@@ -5,6 +5,11 @@ description: "Comment Nwasabi fabrique en mémoire ce qu'Epsilon laisserait apr�
 
 # L'appareil
 
+::: tip En bref
+Comme Nwasabi n'exécute pas Epsilon, il **fabrique le décor** qu'Epsilon laisserait en mémoire après le démarrage : des en-têtes, des tables, un système de fichiers vide. Une application qui regarde autour d'elle y trouve ce qu'elle attend.
+:::
+
+
 Nwasabi n'exécute pas Epsilon. `device/` **fabrique** ce qu'Epsilon laisserait en mémoire une fois démarré (en-têtes, tables du userland, système de fichiers vide)
 pour que les applications qui regardent la mémoire y retrouvent ce qu'elles attendent. Ce que ces structures contiennent vient de relevés de comportement
 sur des appareils et sur des firmwares publiés ; aucun code d'Epsilon n'est utilisé.
@@ -35,6 +40,22 @@ L'écart compte : les applications qui devinent le modèle d'après la mémoire 
 La flash externe fait 8 Mio à `0x9000_0000` et se partage en deux **slots** de 4 Mio (`SLOT_B_OFFSET = 0x40_0000`). Un slot contient, dans cet ordre : l'en-tête de sécurité (8 octets), le noyau (avec
 son `KernelHeader`), éventuellement la copie du bootloader, le userland (avec son `UserlandHeader`), la zone des applications externes, et les octets persistants. L'appareil exécute **un seul slot**
 (`active_slot`) ; c'est celui qu'indique le `SlotInfo`, en tête de la SRAM, et dont la zone des applications est publiée. Les secteurs font 64 Kio (`EXTERNAL_APP_SECTOR`) : les applications y sont alignées.
+
+```mermaid
+flowchart LR
+  subgraph FL["Flash externe : 8 Mio à 0x9000_0000"]
+    direction LR
+    subgraph SA["Slot A (4 Mio)"]
+      direction TB
+      a1["en-tête de sécurité (8 octets)"] --> a2["noyau + KernelHeader"] --> a3["copie du bootloader<br/>(disposition 26.4.0)"] --> a4["userland + UserlandHeader"] --> a5["applications externes"] --> a6["octets persistants"]
+    end
+    subgraph SB["Slot B (4 Mio)<br/>= slot A décalé de 0x40_0000"]
+      direction TB
+      b1["même organisation"]
+    end
+  end
+  SI["SlotInfo<br/>(tête de la SRAM)"] -- "désigne le slot actif" --> SA
+```
 
 ## Les structures fabriquées (`structures/`, `device/fabric.rs`)
 

@@ -5,6 +5,11 @@ description: "Architecture de Nwasabi pour lecteurs experts : processeur Cortex-
 
 # Fonctionnement interne
 
+::: tip En bref
+Nwasabi est un **faux appareil** assez bon pour tromper une application. Le processeur est copié instruction par instruction ; tout ce qui vient normalement du système de la calculatrice (écran, clavier, temps, fichiers) est joué par un petit « noyau » maison. Cette page est la carte : chaque case a sa page.
+:::
+
+
 Cette section décrit **comment** Nwasabi émule une application NumWorks, et **pourquoi** chaque morceau est fait ainsi. Elle s'adresse à qui
 veut lire, vérifier ou prolonger le code : les pages donnent les structures, les constantes, les invariants et les cas limites, avec le nom
 des modules. Pour s'en servir, voir plutôt le [Guide](../guide/index.md) ; pour les formats et les numéros d'appels, la [Référence](../reference/compatibilite.md).
@@ -25,34 +30,37 @@ remplace ce que l'application voit du système par un noyau simulé :
 
 ```mermaid
 flowchart TB
-  subgraph hotes[Hôtes]
-    web[Page web + Worker]
-    srv[Serveur nwasabi]
-    cli[nwasabi-cli]
-    js[@nwasabi/js]
+  subgraph hotes["Hôtes : ils donnent le temps, les touches, le disque, l'écran"]
+    web["Page web<br/>(dans un Worker)"]
+    srv["Serveur nwasabi"]
+    cli["nwasabi-cli"]
+    js["Bibliothèque @nwasabi/js"]
   end
-  session[Session : protocole JSON]
-  gdb[Serveur GDB]
-  emu[Emulator]
-  dbg[debuginfo : DWARF, expressions]
-  kern[Kernel : appels système, écran, clavier, temps]
-  dev[DeviceImage : profil, structures, applications]
-  mem[Memory : zones, droits, suivi, observation]
-  cpu[Cpu : Thumb-2, FPU]
-  lnk[link + elf : édition de liens]
+  gdbs["Serveur GDB"]
+  session["Session<br/>protocole JSON : l'unique voie de contrôle"]
+  subgraph coeur["Le cœur (pur : ni fil, ni horloge, ni fichier)"]
+    emu["Emulator<br/>exécution coopérative"]
+    dbg["debuginfo<br/>DWARF, expressions"]
+    kern["Kernel<br/>appels système, écran, clavier, temps"]
+    dev["DeviceImage<br/>profil, structures de l'OS, applications"]
+    cpu["Cpu<br/>Thumb-2, DSP, FPU"]
+    mem["Memory<br/>zones, droits, suivi, observation"]
+    lnk["link + elf<br/>édition de liens"]
+  end
   web --> session
   js --> session
   cli --> session
-  srv --> gdb --> session
+  srv --> gdbs
+  gdbs --> session
   session --> emu
   session --> dbg
   emu --> cpu
   emu --> kern
   emu --> dev
-  cpu -. Bus .-> mem
-  cpu -. Hooks .-> kern
-  dev --> mem
   emu --> lnk
+  cpu -. "Bus" .-> mem
+  cpu -. "Hooks (svc)" .-> kern
+  dev --> mem
 ```
 
 Le trait `cpu::Bus` (la mémoire) et le trait `cpu::Hooks` (les `svc`) sont les seules coutures entre le processeur et le reste : le module

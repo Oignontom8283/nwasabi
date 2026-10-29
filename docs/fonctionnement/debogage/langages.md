@@ -5,6 +5,11 @@ description: "Comment le débogueur de Nwasabi comprend les informations DWARF d
 
 # C++ et Rust
 
+::: tip En bref
+C++ et Rust ajoutent des notions que C n'a pas : noms qualifiés, classes, méthodes, énumérations avec données. Nwasabi les retrouve dans le DWARF et dans les **noms manglés** des symboles.
+:::
+
+
 Le DWARF de C++ et de Rust décrit des notions que le C n'a pas. `debuginfo/parse.rs`, `types.rs`, `expr.rs` et `symbols.rs` les prennent en charge. Cette page dit comment ; ce qui marche ou non en pratique est dans le
 [guide de débogage](../../guide/deboguer-c-cpp-rust.md).
 

@@ -5,6 +5,11 @@ description: "Comment Nwasabi émule l'unité flottante du Cortex-M7 : simple et
 
 # Virgule flottante FPv5-D16
 
+::: tip En bref
+Rust sait faire des calculs flottants corrects ; ARM a quelques **manies** (NaN, dénormalisés, drapeaux). Nwasabi calcule avec les `f32`/`f64` de Rust, puis corrige à la main ce qui diffère.
+:::
+
+
 `fpu.rs` (décodage et exécution en simple précision) et `fpu_double.rs` (double précision et demi-précision) émulent l'unité flottante du
 Cortex-M7 : **FPv5-D16**, soit seize registres doubles `D0`–`D15` qui recouvrent les trente-deux registres simples `S0`–`S31`
 (`Dk` = `S(2k)` pour le mot de poids faible et `S(2k+1)`). Les registres sont stockés comme des **mots de 32 bits** (`regs.s[i]`), jamais

@@ -5,6 +5,11 @@ description: "L'état des touches, la numérotation des événements par plan sh
 
 # Clavier et événements
 
+::: tip En bref
+Il y a deux façons de lire le clavier : l'**état** (« quelles touches sont enfoncées ? ») et les **événements** (« qu'est-ce qui vient d'être tapé ? »). Les événements tiennent compte de `shift` et d'`alpha`.
+:::
+
+
 Deux vues du clavier coexistent, comme dans l'EADK : l'**état** (`eadk_keyboard_scan`, `pop_state`) et les **événements** (`eadk_event_get`).
 
 ## L'état
@@ -17,18 +22,42 @@ Deux vues du clavier coexistent, comme dans l'EADK : l'**état** (`eadk_keyboard
 
 Un événement est un numéro. Le clavier a 9 rangées de 6 touches = **54** événements par « plan » (`EVENTS_PER_PLANE`) ; le plan dépend de `shift` et d'`alpha` :
 
-```text
-événement = numéro_de_touche + 54 × (shift + 2 × alpha)       plans 0 à 3, donc 0 à 215
-EVENT_NONE = 4 × 54 = 216                                      « rien » (délai écoulé)
-```
+| Plan | Modificateurs actifs | Événement d'une touche `k` |
+|---|---|---|
+| 0 | aucun | `k` |
+| 1 | `shift` | `k + 54` |
+| 2 | `alpha` | `k + 108` |
+| 3 | `shift` et `alpha` | `k + 162` |
+
+L'événement « rien » (le délai est écoulé sans touche) vaut `EVENT_NONE = 4 × 54 = 216`.
 
 `press(key)` met à jour les modificateurs **avant** de produire l'événement :
 
-- `shift` bascule ; `alpha` bascule ; **`shift` suivi d'`alpha`** verrouille `alpha` (`alpha_lock`) et relâche `shift` ;
-- `shift` et `alpha` produisent leur propre numéro de touche (plan 0) ;
-- toute autre touche utilise le plan courant, puis relâche `shift` et, si `alpha` n'est pas verrouillé, `alpha` : un modificateur ne vaut que pour **une** touche ;
-- la touche `Home`, avec `HomeBehavior::ExitApp` (le défaut, comme sur l'appareil), ne produit pas d'événement : elle pose `exit_requested`, et le noyau quitte l'application au prochain appel système.
-  Avec `HomeBehavior::Deliver` (comme avec le contournement DFU), l'application la reçoit comme les autres.
+```mermaid
+flowchart TD
+  A(["press(touche)"]) --> B{"Déjà enfoncée ?"}
+  B -- oui --> Z0([rien])
+  B -- non --> C["marquer la touche dans l'état"]
+  C --> D{"Home et<br/>HomeBehavior::ExitApp ?"}
+  D -- oui --> Z1(["exit_requested = vrai<br/>aucun événement"])
+  D -- non --> E{"Quelle touche ?"}
+  E -- shift --> F["shift bascule"]
+  E -- alpha --> G{"shift actif ?"}
+  G -- oui --> H["alpha verrouillé<br/>shift relâché"]
+  G -- non --> I["alpha bascule<br/>(le verrou tombe)"]
+  E -- autre --> J["rien de plus"]
+  F --> K
+  H --> K
+  I --> K
+  J --> K["plan = shift + 2 × alpha"]
+  K --> L{"shift ou alpha ?"}
+  L -- oui --> M["événement = numéro de la touche<br/>(plan 0)"]
+  L -- non --> N["événement = touche + 54 × plan<br/>puis shift relâché,<br/>alpha relâché sauf s'il est verrouillé"]
+  M --> O["push_event(événement)<br/>la répétition se règle sur cet événement"]
+  N --> O
+```
+
+À retenir : un modificateur ne vaut que pour **une** touche ; `shift` puis `alpha` verrouille `alpha` ; `Home` ne produit pas d'événement mais fait quitter l'application au prochain appel système (avec `HomeBehavior::Deliver`, l'application la reçoit comme les autres).
 
 La file d'événements garde au plus **64** événements en attente (`MAX_PENDING_EVENTS`) : le clavier réel n'en garde qu'un nombre limité. `shiftAlphaStatus` (appels 26 et 28) lit et impose les modificateurs :
 `1` shift, `2` alpha, `4` alpha verrouillé, 3 et 5 les combinaisons avec shift.

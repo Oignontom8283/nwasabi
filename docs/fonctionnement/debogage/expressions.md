@@ -5,6 +5,11 @@ description: "Le langage d'expressions C de Nwasabi : lexique, grammaire, opéra
 
 # Les expressions
 
+::: tip En bref
+Les expressions sont un **mini-C** évalué dans le contexte du programme arrêté. Lire est sans risque ; écrire ou appeler une fonction **modifie l'appareil**, et fait repartir l'historique de zéro.
+:::
+
+
 `debuginfo/expr.rs` (environ 1 400 lignes) évalue les expressions que l'on saisit pour regarder ou modifier une variable : `x`, `shape.corner.x`, `*p`, `&n`, `a[2][3]`, `n + 1`, `(char)n`, `sizeof(Shape)`, `x = 5`, `i++`, `n > 2 ? a : b`, `factorial(4)`, `$r0 = 1`.
 **La syntaxe est celle du C**, quel que soit le langage de l'application (voir [C++ et Rust](./langages.md) pour ce qui s'y ajoute).
 
@@ -17,15 +22,24 @@ et la ponctuation (`<<=`, `>>=`, `&&`, `||`, `==`, `!=`, `<=`, `>=`, `++`, `--`,
 
 Un analyseur à descente récursive, par niveaux de priorité C :
 
-```text
-expression  := affectation (',' affectation)*
-affectation := ternaire (('=' | '+=' | … ) affectation)?
-ternaire    := binaire ('?' expression ':' ternaire)?
-binaire     := niveaux : || && | ^ & ==,!= <,<=,>,>= <<,>> +,- *,/,%
-unaire      := ('-' | '+' | '!' | '~' | '*' | '&' | '++' | '--' | sizeof | '(' type ')') unaire | postfixe
-postfixe    := primaire ( '[' expression ']' | '(' arguments ')' | '.' nom | '->' nom | '++' | '--' )*
-primaire    := nombre | caractère | registre | '(' expression ')' | identifiant (variable, fonction, constante d'énumération, type)
-```
+Les niveaux, du moins prioritaire (en haut) au plus prioritaire (en bas) :
+
+| Niveau | Opérateurs | Associativité |
+|---|---|---|
+| virgule | `,` | gauche |
+| affectation | `=` `+=` `-=` `*=` `/=` `%=` `&=` `\|=` `^=` `<<=` `>>=` | droite |
+| conditionnel | `? :` | droite |
+| ou logique | `\|\|` | gauche |
+| et logique | `&&` | gauche |
+| ou, ou exclusif, et binaires | `\|` puis `^` puis `&` | gauche |
+| égalité | `==` `!=` | gauche |
+| comparaison | `<` `<=` `>` `>=` | gauche |
+| décalages | `<<` `>>` | gauche |
+| addition | `+` `-` | gauche |
+| produit | `*` `/` `%` | gauche |
+| unaire | `-` `+` `!` `~` `*` `&` `++` `--` `sizeof` `(type)` | droite |
+| suffixe | `[ ]` `( )` `.` `->` `++` `--` | gauche |
+| primaire | nombre, caractère, registre, `( expression )`, nom (variable, fonction, constante d'énumération, type) | |
 
 `try_type` décide si `(…)` est une conversion : il essaie de lire un **nom de type** (`unsigned char`, `struct Item`, `Point *`, `uint8_t`, `shapes::Rect *`). Les noms se comparent sans tenir compte des espaces et avec une **recherche par la fin** (`Rect` trouve
 `shapes::Rect`), en excluant les déclarations sans contenu.
@@ -56,15 +70,30 @@ simulé programme la flash. Un registre `$pc` écrit perd son bit 0 ; `$sp` ses 
 
 ## Appeler une fonction : `Target::call`
 
-`fib(6)`, `rect.area()`, `op(3, 4)` (pointeur de fonction). Le débogueur exécute **la fonction sur l'émulateur** :
+`fib(6)`, `rect.area()`, `op(3, 4)` (pointeur de fonction). Le débogueur exécute **la fonction sur l'émulateur**, comme le ferait un vrai débogueur sur une carte :
 
-1. sauvegarde du processeur, du noyau et du point de reprise (`resume_point`) ;
-2. **arguments selon l'AAPCS à virgule flottante matérielle** : entiers dans `r0`–`r3` puis sur la pile ; `float` dans `s0`–`s15`, `double` dans les paires `d0`–`d7` (aligné) ; un 17ᵉ flottant est refusé (`trop d'arguments à virgule flottante`) ;
-3. pile : `sp - 256`, alignée sur 8, avec les arguments de pile en dessous ;
-4. **retour piégé** : `lr = entry | 1`, avec un point d'arrêt posé sur le point d'entrée de l'application ; `pc = fonction` ;
-5. exécution par tranches de 200 000 instructions, **au plus 50 000 000** (`CALL_BUDGET`) ; une image, un `Budget` ou un autre point d'arrêt ne l'interrompent pas ; un `Sleep` fait passer le temps virtuel ; une **faute** ou un arrêt inattendu fait échouer l'appel ;
-6. à l'arrivée sur le point d'arrêt, le résultat est lu : `r0`, `r1`, `s0`, `s1` (`CallResult`) ;
-7. le **processeur et le noyau sont restaurés** ; la **mémoire garde les effets** de l'appel, comme avec GDB ; `dirty` est vrai.
+```mermaid
+flowchart TD
+  A(["Target::call(fonction, arguments)"]) --> B["Sauvegarder : processeur,<br/>noyau, point de reprise"]
+  B --> C["Placer les arguments (AAPCS, virgule flottante matérielle)<br/>entiers : r0–r3 puis pile<br/>float : s0–s15 · double : paires d0–d7 alignées"]
+  C --> D["sp = (sp − 256) aligné sur 8<br/>lr = entrée de l'application | 1<br/>pc = fonction"]
+  D --> E["Poser un point d'arrêt temporaire<br/>sur l'entrée de l'application<br/>(l'adresse où la fonction « revient »)"]
+  E --> F["Exécuter par tranches de 200 000 instructions"]
+  F --> G{"Résultat de run"}
+  G -- "Breakpoint sur l'entrée" --> H["Lire r0, r1, s0, s1<br/>(CallResult)"]
+  G -- "Budget, Frame, autre point d'arrêt" --> I{"Plus de 50 000 000<br/>d'instructions ?"}
+  I -- non --> F
+  I -- oui --> X(["Erreur : l'appel ne se termine pas"])
+  G -- Sleep --> J["faire passer le temps virtuel"] --> F
+  G -- "Fault ou autre arrêt" --> Y(["Erreur : faute ou arrêt inattendu"])
+  H --> K["Restaurer processeur, noyau, point de reprise<br/>La mémoire GARDE les effets de l'appel"]
+  X --> K
+  Y --> K
+  K --> L(["dirty = vrai → l'historique repartira de zéro"])
+
+  classDef arret fill:#fde2e2,stroke:#d9534f,color:#5a0000
+  class X,Y arret
+```
 
 Le type du résultat vient du prototype : entier selon sa taille (64 bits : `r0:r1`), flottant (`s0`) ou double (`s0:s1`), pointeur. Les fonctions qui **rendent une structure ou un tableau** sont exécutées mais leur résultat est refusé ; les **arguments
 structures** ne sont pas gérés.

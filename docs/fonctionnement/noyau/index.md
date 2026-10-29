@@ -5,19 +5,25 @@ description: "Ce que Nwasabi met à la place d'Epsilon : le trait Hooks, les rai
 
 # Le noyau simulé
 
+::: tip En bref
+Le noyau est le **guichet** auquel l'application s'adresse par `svc`. Il rend l'écran, le clavier, le temps et les fichiers. Quand il doit attendre, il ne bloque pas : il **s'arrête** et laisse l'hôte décider.
+:::
+
+
 `Kernel` (`src/kernel/`) répond à la place d'Epsilon quand l'application exécute `svc`. Il n'utilise **aucun code d'Epsilon** : il reproduit le comportement observable aux frontières
 (valeurs rendues, écran, clavier, temps). Il implémente `cpu::Hooks` : le processeur lui donne chaque `svc #N`, et il rend `Handled`, `HandledAndStop` ou, jamais, `Raise`.
 
-```text
-Kernel
-├─ display   : Display        écran 320×240 RGB565
-├─ keyboard  : Keyboard       état des touches, file d'événements, shift/alpha, répétition
-├─ status    : DeviceStatus   batterie, USB, luminosité, FCC, série, niveau d'autorisation…
-├─ config    : KernelConfig   horloge, vitesse, strict_svc, sortie standard, graine aléatoire
-├─ stdout, frames, svc_counts[256], svc_log, unknown_svcs
-├─ heap (début, fin), brk
-├─ flash_protected_end        fin de ce que l'application ne peut pas écrire en flash
-└─ stop: Option<KernelStop>, wait: Option<EventWait>
+```mermaid
+flowchart LR
+  K(("Kernel"))
+  K --> display["display<br/>écran 320×240 RGB565"]
+  K --> keyboard["keyboard<br/>touches, file d'événements,<br/>shift/alpha, répétition"]
+  K --> status["status : DeviceStatus<br/>batterie, USB, luminosité,<br/>FCC, série, autorisation…"]
+  K --> config["config : KernelConfig<br/>horloge, vitesse, strict_svc,<br/>sortie standard, graine aléatoire"]
+  K --> stats["stdout, frames,<br/>svc_counts[256], svc_log"]
+  K --> heap["heap (début, fin), brk"]
+  K --> prot["flash_protected_end<br/>ce que l'application ne peut pas écrire"]
+  K --> st["stop : Option&lt;KernelStop&gt;<br/>wait : Option&lt;EventWait&gt;"]
 ```
 
 ## Pourquoi le noyau s'arrête
@@ -38,9 +44,29 @@ Un appel qui doit rendre la main à l'hôte pose un `KernelStop` et rend `Handle
 
 ## Rejouer l'appel plutôt que bloquer
 
-Une attente (`event_get` sans événement, `usleep` avec l'horloge hôte) **ne bloque pas** : le noyau recule `pc` de 2 octets (l'instruction `svc` fait 2 octets) puis s'arrête. À la reprise de l'exécution,
-l'instruction `svc` se **réexécute** et réévalue la condition. C'est ce qui rend l'attente interruptible, déterministe et sans fil : tout l'état de l'attente tient dans `EventWait { started_us, timeout_ms }` ou
-`sleep_until_us`, et se sauvegarde dans un `.nds`.
+Une attente (`event_get` sans événement, `usleep` avec l'horloge hôte) **ne bloque pas** : l'émulateur n'a pas de fil à endormir. Le noyau fait deux choses : il **recule `pc` de 2 octets** (l'instruction `svc` fait 2 octets) et il **s'arrête**. À la reprise, le processeur retombe sur le même `svc` et **réévalue la condition**.
+
+```mermaid
+sequenceDiagram
+  participant A as Application
+  participant K as Noyau
+  participant H as Hôte
+  A->>K: svc 23 (eadk_event_get, délai 500 ms)
+  K->>K: aucun événement : noter le début de l'attente<br/>pc ← pc − 2
+  K-->>H: KernelStop::WaitEvent { remaining_ms: 500 }
+  H->>K: fait passer 200 ms (advance), ou appuie sur une touche
+  H->>A: relance run
+  A->>K: svc 23 (la même instruction, rejouée)
+  alt un événement est arrivé
+    K-->>A: r0 = événement, délai restant écrit
+  else le délai est écoulé
+    K-->>A: r0 = EVENT_NONE
+  else rien encore
+    K-->>H: WaitEvent { remaining_ms: 300 }
+  end
+```
+
+C'est ce qui rend l'attente **interruptible**, **déterministe** et **sans fil** : tout l'état de l'attente tient dans `EventWait { started_us, timeout_ms }` (ou `sleep_until_us`), et se sauvegarde dans un `.nds`.
 
 ## Le temps
 
@@ -50,6 +76,16 @@ Il y a deux horloges (`ClockMode`) :
 |---|---|---|
 | `Virtual` (défaut) | `cycles / cycles_par_µs + extra_us` : le temps avance avec les instructions exécutées **et** par les attentes de l'application | tests, ligne de commande, enregistrements : même exécution, même résultat, sans jamais attendre |
 | `Host` | `extra_us` seulement : le temps n'avance que par `advance_time(us)`, que l'hôte appelle avec le temps réellement écoulé | la page web : en pause, l'application ne voit pas le temps passer |
+
+```mermaid
+flowchart LR
+  subgraph V["Horloge virtuelle (défaut)"]
+    v1["cycles exécutés"] --> v2["÷ MHz du modèle"] --> v3["+ temps des attentes"] --> v4(["micros()"])
+  end
+  subgraph H["Horloge hôte (page web)"]
+    h1["advance(µs)<br/>donné par l'hôte<br/>= temps réellement écoulé"] --> h4(["micros()"])
+  end
+```
 
 `cycles_per_us` est la fréquence en MHz du modèle (192 sur N0110 et N0115, 540 sur N0120), ou la fréquence choisie (`CpuSpeed::Custom`, `DEFAULT_CUSTOM_MHZ = 192`, au plus 100 000), ou celle du modèle pour
 `CpuSpeed::Max` — qui n'impose aucune **limite** à l'hôte (`limit_mhz()` rend `None`) mais garde le temps virtuel à la fréquence du modèle. Une image dure `FRAME_US = 16 667 µs` (60 Hz) : avec l'horloge virtuelle,

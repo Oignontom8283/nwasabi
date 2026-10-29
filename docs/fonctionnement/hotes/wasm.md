@@ -5,6 +5,11 @@ description: "L'interface extern C du module wasm de Nwasabi (allocation, requê
 
 # Le module WebAssembly
 
+::: tip En bref
+Le module WebAssembly n'expose que **quelques fonctions** : réserver un tampon, envoyer une requête JSON, lire la réponse et les pixels. Tout le reste passe par ce protocole.
+:::
+
+
 `src/wasm.rs` est tout ce que JavaScript voit. **Pas de `wasm-bindgen`** : l'échange se fait par la mémoire du module, avec quelques fonctions `extern "C"`.
 
 | Fonction | Rôle |
@@ -18,6 +23,22 @@ description: "L'interface extern C du module wasm de Nwasabi (allocation, requê
 
 Un appel typique : JavaScript écrit la requête UTF-8 dans un tampon d'`alloc`, appelle `request`, lit la réponse à `response_ptr`. Les requêtes et les réponses sont celles de `Session`. L'**écran se lit sans JSON**, directement en mémoire.
 Un module WebAssembly ne tourne que dans un seul fil : l'état (`Session`) est un `thread_local`.
+
+### Une requête, de bout en bout
+
+```mermaid
+sequenceDiagram
+  participant JS as JavaScript
+  participant W as Module WebAssembly
+  JS->>W: nwasabi_alloc(n) → pointeur p
+  JS->>W: écrire la requête JSON (UTF-8) en mémoire à p
+  JS->>W: nwasabi_request(p, n) → longueur L
+  W->>W: Session::handle(requête)
+  JS->>W: nwasabi_response_ptr() → q
+  JS->>W: lire L octets à q (la réponse JSON)
+  JS->>W: nwasabi_free(p, n)
+  Note over JS,W: l'écran se lit sans JSON :<br/>nwasabi_framebuffer_ptr() puis lire 320×240 mots de 16 bits
+```
 
 ## Construction
 

@@ -5,15 +5,35 @@ description: "L'émulateur web : Worker qui porte l'émulation, protocole de mes
 
 # La page web
 
+::: tip En bref
+L'émulation tourne dans un **Worker** pour ne pas figer la page. Elle envoie son écran **image par image** et ses changements d'état par messages.
+:::
+
+
 `web/` est une application **Vue 3** construite par Vite. L'émulation occupe un processeur presque entier quand l'application calcule sans attendre : sur le fil de la page, elle figerait toute l'interface. Elle tourne donc dans un **Worker**
 (`emulator.worker.ts`) ; la page lui parle par des messages typés (`worker-protocol.ts`) et reçoit en retour les changements d'état du lecteur.
 
-```text
-page (App.vue, composants, emulator.ts)                      Worker (emulator.worker.ts)
-  ├─ InputMapper : clavier, gestes → touches                   ├─ module WebAssembly (nwasabi.wasm) via Player
-  ├─ ask(...) : requêtes avec identifiant → promesses          ├─ Player.create(wasm, { scheduler, slice, maxWallMs })
-  ├─ state : réactif, alimenté par les messages « state »      ├─ flush() : envoie les champs d'état qui ont changé
-  └─ dessine les messages « screen »                           └─ OffscreenCanvas 320×240 → ImageBitmap par image
+```mermaid
+flowchart TB
+  subgraph page["Page (fil principal)"]
+    ui["Interface Vue<br/>composants, App.vue"]
+    em["emulator.ts<br/>ask(...) : requêtes → promesses<br/>state : état réactif"]
+    inp["InputMapper<br/>clavier, gestes → touches"]
+    cv["Canvas de la page"]
+  end
+  subgraph wk["Worker (emulator.worker.ts)"]
+    pl["Player<br/>(boucle de cadence)"]
+    wasm["nwasabi.wasm<br/>Session + Emulator"]
+    oc["OffscreenCanvas 320×240"]
+  end
+  ui --> em
+  inp --> em
+  em -- "messages : init, player, request" --> pl
+  pl --> wasm
+  wasm --> pl
+  pl -- "state { patch }" --> em
+  pl --> oc
+  oc -- "screen { ImageBitmap }" --> cv
 ```
 
 ## Messages

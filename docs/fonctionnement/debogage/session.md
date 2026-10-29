@@ -5,6 +5,11 @@ description: "Le protocole JSON de Nwasabi vu de l'intérieur : cycle d'une requ
 
 # La session
 
+::: tip En bref
+La session est la **porte d'entrée unique** : on lui envoie `{"cmd": "…"}`, elle répond `{"ok": …}`. Page web, ligne de commande, bibliothèque JavaScript et GDB ne font que transporter ces messages.
+:::
+
+
 `Session` (`src/session/`) est **le** point d'entrée : un appareil émulé (`Emulator`), un historique facultatif et les réglages de la conversation. Une requête est un objet JSON `{"cmd": "…", …}` avec un `"id"` facultatif renvoyé tel quel ; la réponse est
 `{"ok": true, …}` ou `{"ok": false, "error": "…"}`. C'est le même contrat pour `nwasabi-cli session`, le serveur, la page web, `@nwasabi/js` et le serveur GDB, qui n'ont qu'à transporter ces objets. Les commandes elles-mêmes sont décrites dans la
 [référence du protocole](../../reference/protocole-session.md) ; cette page dit comment la session les traite.
@@ -14,18 +19,18 @@ sortie est déterministe, les résultats se comparent tels quels.
 
 ## Cycle d'une requête
 
-```rust
-fn handle(&mut self, request: &Value) -> Value {
-    let result = self.dispatch(request);                         // « cmd » → méthode
-    if result.is_ok() && self.history.is_some() {
-        match history::effect_of(cmd) {                          // voir « Remonter le temps »
-            Effect::Input if !tap => self.history_record(request),
-            Effect::Reset | Effect::Input => self.history_reset(),
-            Effect::None | Effect::Forward => {}
-        }
-    }
-    // { "ok": true, … } ou { "ok": false, "error": … }, avec l'id de la requête
-}
+```mermaid
+flowchart TD
+  A(["handle(requête JSON)"]) --> B["dispatch : « cmd » → méthode"]
+  B --> C{"Succès<br/>et historique lancé ?"}
+  C -- non --> R
+  C -- oui --> D{"effect_of(cmd)"}
+  D -- "Input<br/>(key press/release, advance)" --> E["history_record :<br/>noter l'entrée pour le rejeu"]
+  D -- "Input en tap,<br/>ou Reset" --> F["history_reset :<br/>l'historique repart de zéro"]
+  D -- "None ou Forward" --> R
+  E --> R
+  F --> R
+  R["construire la réponse<br/>{ ok: true, … } ou { ok: false, error }<br/>+ l'id de la requête"] --> Z([réponse JSON])
 ```
 
 `Reply = Result<Value, String>` : les erreurs sont des **messages en clair**, en français, avec la raison (« aucun appareil : utiliser « new » ou « load » », « mode inconnu : … (into, over, out) »). La commande `help` liste toutes les commandes ; les
@@ -33,14 +38,30 @@ commandes du débogage du code source sont dans `source.rs::COMMANDS`.
 
 ## `run`
 
-`run` ne confie jamais tout le budget à l'émulateur d'un coup :
+`run` ne confie jamais tout le budget à l'émulateur d'un coup : il le découpe en tranches, pour pouvoir prendre des points de reprise de l'historique et réagir aux arrêts.
+
+```mermaid
+flowchart TD
+  A(["run (budget, frames)"]) --> B["history_fork :<br/>couper un éventuel futur enregistré"]
+  B --> C{"Budget épuisé ?"}
+  C -- oui --> OUT
+  C -- non --> D["tranche = min(1 000 000,<br/>intervalle de l'historique, budget restant)"]
+  D --> E["emu.run(tranche)"]
+  E --> F["history_tick :<br/>point de reprise si l'heure est venue"]
+  F --> G{"RunStop"}
+  G -- Frame --> H{"Assez d'images ?"}
+  H -- oui --> OUT
+  H -- non --> C
+  G -- "Sleep (horloge hôte)" --> OUT
+  G -- "Sleep (horloge virtuelle), Budget" --> C
+  G -- "autre arrêt" --> OUT
+  OUT(["réponse : stop, frames, instructions, time_ms"])
+```
 
 - budget par défaut **10 000 000** instructions (`DEFAULT_INSTRUCTIONS`), `instructions` le change ; `frames` s'arrête après autant d'images ;
-- tranches de **1 000 000** (`CHUNK`), **plus courtes si un historique tourne** (`history_slice()`), pour ne pas manquer l'heure d'un point de reprise ; après chaque tranche, `history_tick` prend un point de reprise s'il est dû ;
-- `Frame` incrémente le compteur d'images, `Sleep` et `Budget` continuent (sauf **avec l'horloge hôte**, où une attente ne finit que si l'hôte fait passer du temps : on lui rend la main), tout autre arrêt termine ;
-- avant d'exécuter vers l'avant, `history_fork` coupe un éventuel futur enregistré (voir [Historique](./historique.md)).
-
-La réponse porte `stop` (description de l'arrêt, avec l'adresse de l'instruction fautive pour une faute), `frames`, `instructions` et `time_ms`.
+- tranches de **1 000 000** (`CHUNK`), **plus courtes si un historique tourne**, pour ne pas manquer l'heure d'un point de reprise ;
+- avec l'**horloge hôte**, une attente ne finit que si l'hôte fait passer du temps : inutile d'insister, on lui rend la main ;
+- la réponse porte `stop` (description de l'arrêt, avec l'adresse de l'instruction fautive pour une faute), `frames`, `instructions` et `time_ms`.
 
 `key` avec `action: "tap"` exécute **2 000 000 instructions** (`instructions` le change) entre l'appui et le relâchement : c'est un appui d'une durée qui laisse l'application réagir ; `press` et `release` sont des événements isolés, enregistrés pour le rejeu.
 
@@ -61,14 +82,30 @@ Ces commandes s'appuient sur `DebugInfo` (`Session::debug_of` rend l'émulateur 
 
 ### Pas à la ligne : `step_source`
 
-La session réalise le pas par des **pas d'instruction** et des **points d'arrêt temporaires**, avec un budget de **20 000 000** instructions (`STEP_BUDGET`) :
+Un pas « à la ligne » n'existe pas dans le processeur : la session le fabrique avec des **pas d'instruction** et des **points d'arrêt temporaires**, dans la limite de 20 000 000 d'instructions (`STEP_BUDGET`).
 
-- **`out`** : prend le cadre appelant (pile exacte à 2 niveaux), pose un point d'arrêt temporaire à l'**adresse de retour**, et exécute jusqu'à y arriver avec `sp ≥ CFA du cadre quitté` : le test de la pile gère la **récursion** (un point d'arrêt atteint par un appel plus profond n'arrête pas) ;
-- **`into` et `over`** : exécute instruction après instruction. Quand l'instruction est un **appel** (`bl`, `blx`, `is_call_at`) : `over` exécute l'appel jusqu'à son retour (adresse `lr`, `sp ≥ sp_avant`) ; `into` entre dans la fonction **si elle a des lignes**
-  (`function_at(now)`), jusqu'à la première ligne après le prologue (point d'arrêt temporaire), et sinon l'exécute en entier comme `over` ;
-- le pas **s'arrête** sur une instruction qui est un **début d'instruction de source** (`is_stmt` d'une ligne exactement à l'adresse) et soit change de ligne, soit change de fonction, soit change de cadre (CFA différente) : c'est la règle qui distingue un retour dans l'appelant d'une
-  boucle sur la même ligne ;
-- une attente (`WaitEvent`) s'arrête avec `outcome = "waiting"`, un `Sleep` fait passer le temps virtuel, `outcome = "budget"` si les 20 millions ne suffisent pas.
+```mermaid
+flowchart TD
+  A(["step_source(mode)"]) --> M{"mode"}
+  M -- out --> O1["adresse de retour = pc du cadre appelant"]
+  O1 --> O2["exécuter jusqu'à cette adresse<br/>avec sp ≥ CFA du cadre quitté<br/>(gère la récursion)"] --> Z
+  M -- "into / over" --> L["exécuter UNE instruction"]
+  L --> Q{"C'était un appel<br/>(bl, blx) ?"}
+  Q -- non --> N
+  Q -- oui --> R{"mode"}
+  R -- over --> R1["exécuter l'appel en entier<br/>(jusqu'à lr, sp ≥ sp avant)"] --> N
+  R -- into --> R2{"La fonction a des lignes ?"}
+  R2 -- non --> R1
+  R2 -- oui --> R3["aller après le prologue<br/>(point d'arrêt temporaire)"] --> Z
+  N{"Début d'instruction de source<br/>(is_stmt) ET (ligne différente<br/>OU fonction différente<br/>OU cadre différent) ?"}
+  N -- oui --> Z
+  N -- non --> W{"Budget épuisé ?"}
+  W -- non --> L
+  W -- oui --> Z
+  Z(["arrêt : line / stopped / waiting / budget"])
+```
+
+La condition « cadre différent » (CFA qui change) est ce qui distingue un **retour dans l'appelant** d'une **boucle sur la même ligne**. Une attente d'événement s'arrête avec `outcome = "waiting"` ; un `Sleep` fait passer le temps virtuel.
 
 ### Le texte des sources
 
