@@ -19,7 +19,6 @@ export function useEmulator() {
   let canvas: HTMLCanvasElement | null = null;
   let gestureTarget: HTMLElement | null = null;
   let detachPointer: (() => void) | null = null;
-  let transferred = false;
 
   // Les entrées : le mapping reste dans la page ; ce qui en sort part au Worker comme une touche de la calculatrice.
   const input = new InputMapper({ key: (name, down) => void player("key", name, down) }, KeyMap.default());
@@ -40,6 +39,11 @@ export function useEmulator() {
 
   function onMessage(event: MessageEvent<FromWorker>): void {
     const message = event.data;
+    if (message.kind === "screen") {
+      canvas?.getContext("2d")?.drawImage(message.bitmap, 0, 0);
+      message.bitmap.close();
+      return;
+    }
     if (message.kind === "state") {
       Object.assign(state, message.patch);
       return;
@@ -59,13 +63,6 @@ export function useEmulator() {
     });
   }
 
-  /** Donne l'écran au Worker (une seule fois : un canvas ne se transfère qu'une fois). */
-  function transferCanvas(): OffscreenCanvas | null {
-    if (transferred || !canvas || !("transferControlToOffscreen" in canvas)) return null;
-    transferred = true;
-    return canvas.transferControlToOffscreen();
-  }
-
   async function init(): Promise<void> {
     if (typeof Worker === "undefined") throw new Error("ce navigateur ne sait pas lancer de Worker");
     worker = new Worker(new URL("./emulator.worker.ts", import.meta.url), { type: "module" });
@@ -73,15 +70,16 @@ export function useEmulator() {
     worker.onerror = (event) => {
       state.error = event.message || "erreur de l'émulateur";
     };
-    const offscreen = transferCanvas();
     const wasm = new URL(wasmUrl, location.href).href;
-    await ask<boolean>((id) => ({ kind: "init", id, wasmUrl: wasm, canvas: offscreen }), offscreen ? [offscreen] : []);
+    await ask<boolean>((id) => ({ kind: "init", id, wasmUrl: wasm }));
     state.ready = true;
+    if (canvas) void player("draw");
   }
 
   /** Les gestes tactiles se font sur l'écran : on y branche le mapping dès qu'on a la cible. */
   function attach(element: HTMLCanvasElement, gestures: HTMLElement = element): void {
     canvas = element;
+    if (state.ready) void player("draw"); // l'écran déjà dessiné par le Worker va dans ce canvas
     gestureTarget = gestures;
     if (!detachPointer) detachPointer = input.attachPointer(gestures);
   }

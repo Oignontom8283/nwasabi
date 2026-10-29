@@ -59,6 +59,28 @@ function record(): void {
 }
 let sent: Record<string, unknown> = {};
 
+let showing = false;
+let showAgain = false;
+/** Envoie l'écran à la page. Un canvas ne se partage pas entre fils : on lui envoie une image, et les images qui arrivent pendant l'envoi n'en font qu'une. */
+function show(): void {
+  if (!canvas) return;
+  if (showing) {
+    showAgain = true;
+    return;
+  }
+  showing = true;
+  createImageBitmap(canvas)
+    .then((bitmap) => scope.postMessage({ kind: "screen", bitmap }, [bitmap]))
+    .catch(() => {})
+    .finally(() => {
+      showing = false;
+      if (showAgain) {
+        showAgain = false;
+        show();
+      }
+    });
+}
+
 /** Deux petits objets simples (l'arrêt, par exemple) ont-ils les mêmes champs ? */
 function shallowEqual(a: Record<string, unknown>, b: unknown): boolean {
   if (typeof b !== "object" || b === null) return false;
@@ -170,13 +192,14 @@ async function handle(message: ToWorker): Promise<void> {
     case "init": {
       try {
         const wasm = await fetch(message.wasmUrl);
-        // L'écran : on laisse le lecteur dessiner lui-même dans l'OffscreenCanvas, sans repasser par la page.
-        canvas = message.canvas;
+        // L'écran : le lecteur dessine dans un canvas du Worker, dont chaque image part ensuite à la page (voir `show`).
+        canvas = new OffscreenCanvas(320, 240);
         player = await Player.create(wasm, { scheduler, slice: SLICE, maxWallMs: FRAME_MS });
-        if (canvas) player.attach(canvas as never);
+        player.attach(canvas as never);
         restoreFiles();
         player.onFrame(() => {
           record();
+          show();
           flush();
         });
         setInterval(flush, 250); // le temps de l'application continue de défiler même sans nouvelle image
@@ -220,6 +243,7 @@ async function handle(message: ToWorker): Promise<void> {
           restoreBreakpoints();
         }
         scope.postMessage({ kind: "reply", id: message.id, result });
+        show();
       } catch (error) {
         scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });
       }
