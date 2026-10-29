@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use super::{Reply, Session, debug, number, text};
-use crate::debuginfo::{Context, locate, read_value};
+use crate::debuginfo::{CallArg, CallResult, Context, Target, locate, read_value};
 use crate::debuginfo::{DebugInfo, Frame, Place, evaluate};
 use crate::emulator::{Emulator, RunStop};
 use crate::json::{Value, ValueExt};
@@ -72,7 +72,7 @@ fn lookup_pc(frame: &Frame, index: usize) -> u32 {
 fn location_json(info: &DebugInfo, pc: u32) -> Value {
     let mut v = Value::object();
     if let Some(f) = info.function_at(pc) {
-        v.set("function", f.name.as_str());
+        v.set("function", f.display_name());
     }
     if let Some(row) = info.line_at(pc) {
         v.set("file", row.file);
@@ -93,23 +93,160 @@ fn frame_json(info: &DebugInfo, frame: &Frame, index: usize) -> Value {
         .with("sp", frame.regs[13])
 }
 
-/// Évalue `body` avec le contexte du cadre `index`.
+/// Au plus ce nombre d'instructions pour un appel de fonction demandé par une expression.
+const CALL_BUDGET: u64 = 50_000_000;
+
+/// L'appareil vu par les expressions : lecture, écriture (hors flash), registres, et appel de fonctions de l'application.
+struct EmuTarget<'a> {
+    emu: &'a mut Emulator,
+    /// Une expression a modifié l'appareil : l'historique ne peut plus rejouer ce qui précède.
+    dirty: bool,
+}
+
+impl Target for EmuTarget<'_> {
+    fn read(&mut self, address: u32, len: usize) -> Option<Vec<u8>> {
+        self.emu.device.memory.read_bytes(address, len as u32).ok()
+    }
+
+    fn write(&mut self, address: u32, data: &[u8]) -> bool {
+        // La flash ne s'écrit pas depuis une expression (le noyau simulé est seul à la programmer).
+        if (0x9000_0000..0xa000_0000).contains(&address) {
+            return false;
+        }
+        self.dirty = true;
+        self.emu.device.memory.write_bytes(address, data).is_ok()
+    }
+
+    fn set_register(&mut self, index: usize, value: u32) -> bool {
+        let r = &mut self.emu.cpu.regs;
+        self.dirty = true;
+        match index {
+            0..=12 => r.r[index] = value,
+            13 => r.sp = value & !3,
+            14 => r.lr = value,
+            15 => r.pc = value & !1,
+            _ => return false,
+        }
+        true
+    }
+
+    fn call(&mut self, function: u32, args: &[CallArg]) -> Result<CallResult, String> {
+        let emu = &mut *self.emu;
+        let entry = emu
+            .app()
+            .map(|a| a.entry & !1)
+            .ok_or("aucune application")?;
+        let (cpu, kernel, resume) = (emu.cpu.clone(), emu.kernel.clone(), emu.resume_point());
+        let result = (|| {
+            // Les arguments : entiers dans r0 à r3 puis sur la pile ; flottants dans s0… et doubles dans d0… (ABI à virgule flottante matérielle).
+            let (mut next_r, mut next_s) = (0usize, 0usize);
+            let (mut ints, mut stack): (Vec<(usize, u32)>, Vec<u32>) = (Vec::new(), Vec::new());
+            let mut floats: Vec<(usize, u32)> = Vec::new();
+            for arg in args {
+                match *arg {
+                    CallArg::Int(v) if next_r < 4 => {
+                        ints.push((next_r, v));
+                        next_r += 1;
+                    }
+                    CallArg::Int(v) => stack.push(v),
+                    CallArg::Float(f) if next_s < 16 => {
+                        floats.push((next_s, f.to_bits()));
+                        next_s += 1;
+                    }
+                    CallArg::Double(d) if next_s < 15 => {
+                        next_s += next_s % 2;
+                        let bits = d.to_bits();
+                        floats.push((next_s, bits as u32));
+                        floats.push((next_s + 1, (bits >> 32) as u32));
+                        next_s += 2;
+                    }
+                    _ => return Err("trop d'arguments à virgule flottante".to_owned()),
+                }
+            }
+            let mut sp = emu.cpu.regs.sp.wrapping_sub(256) & !7;
+            if !stack.is_empty() {
+                sp = sp.wrapping_sub(4 * stack.len() as u32) & !7;
+                for (i, a) in stack.iter().enumerate() {
+                    emu.device
+                        .memory
+                        .write_u32(sp + 4 * i as u32, *a)
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+            let regs = &mut emu.cpu.regs;
+            for (i, v) in ints {
+                regs.r[i] = v;
+            }
+            for (i, bits) in floats {
+                regs.s[i] = bits;
+            }
+            regs.sp = sp;
+            // Le retour de la fonction tombe sur une adresse où l'on a posé un point d'arrêt : le début de l'application.
+            regs.lr = entry | 1;
+            regs.pc = function & !1;
+            let had = emu.breakpoints().iter().any(|b| b.address == entry);
+            if !had {
+                emu.add_breakpoint(entry);
+            }
+            emu.set_resume_point(None);
+            let start = emu.cpu.cycles;
+            let mut outcome = Err("l'appel ne se termine pas".to_owned());
+            while emu.cpu.cycles - start < CALL_BUDGET {
+                match emu.run(200_000) {
+                    RunStop::Breakpoint { pc } if pc == entry => {
+                        let r = &emu.cpu.regs;
+                        outcome = Ok(CallResult {
+                            r0: r.r[0],
+                            r1: r.r[1],
+                            s0: r.s[0],
+                            s1: r.s[1],
+                        });
+                        break;
+                    }
+                    // Un autre point d'arrêt, la fin d'une image, un temps d'attente virtuel : l'appel continue.
+                    RunStop::Breakpoint { .. } | RunStop::Budget | RunStop::Frame => {}
+                    RunStop::Sleep { ms } => emu.kernel.advance_time(u64::from(ms) * 1000),
+                    RunStop::Fault(f) => {
+                        outcome = Err(format!("l'appel a provoqué une faute : {f:?}"));
+                        break;
+                    }
+                    other => {
+                        outcome = Err(format!("l'appel s'est arrêté : {other:?}"));
+                        break;
+                    }
+                }
+            }
+            if !had {
+                emu.remove_breakpoint(entry);
+            }
+            outcome
+        })();
+        // Le processeur et le noyau retrouvent leur état ; la mémoire garde les effets de l'appel, comme avec GDB.
+        emu.cpu = cpu;
+        emu.kernel = kernel;
+        emu.set_resume_point(resume);
+        self.dirty = true;
+        result
+    }
+}
+
+/// Évalue `body` avec le contexte du cadre `index` ; rend aussi si l'appareil a été modifié.
 fn with_context<T>(
     emu: &mut Emulator,
     info: &DebugInfo,
     frame: &Frame,
     index: usize,
     body: impl FnOnce(&mut Context<'_>, u32) -> T,
-) -> T {
+) -> (T, bool) {
     let pc = lookup_pc(frame, index);
     let fregs = emu.cpu.regs.s;
-    let mut read = read_memory(emu);
+    let mut target = EmuTarget { emu, dirty: false };
     let mut ctx = Context {
         regs: frame.regs,
         fregs,
         cfa: frame.cfa,
         frame_base: None,
-        memory: &mut read,
+        memory: &mut target,
     };
     // La base du cadre : évaluée une fois pour toutes les variables de la fonction.
     if let Some(expr) = info.function_at(pc).and_then(|f| f.frame_base.clone())
@@ -121,7 +258,8 @@ fn with_context<T>(
             _ => None,
         };
     }
-    body(&mut ctx, pc)
+    let result = body(&mut ctx, pc);
+    (result, target.dirty)
 }
 
 fn variable_json(
@@ -266,7 +404,10 @@ impl Session {
                     if v.get("function").is_none()
                         && let Some((name, _, offset)) = emu.symbol_at(lookup_pc(f, i))
                     {
-                        v.set("symbol", format!("{name}+{offset:#x}"));
+                        v.set(
+                            "symbol",
+                            format!("{}+{offset:#x}", crate::symbols::demangle(name)),
+                        );
                     }
                     list.push(v);
                 }
@@ -307,7 +448,10 @@ impl Session {
                 let index = req.get("frame").and_then(Value::as_u32).unwrap_or(0) as usize;
                 let frames = frames_of(emu, &info, index + 1);
                 let frame = *frames.get(index).ok_or("pas de tel cadre")?;
-                match cmd {
+                let function = info.function_at(lookup_pc(&frame, index));
+                let fb = function.and_then(|f| f.frame_base.clone());
+                // Une expression peut modifier l'appareil (affectation, appel) : l'historique repart alors de là.
+                let (reply, dirty): (Reply, bool) = match cmd {
                     "locals" => with_context(emu, &info, &frame, index, |ctx, pc| {
                         let vars = info.visible_locals(pc);
                         let mut params = Vec::new();
@@ -343,9 +487,6 @@ impl Session {
                     }
                     "eval" => {
                         let expr = text(req, "expr")?;
-                        let fb = info
-                            .function_at(lookup_pc(&frame, index))
-                            .and_then(|f| f.frame_base.clone());
                         with_context(emu, &info, &frame, index, |ctx, pc| {
                             evaluate(&info, expr, pc, ctx, fb.as_deref())
                                 .map(|v| v.to_json())
@@ -354,9 +495,6 @@ impl Session {
                     }
                     "ptype" => {
                         let expr = text(req, "expr")?;
-                        let fb = info
-                            .function_at(lookup_pc(&frame, index))
-                            .and_then(|f| f.frame_base.clone());
                         // D'abord un nom de type ou de structure, puis une expression.
                         if let Some(t) = find_type(&info, expr) {
                             return Ok(Value::object().with("type", describe_type(&info, t)));
@@ -374,43 +512,32 @@ impl Session {
                         })
                     }
                     _ => {
-                        // assign : écrit une valeur scalaire dans la variable que désigne l'expression.
+                        // assign : `expr = valeur`, avec la syntaxe des expressions.
                         let expr = text(req, "expr")?;
                         let new = req.get("value").ok_or("champ « value » manquant")?;
-                        let fb = info
-                            .function_at(lookup_pc(&frame, index))
-                            .and_then(|f| f.frame_base.clone());
-                        let target = with_context(emu, &info, &frame, index, |ctx, pc| {
-                            evaluate(&info, expr, pc, ctx, fb.as_deref()).map_err(|e| e.to_string())
-                        })?;
-                        let Some(Place::Address(address)) = target.place.clone() else {
-                            return Err(
-                                "cette valeur n'est pas en mémoire : on ne peut pas la modifier"
-                                    .into(),
-                            );
-                        };
-                        let size = target.size.clamp(1, 8) as usize;
-                        let bytes: Vec<u8> = match (new.as_i64(), new.as_f64()) {
-                            (Some(n), _)
-                                if !matches!(
-                                    target.kind,
-                                    crate::debuginfo::ValueKind::Float(_)
-                                ) =>
-                            {
-                                n.to_le_bytes()[..size].to_vec()
-                            }
-                            (_, Some(f)) if size == 4 => (f as f32).to_le_bytes().to_vec(),
-                            (_, Some(f)) => f.to_le_bytes()[..size].to_vec(),
+                        let literal = match (new.as_i64(), new.as_f64()) {
+                            (Some(n), _) => n.to_string(),
+                            (_, Some(f)) => format!("{f:?}"),
                             _ => return Err("une valeur numérique est attendue".into()),
                         };
-                        emu.device
-                            .memory
-                            .write_bytes(address, &bytes)
-                            .map_err(|e| e.to_string())?;
-                        self.history_reset();
-                        Ok(Value::object().with("address", address).with("size", size))
+                        let assignment = format!("({expr}) = {literal}");
+                        with_context(emu, &info, &frame, index, |ctx, pc| {
+                            evaluate(&info, &assignment, pc, ctx, fb.as_deref())
+                                .map(|v| {
+                                    let mut reply = Value::object().with("size", v.size);
+                                    if let Some(Place::Address(a)) = v.place {
+                                        reply.set("address", a);
+                                    }
+                                    reply.with("value", v.summary())
+                                })
+                                .map_err(|e| e.to_string())
+                        })
                     }
+                };
+                if dirty {
+                    self.history_reset();
                 }
+                reply
             }
             "step_source" => self.step_source(req),
             _ => Err(format!("commande inconnue : {cmd}")),
@@ -592,7 +719,7 @@ fn describe_type(info: &DebugInfo, id: usize) -> String {
     let stripped = info.strip(id);
     let t = info.ty(stripped);
     match &t.kind {
-        TypeKind::Struct { fields, union } => {
+        TypeKind::Struct { fields, union, .. } => {
             let mut s = format!(
                 "{} {} {{\n",
                 if *union { "union" } else { "struct" },

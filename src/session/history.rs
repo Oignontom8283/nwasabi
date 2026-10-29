@@ -60,12 +60,19 @@ pub enum Effect {
 pub fn effect_of(cmd: &str) -> Effect {
     match cmd {
         "key" | "advance" => Effect::Input,
-        "run" | "step" | "step_back" | "reverse_continue" | "history_goto" => Effect::Forward,
+        "run" | "step" | "step_source" | "step_back" | "reverse_continue" | "history_goto" => {
+            Effect::Forward
+        }
         "cpu" | "regions" | "usage" | "memory_read" | "changes" | "watch" | "unwatch"
         | "watch_list" | "watch_hits" | "svc_stats" | "svc_log" | "time" | "screen" | "inspect"
         | "disasm" | "symbol" | "symbols" | "backtrace" | "profile" | "break" | "unbreak"
         | "breaks" | "fs_list" | "fs_stats" | "fs_read" | "fs_export" | "settings_get" | "dump"
-        | "help" | "history" | "stdout" => Effect::None,
+        | "help" | "history" | "stdout" | "flash_export" => Effect::None,
+        // Le débogage du code source : de la lecture, ou des expressions qui signalent elles-mêmes qu'elles ont modifié l'appareil
+        // (affectation, appel de fonction) et remettent alors l'historique à zéro.
+        "debug_info" | "line_at" | "source_lines" | "break_line" | "unbreak_line"
+        | "break_function" | "frames" | "locals" | "globals" | "eval" | "assign" | "ptype"
+        | "export_elf" => Effect::None,
         _ => Effect::Reset,
     }
 }
