@@ -232,13 +232,13 @@ impl LinkedApp {
         let mut offsets = Vec::new();
         for s in &sections {
             let align = s.align.max(1) as usize;
-            while out.len() % align != 0 {
+            while !out.len().is_multiple_of(align) {
                 out.push(0);
             }
             offsets.push(out.len() as u32);
             out.extend_from_slice(&s.data);
         }
-        while out.len() % 4 != 0 {
+        while !out.len().is_multiple_of(4) {
             out.push(0);
         }
         let table = out.len() as u32;
