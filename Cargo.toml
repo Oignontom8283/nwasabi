@@ -63,3 +63,10 @@ strip = true
 # `build.rs` réécrit le package.json des workspaces npm (dépendance de compilation : absente du binaire).
 [build-dependencies]
 serde_json = "1"
+
+# Binaires natifs (`cargo install nwasabi`, `just build-server`) : édition de liens globale et une seule unité de compilation, pour
+# des exécutions plus rapides et des binaires plus petits ; les informations de débogage de Nwasabi lui-même sont retirées.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
