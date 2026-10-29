@@ -60,8 +60,10 @@ Ce que l'on peut faire :
   l'arrêt a lieu après le prologue ;
 - **pas à la ligne** : *entrer* (entre dans la fonction appelée si elle a des lignes, sinon l'exécute), *par-dessus* (exécute les
   appels en entier) et *sortir* (jusqu'au retour dans la fonction appelante, en tenant compte de la récursion) ;
-- **expressions** en C, évaluées dans le cadre choisi de la pile : variables, `a.b`, `p->b`, `t[2]`, `*p`, `&x`, constantes
-  d'énumération, registres (`$r0`, `$sp`), arithmétique, comparaisons et opérateurs logiques, entiers comme flottants ;
+- **expressions** avec la syntaxe du C, évaluées dans le cadre choisi de la pile : variables, `a.b`, `p->b`, `t[2][3]`, `*p`, `&x`,
+  constantes d'énumération, registres (`$r0`, `$sp`), arithmétique et bits, comparaisons, `?:`, conversions (`(char)n`, `(Point *)p`),
+  `sizeof`, affectations (`x = 5`, `n += 2`, `i++`) et **appels de fonctions** de l'application (`fib(6)`, `rect.area()`) : voir
+  [Déboguer en C, C++ et Rust](../guide/deboguer-c-cpp-rust.md#les-expressions) ;
 - **valeurs** lues d'après le type : structures et tableaux dépliables, chaînes de `char *`, énumérations par leur nom, pointeurs que
   l'on déplie pour voir ce qu'ils désignent ;
 - **modification** d'une variable ou d'un champ en mémoire (`set var x = 5`, ou un double-clic sur sa valeur) ;
@@ -70,8 +72,11 @@ Ce que l'on peut faire :
 
 Les limites sont celles du code compilé : en `-O2`, une variable peut vivre dans un registre un instant puis disparaître
 (`<optimisé>`), une fonction « en ligne » n'a plus son propre cadre, et les lignes sautent. Pour suivre un programme pas à pas, compilez
-la partie qui vous intéresse avec `-O0 -g`. Les expressions n'appellent pas de fonctions de l'application, et `a[i][j]` sur un tableau à
-plusieurs dimensions n'est pas géré (écrivez `a[i]` puis le suivant).
+la partie qui vous intéresse avec `-O0 -g`.
+
+Le débogage fonctionne pour le **C**, le **C++** (espaces de noms, classes, fonctions virtuelles, références, modèles) et le **Rust**
+(énumérations avec données, méthodes, tranches) ; les noms de fonctions de ces deux langages s'affichent sous leur forme lisible. Voir
+[Déboguer en C, C++ et Rust](../guide/deboguer-c-cpp-rust.md).
 
 ## Profil
 

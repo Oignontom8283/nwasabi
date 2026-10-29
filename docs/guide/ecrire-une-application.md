@@ -41,6 +41,8 @@ Les appels système inconnus arrêtent l'application avec une faute explicite (r
 
 ## Compiler pour le débogage
 
+Pour du C++ ou du Rust, et pour les expressions, voir [Déboguer en C, C++ et Rust](./deboguer-c-cpp-rust.md).
+
 - **`-g`** : le compilateur écrit dans le `.nwa` les informations de débogage (lignes de source, variables, types, tables d'appel).
   Nwasabi les lit : points d'arrêt par ligne, pile exacte, variables, expressions (voir
   [Déboguer le code source](../debug/index.md#deboguer-le-code-source)). Elles ne changent pas le code produit ni le fichier flashé

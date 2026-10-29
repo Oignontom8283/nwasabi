@@ -74,6 +74,7 @@ export default withMermaid(defineConfig({
             { text: "Premiers pas", link: "/guide/" },
             { text: "Écrire une application", link: "/guide/ecrire-une-application" },
             { text: "L'émulateur web", link: "/guide/emulateur-web" },
+            { text: "Déboguer en C, C++ et Rust", link: "/guide/deboguer-c-cpp-rust" },
             { text: "Exécuter KhiCAS", link: "/guide/khicas" },
             { text: "Le serveur", link: "/guide/serveur" },
             { text: "La ligne de commande", link: "/guide/cli" },
@@ -85,6 +86,7 @@ export default withMermaid(defineConfig({
           text: "Référence",
           items: [
             { text: "Compatibilité et limites", link: "/reference/compatibilite" },
+            { text: "Technologies prises en charge", link: "/reference/technologies" },
             { text: "Modèles et mémoire", link: "/reference/modeles-memoire" },
             { text: "Appels système", link: "/reference/appels-systeme" },
             { text: "Données auxiliaires en flash", link: "/reference/donnees-flash" },
