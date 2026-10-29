@@ -7,9 +7,10 @@
 mod eval;
 mod expr;
 mod parse;
+mod types;
 mod unwind;
 
-pub use eval::{Context, Place, ReadMemory, Value, ValueKind, locate, read_value};
+pub use eval::{CallArg, CallResult, Context, Place, Target, Value, ValueKind, locate, read_value};
 pub use expr::{EvalError, evaluate};
 pub use unwind::Frame;
 
@@ -61,6 +62,8 @@ pub struct Variable {
     pub file: u32,
     pub line: u32,
     pub is_param: bool,
+    /// Le nom complet d'une variable globale C++ ou Rust (`shapes::Shape::counter`, `main::GLOBAL_TOTAL`), tiré de son symbole.
+    pub qualified: Option<String>,
     /// Valeur connue à la compilation (`DW_AT_const_value`), si la variable n'a pas d'emplacement.
     pub const_value: Option<i64>,
 }
@@ -93,6 +96,24 @@ pub struct Function {
     pub frame_base: Option<Vec<u8>>,
     pub ret: Option<TypeId>,
     pub external: bool,
+    /// Le nom complet d'une fonction C++ ou Rust (`Chunk::generate`, `numcraft::world::Chunk::generate`), tiré de son symbole.
+    pub qualified: Option<String>,
+}
+
+impl Function {
+    /// Le nom à afficher : complet s'il est connu.
+    pub fn display_name(&self) -> &str {
+        self.qualified.as_deref().unwrap_or(&self.name)
+    }
+
+    /// Cette fonction porte-t-elle ce nom ? (le nom complet, ou sa fin : `generate` ou `Chunk::generate`)
+    pub fn is_named(&self, wanted: &str) -> bool {
+        self.name == wanted
+            || self
+                .qualified
+                .as_deref()
+                .is_some_and(|q| q == wanted || q.ends_with(&format!("::{wanted}")))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +133,40 @@ pub struct Field {
     pub offset: u32,
     /// Champ de bits : taille et position (depuis le bit de poids faible du mot qui commence à `offset`).
     pub bits: Option<(u8, u8)>,
+    /// Une classe de base (héritage C++) : le champ porte le nom de la base et contient ses propres champs.
+    pub base: bool,
+}
+
+/// Une fonction membre d'une classe ou d'une structure (C++ et Rust).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Method {
+    pub name: String,
+    /// Le nom du symbole (manglé) : l'adresse de la fonction s'en déduit.
+    pub linkage: Option<String>,
+    /// Place dans la table des fonctions virtuelles, pour un appel dynamique.
+    pub virtual_slot: Option<u32>,
+    /// Nombre de paramètres sans `this`.
+    pub params: usize,
+    pub is_static: bool,
+    pub ret: Option<TypeId>,
+}
+
+/// Les variantes d'une énumération Rust (ou d'une union étiquetée) : l'étiquette dit laquelle est active.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VariantPart {
+    pub discr_offset: u32,
+    pub discr_size: u32,
+    pub variants: Vec<Variant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Variant {
+    /// La valeur de l'étiquette ; `None` : la variante par défaut (les autres valeurs).
+    pub discr: Option<i64>,
+    pub name: String,
+    /// Le type qui décrit les champs de la variante, et sa position dans l'énumération.
+    pub ty: TypeId,
+    pub offset: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,7 +178,11 @@ pub enum TypeKind {
     Struct {
         fields: Vec<Field>,
         union: bool,
+        methods: Vec<Method>,
+        variants: Option<VariantPart>,
     },
+    /// Une référence C++ ou Rust (`int &`, `&T`) : un pointeur que l'on traverse toujours.
+    Reference(Option<TypeId>),
     Array {
         elem: TypeId,
         counts: Vec<Option<u32>>,
@@ -157,6 +216,12 @@ pub struct DebugInfo {
     pub functions: Vec<Function>,
     pub globals: Vec<Variable>,
     types: Vec<Type>,
+    /// Le type « pointeur sur T » pour chaque type connu (`None` : `void *`).
+    pointers: std::collections::HashMap<Option<TypeId>, TypeId>,
+    /// Les adresses des fonctions et variables par nom de symbole (manglé) : pour appeler une fonction membre.
+    pub(crate) symbol_addresses: std::collections::HashMap<String, u32>,
+    /// Le programme est en C++ ou en Rust : les noms de types s'écrivent sans `struct`.
+    pub(crate) qualified_names: bool,
     /// La section `.debug_frame`, pour dérouler la pile.
     frame: Option<Arc<[u8]>>,
 }
@@ -201,14 +266,29 @@ impl DebugInfo {
                     format!("{name} *")
                 }
             }
+            TypeKind::Reference(target) => format!("{} &", inner(self, *target)),
+            TypeKind::Const(Some(target))
+                if matches!(self.types[*target].kind, TypeKind::Pointer(_)) =>
+            {
+                format!("{} const", self.type_name_depth(*target, depth + 1))
+            }
             TypeKind::Const(target) => format!("const {}", inner(self, *target)),
             TypeKind::Volatile(target) => format!("volatile {}", inner(self, *target)),
             TypeKind::Array { elem, counts } => {
-                let dims: String = counts
+                // Les dimensions d'un tableau de tableaux s'écrivent à la suite : `int [3][4]`.
+                let mut dims: String = counts
                     .iter()
                     .map(|c| c.map_or("[]".to_owned(), |n| format!("[{n}]")))
                     .collect();
-                format!("{} {dims}", self.type_name_depth(*elem, depth + 1))
+                let mut inner = *elem;
+                while let TypeKind::Array { elem: next, counts } = &self.types[inner].kind {
+                    dims += &counts
+                        .iter()
+                        .map(|c| c.map_or("[]".to_owned(), |n| format!("[{n}]")))
+                        .collect::<String>();
+                    inner = *next;
+                }
+                format!("{} {dims}", self.type_name_depth(inner, depth + 1))
             }
             TypeKind::Function { ret, params } => {
                 let list: Vec<String> = params
@@ -217,11 +297,18 @@ impl DebugInfo {
                     .collect();
                 format!("{} ({})", inner(self, *ret), list.join(", "))
             }
-            TypeKind::Struct { union, .. } => format!(
-                "{} {}",
-                if *union { "union" } else { "struct" },
-                t.name.as_deref().unwrap_or("{…}")
-            ),
+            // C++ et Rust écrivent le nom seul (`shapes::Rect`) ; C écrit `struct Item`.
+            TypeKind::Struct { union, .. } => match (&t.name, self.qualified_names) {
+                (Some(name), true) => name.clone(),
+                (name, _) => format!(
+                    "{} {}",
+                    if *union { "union" } else { "struct" },
+                    name.as_deref().unwrap_or("{…}")
+                ),
+            },
+            TypeKind::Enum { .. } if self.qualified_names && t.name.is_some() => {
+                t.name.clone().unwrap_or_default()
+            }
             TypeKind::Enum { .. } => format!("enum {}", t.name.as_deref().unwrap_or("{…}")),
             _ => t.name.clone().unwrap_or_else(|| "?".to_owned()),
         }
@@ -344,7 +431,141 @@ impl DebugInfo {
     }
 
     pub fn function_named(&self, name: &str) -> Option<&Function> {
-        self.functions.iter().find(|f| f.name == name)
+        // Le nom exact d'abord (`main`), puis le nom complet ou sa fin (`Chunk::generate`).
+        self.functions
+            .iter()
+            .find(|f| f.name == name || f.qualified.as_deref() == Some(name))
+            .or_else(|| self.functions.iter().find(|f| f.is_named(name)))
+    }
+
+    /// Parmi des fonctions de même nom (surcharges), celle qui convient le mieux à ces arguments : même nombre de paramètres, puis
+    /// mêmes genres (flottant ou entier).
+    pub fn best_overload<'a>(
+        &'a self,
+        candidates: &[&'a Function],
+        args: &[bool],
+    ) -> Option<&'a Function> {
+        let is_float = |ty: Option<TypeId>| {
+            ty.is_some_and(|t| {
+                matches!(self.ty(self.strip(t)).kind, TypeKind::Base(Encoding::Float))
+            })
+        };
+        candidates.iter().copied().max_by_key(|f| {
+            // `this` (artificiel) n'est pas dans `args` quand on appelle une fonction libre ; on compare les derniers paramètres.
+            let params: Vec<bool> = f.params.iter().map(|p| is_float(p.ty)).collect();
+            let offset = params.len().saturating_sub(args.len());
+            let same_count = params.len() == args.len() || params.len() == args.len() + 1;
+            let matching = args
+                .iter()
+                .zip(&params[offset..])
+                .filter(|(a, p)| a == p)
+                .count();
+            (same_count, matching, std::cmp::Reverse(f.low))
+        })
+    }
+
+    /// La fonction dont le code commence à `address`.
+    pub fn function_at_start(&self, address: u32) -> Option<&Function> {
+        self.functions.iter().find(|f| f.low == address & !1)
+    }
+
+    /// Toutes les fonctions de ce nom (les surcharges du C++) : de préférence celles dont le nom est exactement celui demandé.
+    pub fn functions_named(&self, name: &str) -> Vec<&Function> {
+        let exact: Vec<&Function> = self
+            .functions
+            .iter()
+            .filter(|f| f.name == name || f.qualified.as_deref() == Some(name))
+            .collect();
+        if !exact.is_empty() {
+            return exact;
+        }
+        self.functions.iter().filter(|f| f.is_named(name)).collect()
+    }
+
+    /// La fonction membre `name` de la classe `ty` (ou d'une de ses bases), avec le décalage de la base où elle se trouve.
+    pub fn find_method(&self, ty: TypeId, name: &str, args: usize) -> Option<(&Method, u32)> {
+        let TypeKind::Struct {
+            fields, methods, ..
+        } = &self.ty(self.strip(ty)).kind
+        else {
+            return None;
+        };
+        let by_name = || methods.iter().filter(|m| m.name == name);
+        if let Some(m) = by_name()
+            .find(|m| m.params == args)
+            .or_else(|| by_name().next())
+        {
+            return Some((m, 0));
+        }
+        fields.iter().filter(|f| f.base).find_map(|f| {
+            self.find_method(f.ty, name, args)
+                .map(|(m, o)| (m, o + f.offset))
+        })
+    }
+
+    /// La fonction qui implémente la méthode `name` du type nommé `type_name`, quand le type n'en liste pas (les méthodes d'un
+    /// `impl` Rust, d'une classe hors de sa déclaration) : d'après le nom complet de la fonction.
+    pub fn method_function(&self, type_name: &str, name: &str, args: usize) -> Option<&Function> {
+        let plain = format!("{type_name}::{name}");
+        let nested = format!("::{plain}");
+        let as_trait = format!("<{type_name} as ");
+        let suffix = format!(">::{name}");
+        let candidates: Vec<&Function> = self
+            .functions
+            .iter()
+            .filter(|f| {
+                f.qualified.as_deref().is_some_and(|q| {
+                    q == plain
+                        || q.ends_with(&nested)
+                        || (q.starts_with(&as_trait) && q.ends_with(&suffix))
+                })
+            })
+            .collect();
+        candidates
+            .iter()
+            .copied()
+            .find(|f| f.params.len() == args + 1 || f.params.len() == args)
+            .or_else(|| candidates.first().copied())
+    }
+
+    /// L'adresse de la fonction membre `method` (par sa table virtuelle si elle est virtuelle) de l'objet à `object`.
+    pub fn method_address(&self, method: &Method) -> Option<u32> {
+        method
+            .linkage
+            .as_ref()
+            .and_then(|l| self.symbol_addresses.get(l))
+            .map(|a| a & !1)
+    }
+
+    /// Donne leur nom complet aux fonctions C++ et Rust, d'après les symboles de l'application (adresse, nom manglé).
+    pub fn attach_symbols<'a>(&mut self, symbols: impl IntoIterator<Item = (u32, &'a str)>) {
+        let symbols: Vec<(u32, &'a str)> = symbols.into_iter().collect();
+        self.symbol_addresses = symbols.iter().map(|(a, n)| ((*n).to_owned(), *a)).collect();
+        let by_address: std::collections::HashMap<u32, &str> =
+            symbols.iter().map(|(a, n)| (a & !1, *n)).collect();
+        // Une variable globale : son nom complet vient du symbole qui est à son adresse (`DW_OP_addr`).
+        for v in &mut self.globals {
+            if let Location::Expr(e) = &v.location
+                && e.len() == 5
+                && e[0] == 0x03
+            {
+                let address = u32::from_le_bytes([e[1], e[2], e[3], e[4]]);
+                if let Some(name) = by_address.get(&address) {
+                    let q = crate::symbols::qualified(name);
+                    if q != *name && q != v.name {
+                        v.qualified = Some(q);
+                    }
+                }
+            }
+        }
+        for f in &mut self.functions {
+            if let Some(name) = by_address.get(&f.low) {
+                let q = crate::symbols::qualified(name);
+                if q != *name && q != f.name {
+                    f.qualified = Some(q);
+                }
+            }
+        }
     }
 
     /// Les variables locales visibles à `pc`, des plus proches (bloc le plus imbriqué) aux plus éloignées ; les
@@ -369,10 +590,19 @@ impl DebugInfo {
 
     /// Une variable par son nom, à `pc` : locale, paramètre, puis globale.
     pub fn find_variable(&self, pc: u32, name: &str) -> Option<&Variable> {
+        let named = |v: &&Variable| v.name == name || v.qualified.as_deref() == Some(name);
         self.visible_locals(pc)
             .into_iter()
             .find(|v| v.name == name)
-            .or_else(|| self.globals.iter().find(|v| v.name == name))
+            .or_else(|| self.globals.iter().find(named))
+            // La fin d'un nom complet (`counter`, `Shape::counter`).
+            .or_else(|| {
+                self.globals.iter().find(|v| {
+                    v.qualified
+                        .as_deref()
+                        .is_some_and(|q| q.ends_with(&format!("::{name}")))
+                })
+            })
     }
 
     // ---- la pile ------------------------------------------------------------------------------------------------

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use gimli::{AttributeValue, EndianArcSlice, LittleEndian, Reader, UnitOffset, constants as dw};
 
 use super::{
-    DebugInfo, Encoding, Field, Function, LineRow, Location, Scope, Type, TypeId, TypeKind,
-    Variable,
+    DebugInfo, Encoding, Field, Function, LineRow, Location, Method, Scope, Type, TypeId, TypeKind,
+    Variable, Variant, VariantPart,
 };
 
 type R = EndianArcSlice<LittleEndian>;
@@ -56,12 +56,16 @@ pub(super) fn parse(sections: &[(&str, &[u8])]) -> Result<Option<DebugInfo>, Str
         .iter()
         .find(|(n, _)| *n == ".debug_frame")
         .map(|(_, d)| Arc::from(d.to_vec()));
+    let pointers = super::types::complete(&mut b.types);
     Ok(Some(DebugInfo {
         files: b.files,
         rows: b.rows,
         functions: b.functions,
         globals: b.globals,
         types: b.types,
+        pointers,
+        symbol_addresses: HashMap::new(),
+        qualified_names: b.qualified_names,
         frame,
     }))
 }
@@ -75,6 +79,10 @@ struct Builder {
     globals: Vec<Variable>,
     types: Vec<Type>,
     type_ids: HashMap<(usize, usize), TypeId>,
+    /// Le préfixe (espaces de noms, classes englobantes) de chaque type : `shapes` pour `Rect` dans `shapes`.
+    prefixes: HashMap<(usize, usize), String>,
+    /// Une unité écrite en C++ ou en Rust : les noms de types se lisent sans `struct`.
+    qualified_names: bool,
 }
 
 /// Toutes les unités de compilation : une entrée peut en référencer une autre d'une unité différente (`DW_FORM_ref_addr`,
@@ -207,17 +215,59 @@ impl Builder {
             }
         }
 
+        // C++ et Rust écrivent les noms de types sans `struct`.
+        let mut root = unit.entries();
+        if let Ok(Some(entry)) = root.next_dfs()
+            && let Some(AttributeValue::Language(language)) = entry.attr_value(dw::DW_AT_language)
+        {
+            self.qualified_names |= matches!(
+                language,
+                dw::DW_LANG_C_plus_plus
+                    | dw::DW_LANG_C_plus_plus_03
+                    | dw::DW_LANG_C_plus_plus_11
+                    | dw::DW_LANG_C_plus_plus_14
+                    | dw::DW_LANG_Rust
+            );
+        }
         // Parcours des entrées : fonctions et variables globales.
         let mut cursor = unit.entries();
         // Pile des conteneurs ouverts : (profondeur, fonction/bloc en cours).
         let mut stack: Vec<Open> = Vec::new();
+        // Les noms des espaces de noms et des types englobants, par profondeur, et les types à lire à la fin.
+        let mut scope: Vec<(isize, String)> = Vec::new();
+        // Les préfixes des types se calculent d'abord : un type peut être lu (par une fonction) avant que le parcours n'arrive à lui.
+        let type_offsets = self.prefix_pass(u, index);
         while let Some(entry) = cursor.next_dfs().map_err(err)? {
             let depth = entry.depth();
             while stack.last().is_some_and(|o| o.depth >= depth) {
                 let done = stack.pop().expect("pile non vide");
                 self.close(done, &mut stack);
             }
-            match entry.tag() {
+            while scope.last().is_some_and(|(d, _)| *d >= depth) {
+                scope.pop();
+            }
+            let tag = entry.tag();
+            if matches!(
+                tag,
+                dw::DW_TAG_namespace
+                    | dw::DW_TAG_structure_type
+                    | dw::DW_TAG_class_type
+                    | dw::DW_TAG_union_type
+                    | dw::DW_TAG_enumeration_type
+            ) {
+                let name = entry
+                    .attr_value(dw::DW_AT_name)
+                    .and_then(|v| text(dwarf, unit, v))
+                    .unwrap_or_default();
+                scope.push((depth, name));
+            }
+            match tag {
+                dw::DW_TAG_namespace => {
+                    stack.push(Open {
+                        depth,
+                        kind: OpenKind::Namespace,
+                    });
+                }
                 dw::DW_TAG_subprogram => {
                     let ranges = self.ranges(dwarf, unit, entry);
                     let Some(&(low, _)) = ranges.first() else {
@@ -231,6 +281,7 @@ impl Builder {
                     let name = self
                         .name_of(u, index, entry, 0)
                         .unwrap_or_else(|| format!("sub_{low:08x}"));
+                    let name_for_prefix = name.clone();
                     let (file, line) = self.decl(entry, &file_map);
                     let ty = self.type_attr(u, index, entry);
                     let frame_base = match entry.attr_value(dw::DW_AT_frame_base) {
@@ -259,6 +310,7 @@ impl Builder {
                             frame_base,
                             ret: ty,
                             external,
+                            qualified: prefixed(&scope, &name_for_prefix),
                         })),
                     });
                 }
@@ -312,6 +364,8 @@ impl Builder {
                             _ => {}
                         }
                     } else if !is_param && stack.is_empty_or_namespace() {
+                        let mut var = var;
+                        var.qualified = prefixed(&scope, &var.name);
                         self.globals.push(var);
                     }
                 }
@@ -329,6 +383,9 @@ impl Builder {
         while let Some(done) = stack.pop() {
             self.close(done, &mut stack);
         }
+        for offset in type_offsets {
+            self.type_of(u, index, offset);
+        }
         Ok(())
     }
 
@@ -344,16 +401,16 @@ impl Builder {
                 if let Some(parent) = stack
                     .iter_mut()
                     .rev()
-                    .find(|o| !matches!(o.kind, OpenKind::Skip))
+                    .find(|o| !matches!(o.kind, OpenKind::Skip | OpenKind::Namespace))
                 {
                     match &mut parent.kind {
                         OpenKind::Function(f) => f.body.children.push(scope),
                         OpenKind::Block(s) => s.children.push(scope),
-                        OpenKind::Skip => {}
+                        OpenKind::Skip | OpenKind::Namespace => {}
                     }
                 }
             }
-            OpenKind::Skip => {}
+            OpenKind::Skip | OpenKind::Namespace => {}
         }
     }
 
@@ -478,11 +535,286 @@ impl Builder {
             file,
             line,
             is_param,
+            qualified: None,
             const_value,
         }))
     }
 
     // ---- types ---------------------------------------------------------------------------------------------------
+
+    /// Parcourt l'unité une première fois pour donner à chaque type son préfixe (espaces de noms et types englobants) ; rend les
+    /// positions des types à lire.
+    fn prefix_pass(&mut self, u: &Units<'_>, index: usize) -> Vec<UnitOffset> {
+        let (dwarf, unit) = (u.dwarf, &u.list[index]);
+        let mut scope: Vec<(isize, String)> = Vec::new();
+        let mut offsets = Vec::new();
+        let mut cursor = unit.entries();
+        while let Ok(Some(entry)) = cursor.next_dfs() {
+            let depth = entry.depth();
+            while scope.last().is_some_and(|(d, _)| *d >= depth) {
+                scope.pop();
+            }
+            let tag = entry.tag();
+            let is_scope = matches!(
+                tag,
+                dw::DW_TAG_namespace
+                    | dw::DW_TAG_structure_type
+                    | dw::DW_TAG_class_type
+                    | dw::DW_TAG_union_type
+                    | dw::DW_TAG_enumeration_type
+            );
+            let is_type = is_scope && tag != dw::DW_TAG_namespace
+                || matches!(tag, dw::DW_TAG_base_type | dw::DW_TAG_typedef);
+            if is_type {
+                let prefix: Vec<&str> = scope
+                    .iter()
+                    .map(|(_, n)| n.as_str())
+                    .filter(|n| !n.is_empty())
+                    .collect();
+                if !prefix.is_empty() {
+                    self.prefixes
+                        .insert((index, entry.offset().0), prefix.join("::"));
+                }
+                // Une déclaration seule (`struct X;`) ne décrit rien : on ne la lit pas d'office.
+                if !matches!(
+                    entry.attr_value(dw::DW_AT_declaration),
+                    Some(AttributeValue::Flag(true))
+                ) {
+                    offsets.push(entry.offset());
+                }
+            }
+            if is_scope {
+                let name = entry
+                    .attr_value(dw::DW_AT_name)
+                    .and_then(|v| text(dwarf, unit, v))
+                    .unwrap_or_default();
+                scope.push((depth, name));
+            }
+        }
+        offsets
+    }
+
+    /// Les champs, les classes de base, les fonctions membres et les variantes d'une structure, d'une classe ou d'une union.
+    fn struct_members(
+        &mut self,
+        u: &Units<'_>,
+        index: usize,
+        off: UnitOffset,
+        entry: &Entry,
+    ) -> (Vec<Field>, Vec<Method>, Option<VariantPart>) {
+        let (dwarf, unit) = (u.dwarf, &u.list[index]);
+        let (mut fields, mut methods, mut variants) = (Vec::new(), Vec::new(), None);
+        let Ok(mut cursor) = unit.entries_at_offset(off) else {
+            return (fields, methods, variants);
+        };
+        let _ = cursor.next_dfs();
+        let base_depth = entry.depth();
+        let name_of = |e: &Entry| {
+            e.attr_value(dw::DW_AT_name)
+                .and_then(|v| text(dwarf, unit, v))
+        };
+        let member_offset = |e: &Entry| -> u32 {
+            match e.attr_value(dw::DW_AT_data_member_location) {
+                Some(AttributeValue::Exprloc(x)) => {
+                    // `DW_OP_plus_uconst N` : le seul cas qu'émettent les compilateurs actuels.
+                    let bytes = x.0.to_slice().map(|c| c.into_owned()).unwrap_or_default();
+                    match bytes.split_first() {
+                        Some((0x23, rest)) => read_uleb(rest).unwrap_or(0) as u32,
+                        _ => 0,
+                    }
+                }
+                Some(v) => unsigned(&v).unwrap_or(0) as u32,
+                None => 0,
+            }
+        };
+        while let Ok(Some(child)) = cursor.next_dfs() {
+            if child.depth() <= base_depth {
+                break;
+            }
+            if child.depth() != base_depth + 1 {
+                continue;
+            }
+            let child = child.clone();
+            match child.tag() {
+                dw::DW_TAG_member | dw::DW_TAG_inheritance => {
+                    let is_base = child.tag() == dw::DW_TAG_inheritance;
+                    // Un membre statique (DWARF 4) n'a pas de place dans l'objet.
+                    if matches!(
+                        child.attr_value(dw::DW_AT_declaration),
+                        Some(AttributeValue::Flag(true))
+                    ) {
+                        continue;
+                    }
+                    let Some(fty) = self.type_attr(u, index, &child) else {
+                        continue;
+                    };
+                    let offset = member_offset(&child);
+                    let bits = child
+                        .attr_value(dw::DW_AT_bit_size)
+                        .and_then(|v| unsigned(&v))
+                        .map(|bs| {
+                            match child
+                                .attr_value(dw::DW_AT_data_bit_offset)
+                                .and_then(|v| unsigned(&v))
+                            {
+                                Some(dbo) => ((bs as u8), (dbo as u32 - offset * 8) as u8),
+                                None => (bs as u8, 0),
+                            }
+                        });
+                    let name = if is_base {
+                        // Une base se nomme comme son type (`Shape`), sans son espace de noms.
+                        let full = self.types.get(fty).and_then(|t| t.name.clone());
+                        full.map_or_else(String::new, |n| {
+                            n.rsplit("::").next().unwrap_or(&n).to_owned()
+                        })
+                    } else {
+                        name_of(&child).unwrap_or_default()
+                    };
+                    fields.push(Field {
+                        name,
+                        ty: fty,
+                        offset,
+                        bits,
+                        base: is_base,
+                    });
+                }
+                dw::DW_TAG_subprogram => {
+                    let Some(name) = name_of(&child) else {
+                        continue;
+                    };
+                    let linkage = [dw::DW_AT_linkage_name, dw::DW_AT_MIPS_linkage_name]
+                        .into_iter()
+                        .find_map(|at| child.attr_value(at))
+                        .and_then(|v| text(dwarf, unit, v));
+                    let virtual_slot = match child.attr_value(dw::DW_AT_vtable_elem_location) {
+                        Some(AttributeValue::Exprloc(x)) => {
+                            let bytes = x.0.to_slice().map(|c| c.into_owned()).unwrap_or_default();
+                            match bytes.split_first() {
+                                Some((0x10, rest)) => read_uleb(rest).map(|n| n as u32),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    // Les paramètres : `this` est artificiel.
+                    let (mut params, mut has_this) = (0usize, false);
+                    if let Ok(mut inner) = unit.entries_at_offset(child.offset()) {
+                        let _ = inner.next_dfs();
+                        while let Ok(Some(p)) = inner.next_dfs() {
+                            // La profondeur est relative au départ du curseur : 0 pour la fonction, 1 pour ses paramètres.
+                            if p.depth() <= 0 {
+                                break;
+                            }
+                            if p.tag() == dw::DW_TAG_formal_parameter && p.depth() == 1 {
+                                if matches!(
+                                    p.attr_value(dw::DW_AT_artificial),
+                                    Some(AttributeValue::Flag(true))
+                                ) {
+                                    has_this = true;
+                                } else {
+                                    params += 1;
+                                }
+                            }
+                        }
+                    }
+                    let ret = self.type_attr(u, index, &child);
+                    methods.push(Method {
+                        name,
+                        linkage,
+                        virtual_slot,
+                        params,
+                        is_static: !has_this,
+                        ret,
+                    });
+                }
+                dw::DW_TAG_variant_part => {
+                    variants = self.variant_part(u, index, &child);
+                }
+                _ => {}
+            }
+        }
+        (fields, methods, variants)
+    }
+
+    /// Les variantes d'une énumération Rust : l'étiquette (`DW_AT_discr`) et, pour chaque valeur, le type des champs qu'elle porte.
+    fn variant_part(&mut self, u: &Units<'_>, index: usize, part: &Entry) -> Option<VariantPart> {
+        let (dwarf, unit) = (u.dwarf, &u.list[index]);
+        let discr_member = match part.attr_value(dw::DW_AT_discr) {
+            Some(v) => u
+                .resolve(index, &v)
+                .and_then(|(i, o)| u.list[i].entry(o).ok().map(|e| (i, e))),
+            None => None,
+        };
+        let mut cursor = unit.entries_at_offset(part.offset()).ok()?;
+        let _ = cursor.next_dfs();
+        let mut discr: Option<(u32, u32)> = discr_member.as_ref().map(|(i, e)| {
+            let ty = self.type_attr(u, *i, e);
+            let size = ty.map_or(1, |t| self.types[t].size.max(1));
+            let offset = match e.attr_value(dw::DW_AT_data_member_location) {
+                Some(v) => unsigned(&v).unwrap_or(0) as u32,
+                None => 0,
+            };
+            (offset, size)
+        });
+        let mut variants = Vec::new();
+        while let Ok(Some(child)) = cursor.next_dfs() {
+            if child.depth() <= 0 {
+                break;
+            }
+            if child.depth() != 1 {
+                continue;
+            }
+            let child = child.clone();
+            if child.tag() == dw::DW_TAG_member && discr.is_none() {
+                let size = self
+                    .type_attr(u, index, &child)
+                    .map_or(1, |t| self.types[t].size.max(1));
+                let offset = child
+                    .attr_value(dw::DW_AT_data_member_location)
+                    .and_then(|v| unsigned(&v))
+                    .unwrap_or(0) as u32;
+                discr = Some((offset, size));
+            } else if child.tag() == dw::DW_TAG_variant {
+                let value = child
+                    .attr_value(dw::DW_AT_discr_value)
+                    .and_then(|v| signed(&v));
+                // Le membre de la variante porte son nom et le type de ses champs.
+                if let Ok(mut inner) = unit.entries_at_offset(child.offset()) {
+                    let _ = inner.next_dfs();
+                    while let Ok(Some(member)) = inner.next_dfs() {
+                        if member.depth() <= 0 {
+                            break;
+                        }
+                        if member.tag() == dw::DW_TAG_member {
+                            let member = member.clone();
+                            if let Some(ty) = self.type_attr(u, index, &member) {
+                                variants.push(Variant {
+                                    discr: value,
+                                    name: member
+                                        .attr_value(dw::DW_AT_name)
+                                        .and_then(|v| text(dwarf, unit, v))
+                                        .unwrap_or_default(),
+                                    ty,
+                                    offset: member
+                                        .attr_value(dw::DW_AT_data_member_location)
+                                        .and_then(|v| unsigned(&v))
+                                        .unwrap_or(0)
+                                        as u32,
+                                });
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        let (discr_offset, discr_size) = discr?;
+        Some(VariantPart {
+            discr_offset,
+            discr_size,
+            variants,
+        })
+    }
 
     fn type_of(&mut self, u: &Units<'_>, index: usize, off: UnitOffset) -> TypeId {
         let (dwarf, unit) = (u.dwarf, &u.list[index]);
@@ -501,7 +833,11 @@ impl Builder {
         };
         let name = entry
             .attr_value(dw::DW_AT_name)
-            .and_then(|v| text(dwarf, unit, v));
+            .and_then(|v| text(dwarf, unit, v))
+            .map(|n| match self.prefixes.get(&(index, off.0)) {
+                Some(prefix) => format!("{prefix}::{n}"),
+                None => n,
+            });
         let size = entry
             .attr_value(dw::DW_AT_byte_size)
             .and_then(|v| unsigned(&v))
@@ -523,69 +859,22 @@ impl Builder {
                     _ => Encoding::Unsigned,
                 })
             }
-            dw::DW_TAG_pointer_type
-            | dw::DW_TAG_reference_type
-            | dw::DW_TAG_rvalue_reference_type => TypeKind::Pointer(target),
+            dw::DW_TAG_pointer_type => TypeKind::Pointer(target),
+            dw::DW_TAG_reference_type | dw::DW_TAG_rvalue_reference_type => {
+                TypeKind::Reference(target)
+            }
             dw::DW_TAG_typedef => TypeKind::Typedef(target),
             dw::DW_TAG_const_type | dw::DW_TAG_restrict_type | dw::DW_TAG_atomic_type => {
                 TypeKind::Const(target)
             }
             dw::DW_TAG_volatile_type => TypeKind::Volatile(target),
             dw::DW_TAG_structure_type | dw::DW_TAG_union_type | dw::DW_TAG_class_type => {
-                let mut fields = Vec::new();
-                if let Ok(mut cursor) = unit.entries_at_offset(off) {
-                    let _ = cursor.next_dfs();
-                    let base_depth = entry.depth();
-                    while let Ok(Some(child)) = cursor.next_dfs() {
-                        if child.depth() <= base_depth {
-                            break;
-                        }
-                        if child.depth() != base_depth + 1 || child.tag() != dw::DW_TAG_member {
-                            continue;
-                        }
-                        let child = child.clone();
-                        let Some(fty) = self.type_attr(u, index, &child) else {
-                            continue;
-                        };
-                        let offset = match child.attr_value(dw::DW_AT_data_member_location) {
-                            Some(AttributeValue::Exprloc(e)) => {
-                                // `DW_OP_plus_uconst N` : le seul cas qu'émettent les compilateurs actuels.
-                                let bytes =
-                                    e.0.to_slice().map(|c| c.into_owned()).unwrap_or_default();
-                                match bytes.split_first() {
-                                    Some((0x23, rest)) => read_uleb(rest).unwrap_or(0) as u32,
-                                    _ => 0,
-                                }
-                            }
-                            Some(v) => unsigned(&v).unwrap_or(0) as u32,
-                            None => 0,
-                        };
-                        let bit_size = child
-                            .attr_value(dw::DW_AT_bit_size)
-                            .and_then(|v| unsigned(&v));
-                        let bits = bit_size.map(|bs| {
-                            let data_bit_offset = child
-                                .attr_value(dw::DW_AT_data_bit_offset)
-                                .and_then(|v| unsigned(&v));
-                            match data_bit_offset {
-                                Some(dbo) => ((bs as u8), (dbo as u32 - offset * 8) as u8),
-                                None => (bs as u8, 0),
-                            }
-                        });
-                        fields.push(Field {
-                            name: child
-                                .attr_value(dw::DW_AT_name)
-                                .and_then(|v| text(dwarf, unit, v))
-                                .unwrap_or_default(),
-                            ty: fty,
-                            offset,
-                            bits,
-                        });
-                    }
-                }
+                let (fields, methods, variants) = self.struct_members(u, index, off, &entry);
                 TypeKind::Struct {
                     fields,
                     union: entry.tag() == dw::DW_TAG_union_type,
+                    methods,
+                    variants,
                 }
             }
             dw::DW_TAG_array_type => {
@@ -679,6 +968,8 @@ impl Builder {
 enum OpenKind {
     Function(Box<Function>),
     Block(Scope),
+    /// Un espace de noms : transparent, ses variables et fonctions sont des variables et fonctions globales.
+    Namespace,
     Skip,
 }
 
@@ -693,7 +984,8 @@ trait StackExt {
 
 impl StackExt for Vec<Open> {
     fn is_empty_or_namespace(&self) -> bool {
-        self.iter().all(|o| matches!(o.kind, OpenKind::Skip))
+        self.iter()
+            .all(|o| matches!(o.kind, OpenKind::Skip | OpenKind::Namespace))
     }
 }
 
@@ -744,4 +1036,14 @@ pub(super) fn read_uleb(bytes: &[u8]) -> Option<u64> {
         }
     }
     None
+}
+
+/// `espace::nom` quand on est dans des espaces de noms ou des types ; `None` au niveau global.
+fn prefixed(scope: &[(isize, String)], name: &str) -> Option<String> {
+    let prefix: Vec<&str> = scope
+        .iter()
+        .map(|(_, n)| n.as_str())
+        .filter(|n| !n.is_empty())
+        .collect();
+    (!prefix.is_empty()).then(|| format!("{}::{name}", prefix.join("::")))
 }

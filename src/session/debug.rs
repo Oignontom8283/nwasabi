@@ -19,8 +19,9 @@ pub fn stop_json(emu: &Emulator, stop: &RunStop) -> Value {
 /// « fonction+0x10 » pour une adresse du code, ou `None`.
 pub fn symbol_text(emu: &Emulator, address: u32) -> Option<String> {
     let (name, _, offset) = emu.symbol_at(address)?;
+    let name = crate::symbols::demangle(name);
     Some(if offset == 0 {
-        name.to_owned()
+        name
     } else {
         format!("{name}+{offset:#x}")
     })

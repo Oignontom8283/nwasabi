@@ -363,14 +363,24 @@ impl Session {
                     .unwrap_or_default()
                     .iter()
                     .filter(|s| {
-                        s.kind == SymbolKind::Func && s.name.to_lowercase().contains(&query)
+                        s.kind == SymbolKind::Func
+                            && (s.name.to_lowercase().contains(&query)
+                                || crate::symbols::demangle(&s.name)
+                                    .to_lowercase()
+                                    .contains(&query))
                     })
                     .take(500)
                     .map(|s| {
-                        Value::object()
+                        let demangled = crate::symbols::demangle(&s.name);
+                        let mut v = Value::object()
                             .with("name", s.name.as_str())
                             .with("address", s.address & !1)
-                            .with("size", s.size)
+                            .with("size", s.size);
+                        if demangled != s.name {
+                            v.set("demangled", demangled);
+                            v.set("qualified", crate::symbols::qualified(&s.name));
+                        }
+                        v
                     })
                     .collect::<Vec<_>>();
                 Ok(Value::object().with("symbols", found))
@@ -379,10 +389,17 @@ impl Session {
                 let address = number(req, "address")?;
                 let emu = self.emu()?;
                 match emu.symbol_at(address) {
-                    Some((name, start, offset)) => Ok(Value::object()
-                        .with("name", name)
-                        .with("start", start)
-                        .with("offset", offset)),
+                    Some((name, start, offset)) => {
+                        let mut reply = Value::object()
+                            .with("name", name)
+                            .with("start", start)
+                            .with("offset", offset);
+                        let demangled = crate::symbols::demangle(name);
+                        if demangled != name {
+                            reply.set("demangled", demangled);
+                        }
+                        Ok(reply)
+                    }
                     None => Ok(Value::object()),
                 }
             }
@@ -679,7 +696,7 @@ impl Session {
                         if let Some((name, start, _)) = emu.symbol_at(l.address)
                             && start == l.address
                         {
-                            row.set("label", Value::from(name));
+                            row.set("label", Value::from(crate::symbols::demangle(name)));
                         }
                         row
                     })
