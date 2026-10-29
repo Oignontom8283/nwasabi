@@ -42,3 +42,21 @@ int main(void) {
   global_counter += shape.corner.x + origin.x;
   return failures;
 }
+
+// Ce qui suit sert aux tests des expressions (conversions, tableaux à plusieurs dimensions, flottants, appels de fonctions) ; il est après
+// `main` pour ne pas décaler les numéros de ligne que les tests attendent plus haut.
+typedef int (*binary_op)(int, int);
+
+int grid[2][3] = { { 1, 2, 3 }, { 4, 5, 6 } };
+uint32_t words[4] = { 10, 20, 30, 40 };
+float ratio = 2.5f;
+double wide = -0.125;
+binary_op chosen = add;
+
+__attribute__((noinline)) int twice(int x) {
+  return 2 * x;
+}
+
+__attribute__((noinline)) void bump(void) {
+  global_counter += 1;
+}
