@@ -31,3 +31,27 @@ glyphes ne copient pas ceux d'Epsilon.
   le niveau (`blend(bg, fg, level)` : interpolation linéaire de chaque composante RGB565). Pas de retour à la ligne : une cellule par caractère.
 
 La police ne sert qu'aux **appels que le noyau traite**. Une application qui dessine son propre texte (la plupart) pousse des pixels avec `push_rect`.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Display`](code:src/kernel/display.rs#Display), [`push_bytes`](code:src/kernel/display.rs#push_bytes), [`pull_bytes`](code:src/kernel/display.rs#pull_bytes), [`fill`](code:src/kernel/display.rs#fill) | les trois transferts |
+| [`Rect::from_registers`](code:src/kernel/display.rs#from_registers) | décodage des deux registres |
+| [`to_rgba`](code:src/kernel/display.rs#to_rgba) | la conversion pour l'affichage |
+| [`draw_text`](code:src/kernel/display.rs#draw_text), [`blend`](code:src/kernel/display.rs#blend) | le texte et le mélange |
+| [`font/mod.rs`](code:src/kernel/font/mod.rs), [`draw_glyph`](code:src/kernel/font/mod.rs#draw_glyph) | la police |
+| [`font/data.rs`](code:src/kernel/font/data.rs) | les glyphes (**fichier produit**, ne pas éditer à la main) |
+| [`tools/font/`](code:tools/font/) | le générateur et la licence de la police |
+
+## Pourquoi ainsi
+
+- **RGB565 de bout en bout** : l'application envoie des pixels de 16 bits, l'écran les garde tels quels ; la conversion en RGBA n'a lieu qu'à l'affichage. Cela évite de convertir à chaque `push_rect` et garde l'écran **comparable bit à bit** (sommes de contrôle des tests).
+- **Une police originale** : celle d'Epsilon est protégée ; les cellules (7×14 et 10×18) ont les mêmes **dimensions** pour que la mise en page des applications soit la même.
+- **Les glyphes viennent d'un script** : le fichier source est généré (`tools/font/generate.py`), jamais édité à la main, pour qu'on puisse refaire la police sans binaire dans le dépôt.
+
+## Pour modifier
+
+- **Changer un glyphe** : modifier [`tools/font/`](code:tools/font/) puis régénérer `data.rs`.
+- **Ajouter un appel d'écran** : [`handle`](code:src/kernel/svc.rs#handle) puis une méthode de `Display` ; garder la règle « ce qui dépasse de l'écran est ignoré », « ce qui est hors de l'écran se lit 0 ».
+- **Tests** : les références d'écran des applications sont dans `tests/golden/screens.tsv` (corpus) ; une régression visuelle les fait échouer.

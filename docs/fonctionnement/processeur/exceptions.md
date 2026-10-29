@@ -72,3 +72,23 @@ de l'application ; `MMFAR` et `BFAR` gardent la dernière adresse en cause. Un c
 
 Les fautes sont rapportées avec l'adresse de l'instruction fautive (`fault_pc`), et non celle du `pc` déjà avancé. Une faute causée par un
 pointeur passé à un appel système (par exemple un tampon hors mémoire) est rapportée sur l'instruction `svc`, juste avant `pc`.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`take_exception`](code:src/cpu/exception.rs#take_exception) | l'entrée dans une exception |
+| [`exception_return`](code:src/cpu/exception.rs#exception_return) | le retour par `EXC_RETURN` |
+| [`bx_write_pc`](code:src/cpu/exec.rs#bx_write_pc) | où un retour d'exception est reconnu |
+| [`SvcAction`](code:src/cpu/hooks.rs#SvcAction) | `Raise` : le seul chemin qui lève `SVCall` |
+| [`scb::record`](code:src/scb.rs#record) | remplir les registres de faute |
+| [`Emulator::run`](code:src/emulator.rs#run) | où une faute est convertie et enregistrée |
+
+## Pourquoi arrêter plutôt qu'exécuter un gestionnaire
+
+Une application NumWorks n'a **pas de gestionnaire d'exception** : sur la vraie machine, une faute rend la main à Epsilon, qui décide. Émuler cela exigerait d'émuler Epsilon. Nwasabi **s'arrête**, dit pourquoi, et remplit les registres de faute comme le ferait la puce : un débogueur y lit la cause et l'adresse, comme après un plantage sur une carte. Le mécanisme d'entrée d'exception existe pourtant, parce qu'il est **correct et testable** et qu'il servirait un mode « firmware complet » ; il n'est pas exposé tant que rien ne l'exige.
+
+## Pour modifier
+
+- **Signaler une nouvelle cause de faute** : ajouter une variante à [`Stop`](code:src/cpu/mod.rs#Stop), la convertir dans [`run_inner`](code:src/emulator.rs#run_inner), la classer dans [`scb::record`](code:src/scb.rs#record) (bit de `CFSR`, `DFSR`…), et l'ajouter au tableau de cette page.
+- **Faire fonctionner des gestionnaires** : il faudrait un vrai NVIC (priorités, masquage, `PendSV`, `SysTick`) — hors périmètre, voir [Compatibilité](../../reference/compatibilite.md).

@@ -1,5 +1,6 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
+import { codeLinks } from "./codeLinks.mjs";
 
 // Site vitrine de nwasabi : documentation et tutoriels (pour l'instant, seulement l'accueil), avec
 // l'émulateur dans le même site statique, à l'adresse /emulator/.
@@ -40,6 +41,8 @@ export default withMermaid(defineConfig({
   description: "Émulateur d'applications externes NumWorks (.nwa) en Rust et WebAssembly",
   base,
   cleanUrls: true,
+  // Les liens `code:chemin#symbole` des pages pointent vers les lignes du code (voir codeLinks.mjs) ; un symbole disparu fait échouer la construction.
+  markdown: { config: (md) => md.use(codeLinks) },
   lastUpdated: true,
   // Le titre de chaque page vient de son en-tête (`title`) : « Page | Nwasabi » dans l'onglet.
   titleTemplate: ":title | Nwasabi",

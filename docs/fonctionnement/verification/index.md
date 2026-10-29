@@ -82,3 +82,32 @@ par `ObjectWriter`), `cli`, `server`, `gdb`, `debugger` (23 tests : expressions,
 
 Il n'y a pas de test **contre une vraie calculatrice** : la fidélité d'un comportement du système (par exemple l'ordre des événements d'un appui long, ou la valeur d'un appel d'information) vient de relevés. Le **temps** est un modèle (un cycle par instruction) : une comparaison de vitesse avec la vraie
 puce n'a pas de sens. L'interface graphique n'a pas de test automatique de bout en bout.
+
+## Dans le code
+
+| Dossier ou fichier | Contenu |
+|---|---|
+| [`tests/cpu/generate_vectors.py`](code:tests/cpu/generate_vectors.py) | le générateur de lots pour QEMU |
+| [`tests/cpu_vectors.rs`](code:tests/cpu_vectors.rs), [`tests/cpu_independence.rs`](code:tests/cpu_independence.rs) | rejeu des lots, indépendance du processeur |
+| [`tests/golden/`](code:tests/golden/) | références : vecteurs, écrans, images liées |
+| [`tests/apps/`](code:tests/apps/) | applications de test en C, sources et `.nwa` |
+| [`tests/support/mod.rs`](code:tests/support/mod.rs) | aides communes |
+| [`tests/session.rs`](code:tests/session.rs), [`tests/debugger.rs`](code:tests/debugger.rs), [`tests/gdb.rs`](code:tests/gdb.rs), [`tests/gdb_real.rs`](code:tests/gdb_real.rs) | session, débogueur, GDB |
+| [`tests/emulator_corpus.rs`](code:tests/emulator_corpus.rs), [`tests/link_corpus.rs`](code:tests/link_corpus.rs) | le corpus de tiers |
+| [`tests/wasm/`](code:tests/wasm/) | WebAssembly sous Node.js |
+| [`tests/web/`](code:tests/web/) | logique de l'interface |
+| [`justfile`](code:justfile) | `ci`, `check-all`, `test`, `test-wasm`, `test-corpus` |
+| [`.github/workflows/site.yml`](code:.github/workflows/site.yml) | la construction du site en intégration continue |
+
+## Pourquoi cet empilement
+
+Une erreur dans un `add` fausse tous les programmes qui l'utilisent, et se voit à peine sur un écran : seul un oracle indépendant (QEMU) l'attrape. Une erreur dans l'éditeur de liens décale toute l'application : seule une comparaison d'**image liée** la révèle. Une erreur de **parité** entre natif et WebAssembly ne se voit pas dans le natif. Chaque étage attrape ce que les autres laissent passer ; aucun ne suffit seul.
+
+Les **références** (`golden`) sont versionnées avec le code : changer un comportement en changeant la référence **sans l'expliquer** est ce que la relecture doit refuser.
+
+## Pour modifier
+
+- **Un nouveau test d'instruction** : un `cases_*` dans [`generate_vectors.py`](code:tests/cpu/generate_vectors.py) ; relancer avec QEMU (`python3 tests/cpu/generate_vectors.py`), relire le diff des fichiers `.expected` (il ne doit montrer que les cas nouveaux).
+- **Une nouvelle application de test** : un `.c` dans [`tests/apps/src/`](code:tests/apps/src/) avec la macro `CHECK`, `just build-test-apps`, et un cas dans [`emulator_apps.rs`](code:tests/emulator_apps.rs).
+- **Une référence qui change** : `just update-golden <dossier>`, puis **vérifier** que la différence est celle voulue.
+- **Avant de proposer un changement** : `just ci` ; avant de fusionner, `just check-all`.

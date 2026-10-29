@@ -109,3 +109,32 @@ flottante suivent l'ABI ci-dessus. Dans une fonction membre, un nom inconnu se c
 ## Effets sur l'historique
 
 Chaque commande de source qui évalue (`eval`, `assign`) signale si elle a modifié l'appareil (`with_context` rend `(valeur, dirty)`) ; **`history_reset`** s'applique alors. Les lectures pures ne touchent pas à l'historique ([Historique](./historique.md)).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`expr.rs`](code:src/debuginfo/expr.rs) | le lexeur, l'analyseur et l'évaluateur |
+| [`evaluate`](code:src/debuginfo/expr.rs#evaluate) | le point d'entrée |
+| [`lex`](code:src/debuginfo/expr.rs#lex), [`Token`](code:src/debuginfo/expr.rs#Token) | les lexèmes |
+| [`Operand`](code:src/debuginfo/expr.rs#Operand), [`Parser`](code:src/debuginfo/expr.rs#Parser) | les valeurs intermédiaires et l'analyseur |
+| [`binary_precedence`](code:src/debuginfo/expr.rs#binary_precedence) | la table de priorités |
+| [`truncate`](code:src/debuginfo/expr.rs#truncate) | conversion en entier d'une taille donnée |
+| [`Target`](code:src/debuginfo/eval.rs#Target), [`CallArg`](code:src/debuginfo/eval.rs#CallArg), [`CallResult`](code:src/debuginfo/eval.rs#CallResult) | ce que l'évaluateur demande à l'appareil |
+| [`EmuTarget`](code:src/session/source.rs#EmuTarget) | l'implémentation sur l'émulateur : lire, écrire, registres, **appeler** |
+| [`CALL_BUDGET`](code:src/session/source.rs#CALL_BUDGET) | la limite d'un appel |
+| [`with_context`](code:src/session/source.rs#with_context) | construit le contexte d'un cadre, rend aussi `dirty` |
+| [`types.rs`](code:src/debuginfo/types.rs) | `complete` : types de base, pointeurs, tableaux imbriqués |
+
+## Pourquoi un évaluateur à nous
+
+GDB sait évaluer des expressions, mais **pas** dans la page web ni sans GDB. Un évaluateur intégré donne la même syntaxe à la console, aux espions et à la zone « expressions suivies », et il peut parler **directement** à l'émulateur : appeler une fonction sans protocole, restaurer exactement l'état du processeur après, savoir si l'appareil a été modifié (`dirty`). Il évalue en C quel que soit le langage : une syntaxe commune est plus simple à retenir qu'un dialecte par langage.
+
+Le **trait `Target`** est l'astuce : l'évaluateur ne connaît ni `Emulator` ni `Memory`, seulement « lis ici, écris là, appelle ça ». On le teste avec une fausse cible en mémoire.
+
+## Pour modifier
+
+- **Un nouvel opérateur** : [`binary_precedence`](code:src/debuginfo/expr.rs#binary_precedence) (ou le niveau unaire), le lexeur si ce n'est pas déjà un symbole, puis le calcul dans [`Parser`](code:src/debuginfo/expr.rs#Parser). Ajouter un test dans [`debugger.rs`](code:tests/debugger.rs).
+- **Une nouvelle sorte d'opérande** : une variante d'[`Operand`](code:src/debuginfo/expr.rs#Operand), traitée dans **toutes** les fonctions qui la consomment (`finish`, `cast`, `store`…) ; le compilateur signale les `match` incomplets.
+- **Faire échouer un appel plus tôt, ou plus tard** : [`CALL_BUDGET`](code:src/session/source.rs#CALL_BUDGET).
+- **Une expression qui modifie l'appareil sans le dire** : un bug sérieux (l'historique serait faux). Tout chemin qui écrit passe par [`Target::write`](code:src/debuginfo/eval.rs#Target) ou `set_register`, qui posent `dirty`.

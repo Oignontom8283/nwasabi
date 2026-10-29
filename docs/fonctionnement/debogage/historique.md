@@ -124,3 +124,30 @@ Chaque commande de session est classée par `effect_of(cmd)` :
 
 `eval` et `assign` sont classés `None` mais **signalent eux-mêmes** s'ils ont modifié l'appareil (affectation, appel de fonction) et déclenchent alors `history_reset` : les expressions de lecture pure ne coûtent donc pas l'historique.
 Toute commande inconnue de `effect_of` est `Reset` par défaut — une règle de prudence : mieux vaut perdre l'historique qu'en garder un faux.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`History`](code:src/session/history.rs#History), [`Checkpoint`](code:src/session/history.rs#Checkpoint), [`Input`](code:src/session/history.rs#Input) | les structures |
+| [`take`](code:src/session/history.rs#take), [`due`](code:src/session/history.rs#due) | prendre un point de reprise |
+| [`restore_before`](code:src/session/history.rs#restore_before), [`replay_to`](code:src/session/history.rs#replay_to) | reculer |
+| [`step_back`](code:src/session/history.rs#step_back), [`history_goto`](code:src/session/history.rs#history_goto), [`reverse_continue`](code:src/session/history.rs#reverse_continue) | les commandes |
+| [`history_fork`](code:src/session/history.rs#history_fork), [`history_reset`](code:src/session/history.rs#history_reset), [`history_record`](code:src/session/history.rs#history_record) | maintenir le journal |
+| [`effect_of`](code:src/session/history.rs#effect_of) | **la table qui classe chaque commande** |
+| [`snapshot_volatile`](code:src/memory/mod.rs#snapshot_volatile), [`restore_volatile`](code:src/memory/mod.rs#restore_volatile) | les photos de mémoire |
+| [`suspend_debugging`](code:src/emulator.rs#suspend_debugging) | ignorer les points pendant un rejeu |
+
+## Pourquoi des photos plutôt que d'enregistrer chaque instruction
+
+Enregistrer chaque écriture (un « journal d'annulation ») coûterait de la mémoire et du temps **à chaque instruction**, même quand personne ne recule. Les photos ne coûtent qu'un point toutes les 250 000 instructions, et le **rejeu** profite de ce que l'émulation est déterministe : on peut recalculer tout ce qui s'est passé entre deux photos. C'est le même compromis que dans les débogueurs à rebours (rr, UDB), à une échelle bien plus simple.
+
+## Pourquoi `effect_of` classe **par défaut en Reset**
+
+Une commande inconnue de la table est supposée modifier l'appareil : **mieux vaut perdre l'historique que le garder faux**. C'est la règle la plus importante de la page : quand on ajoute une commande qui ne change rien, on doit la **déclarer** (`Effect::None`), sinon elle vide l'historique à chaque appel.
+
+## Pour modifier
+
+- **Ajouter une commande de lecture** : la mettre dans [`effect_of`](code:src/session/history.rs#effect_of) avec `Effect::None`. Le test de la table est dans [`session.rs`](code:tests/session.rs).
+- **Changer la fréquence ou la capacité** : [`DEFAULT_INTERVAL`](code:src/session/history.rs#DEFAULT_INTERVAL) et [`DEFAULT_CAPACITY`](code:src/session/history.rs#DEFAULT_CAPACITY) ; la mémoire utilisée est `capacité × taille d'une photo` (une photo ne contient que les pages de RAM allouées).
+- **Mettre de l'état dans le noyau ou le processeur** : il doit être dans le `Clone` (voir [Noyau simulé](../noyau/index.md#pour-modifier)), sinon le recul le perdrait.

@@ -26,3 +26,23 @@ protocole de [session](../debogage/session.md).
 - [La page web](./web.md) : le Worker, le protocole de messages, l'écran image par image
 - [Le serveur](./serveur.md) : routes, fichiers donnés au démarrage, pont GDB
 - [La bibliothèque JavaScript](./bibliotheque-js.md) : `Player`, cadence, entrées
+
+## Dans le code
+
+| Hôte | Où |
+|---|---|
+| WebAssembly (interface du module) | [`src/wasm.rs`](code:src/wasm.rs) |
+| Page web | [`web/src/`](code:web/src/) : [`emulator.ts`](code:web/src/emulator.ts), [`emulator.worker.ts`](code:web/src/emulator.worker.ts), [`worker-protocol.ts`](code:web/src/worker-protocol.ts) |
+| Bibliothèque JavaScript | [`packages/js/src/`](code:packages/js/src/), module : [`packages/wasm/`](code:packages/wasm/) |
+| Serveur | [`src/server/main.rs`](code:src/server/main.rs) |
+| Ligne de commande | [`src/cli/`](code:src/cli/) : [`main.rs`](code:src/cli/main.rs), [`commands.rs`](code:src/cli/commands.rs), [`options.rs`](code:src/cli/options.rs) |
+| Construction | [`build.rs`](code:build.rs), [`justfile`](code:justfile) |
+
+## Pourquoi quatre hôtes sur le même cœur
+
+Le cœur est conçu pour ne dépendre de rien : un hôte n'est qu'un petit programme qui fait **trois choses** — créer une `Session`, lui envoyer des requêtes, lui faire passer le temps. Tout ce qui est « produit » (écran, GDB, historique, formats) est dans le cœur, donc **gratuit** pour un nouvel hôte.
+
+## Pour modifier
+
+- **Un nouvel hôte** (une application de bureau, un plugin) : appeler la session comme [`wasm.rs`](code:src/wasm.rs) ou [`cli/commands.rs`](code:src/cli/commands.rs) le font ; ne pas dupliquer de logique du cœur.
+- **Une option de la ligne de commande ou du serveur** : l'ajouter à [`options.rs`](code:src/cli/options.rs) ou à la structure d'options du serveur, la documenter dans le guide ([ligne de commande](../../guide/cli.md), [serveur](../../guide/serveur.md)), et l'éprouver dans [`cli.rs`](code:tests/cli.rs) ou [`server.rs`](code:tests/server.rs).

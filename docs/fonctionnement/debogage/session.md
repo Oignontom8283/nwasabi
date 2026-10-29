@@ -118,3 +118,31 @@ les fichiers au serveur à chaque chargement (`/__nwasabi/source`), qui ne sert 
 - **Mémoire** : `memory_read` (au plus 1 Mio : `MAX_TRANSFER`), `memory_write`, `changes`, `regions`, `usage`, `watch`/`unwatch`/`watch_list`/`watch_hits` ;
 - **Exécution et observation** : `run`, `step`, `break`/`unbreak`/`breaks`, `cpu`, `cpu_set`, `disasm`, `profile`, `backtrace`, `symbol`, `symbols`, `svc_stats`, `svc_log`, `stdout`, `screen`, `time`, `advance` ;
 - **Fichiers** : `fs_*` ([Système de fichiers](../noyau/fichiers.md)), `flash_load`, `flash_export`.
+
+## Dans le code
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`session/mod.rs`](code:src/session/mod.rs) | la session, `dispatch`, `run`, les commandes d'appareil | [`Session`](code:src/session/mod.rs#Session), [`handle`](code:src/session/mod.rs#handle), [`dispatch`](code:src/session/mod.rs#dispatch), [`run`](code:src/session/mod.rs#run) |
+| [`session/source.rs`](code:src/session/source.rs) | débogage du code source | [`COMMANDS`](code:src/session/source.rs#COMMANDS), [`step_source`](code:src/session/source.rs#step_source), [`debug_of`](code:src/session/source.rs#debug_of), [`frames_of`](code:src/session/source.rs#frames_of), [`STEP_BUDGET`](code:src/session/source.rs#STEP_BUDGET) |
+| [`session/history.rs`](code:src/session/history.rs) | l'historique | voir [Historique](./historique.md) |
+| [`session/debug.rs`](code:src/session/debug.rs) | arrêts, symboles, pile estimée, profil | [`stop_json`](code:src/session/debug.rs#stop_json), [`backtrace`](code:src/session/debug.rs#backtrace) |
+| [`session/views.rs`](code:src/session/views.rs) | mise en JSON des vues | [`structures`](code:src/session/views.rs#structures), [`regions`](code:src/session/views.rs#regions), [`stop`](code:src/session/views.rs#stop) |
+| [`json.rs`](code:src/json.rs) | construction de JSON | [`ValueExt`](code:src/json.rs#ValueExt) |
+| [`wasm.rs`](code:src/wasm.rs), [`cli/commands.rs`](code:src/cli/commands.rs) | les transports | |
+
+## Pourquoi un protocole JSON unique
+
+Chaque hôte aurait pu parler à `Emulator` directement. On a choisi un **protocole textuel unique** parce que : (1) il se **transporte** partout (message de Worker, ligne sur l'entrée standard, corps HTTP) sans dépendre de types Rust ; (2) il se **rejoue** (`.nrp` n'est qu'une liste de requêtes) ; (3) il oblige à décrire chaque commande **une fois**, pour tous. Le prix (sérialisation) est négligeable : l'écran, qui est volumineux, passe à part, par un pointeur partagé.
+
+## Pour modifier
+
+**Ajouter une commande de session** :
+
+1. Une branche dans [`dispatch`](code:src/session/mod.rs#dispatch) (ou dans [`COMMANDS`](code:src/session/source.rs#COMMANDS) si elle concerne le code source) qui lit ses champs avec les aides de [`json.rs`](code:src/json.rs) et rend un `Reply`.
+2. L'ajouter à la liste de la commande `help`.
+3. **La classer** dans [`effect_of`](code:src/session/history.rs#effect_of) : lecture (`None`), entrée rejouable (`Input`), avancement (`Forward`) ou modification (le défaut, `Reset`).
+4. La documenter dans le [protocole](../../reference/protocole-session.md).
+5. La tester dans [`session.rs`](code:tests/session.rs) et, si la page s'en sert, dans [`tests/wasm/`](code:tests/wasm/) (parité native/WebAssembly).
+
+**Les erreurs** sont des messages en français qui disent quoi faire (« utiliser `new` ou `load` ») : pas de codes numériques.

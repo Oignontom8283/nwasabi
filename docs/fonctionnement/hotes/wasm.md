@@ -56,3 +56,27 @@ wasm-opt -O3 --enable-simd --enable-bulk-memory --enable-sign-ext --enable-nontr
 ## Parité native / WebAssembly
 
 Le même cœur tourne dans les deux : les **tests de parité** (`tests/wasm/parity.mjs`) exécutent les mêmes requêtes en natif et en WebAssembly et comparent les sommes de contrôle de l'écran, du nombre d'instructions et des arrêts ([Vérification](../verification/index.md)).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`nwasabi_alloc`](code:src/wasm.rs#nwasabi_alloc), [`nwasabi_free`](code:src/wasm.rs#nwasabi_free) | réserver et libérer un tampon |
+| [`nwasabi_request`](code:src/wasm.rs#nwasabi_request), [`nwasabi_response_ptr`](code:src/wasm.rs#nwasabi_response_ptr) | requête et réponse |
+| [`nwasabi_framebuffer_ptr`](code:src/wasm.rs#nwasabi_framebuffer_ptr), [`nwasabi_framebuffer_len`](code:src/wasm.rs#nwasabi_framebuffer_len) | les pixels |
+| [`Nwasabi`](code:packages/js/src/nwasabi.ts#Nwasabi) | l'enveloppe JavaScript du module |
+| [`justfile` : `build-wasm`](code:justfile#build-wasm) | la compilation et `wasm-opt` |
+| [`Cargo.toml` : profil `wasm`](code:Cargo.toml#~[profile.wasm]) | LTO, `panic = "abort"` |
+| [`parity.mjs`](code:tests/wasm/parity.mjs) | la parité avec le natif |
+
+## Pourquoi pas `wasm-bindgen`
+
+Le besoin est minuscule : six fonctions, des octets et des entiers. `wasm-bindgen` ajoute un générateur, un module de colle JavaScript et une dépendance de construction pour des services (types riches, objets) dont on n'a pas l'usage. Avec **JSON par la mémoire**, le module est utilisable tel quel depuis le navigateur, Node.js ou n'importe quel hôte WebAssembly, et la colle JavaScript (`nwasabi.ts`) tient en un fichier lisible.
+
+Le **pointeur d'écran** existe parce que l'écran est la seule donnée volumineuse et fréquente (150 Kio par image) : le sérialiser en JSON serait un contresens. JavaScript lit les pixels **directement** dans la mémoire du module.
+
+## Pour modifier
+
+- **Exporter une nouvelle fonction** : `#[unsafe(no_mangle)] pub extern "C"` dans `wasm.rs`, avec un commentaire `# Safety` si elle prend un pointeur ; la lire côté JavaScript dans [`nwasabi.ts`](code:packages/js/src/nwasabi.ts). Préférer **une nouvelle commande de session** : elle marche partout sans rien exporter.
+- **Changer les options de compilation** : `justfile` (`build-wasm`) **et** [`build.rs`](code:build.rs) (`WASM_FEATURES`), qui doivent rester identiques, sinon le serveur embarque un module différent de celui du site.
+- **Après un changement du module** : `just test-wasm` (parité, cadence, états).

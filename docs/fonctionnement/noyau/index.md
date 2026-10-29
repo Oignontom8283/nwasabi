@@ -117,3 +117,32 @@ lecture, le noyau n'est pas modifié.
 - [Écran et police](./ecran-et-police.md)
 - [Clavier et événements](./clavier.md)
 - [Le système de fichiers](./fichiers.md)
+
+## Dans le code
+
+Le module est [`src/kernel/`](code:src/kernel/) :
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`mod.rs`](code:src/kernel/mod.rs) | l'état, la configuration, le temps | [`Kernel`](code:src/kernel/mod.rs#Kernel), [`KernelStop`](code:src/kernel/mod.rs#KernelStop), [`KernelConfig`](code:src/kernel/mod.rs#KernelConfig), [`ClockMode`](code:src/kernel/mod.rs#ClockMode), [`micros`](code:src/kernel/mod.rs#micros), [`next_event`](code:src/kernel/mod.rs#next_event) |
+| [`svc.rs`](code:src/kernel/svc.rs) | le traitement de chaque appel | [`handle`](code:src/kernel/svc.rs#handle), [`on_svc`](code:src/kernel/svc.rs#on_svc) |
+| [`display.rs`](code:src/kernel/display.rs) | l'écran | [`Display`](code:src/kernel/display.rs#Display), [`Rect`](code:src/kernel/display.rs#Rect), [`draw_text`](code:src/kernel/display.rs#draw_text) |
+| [`keyboard.rs`](code:src/kernel/keyboard.rs) | touches et événements | [`Keyboard`](code:src/kernel/keyboard.rs#Keyboard), [`press`](code:src/kernel/keyboard.rs#press), [`Key`](code:src/kernel/keyboard.rs#Key) |
+| [`event_text.rs`](code:src/kernel/event_text.rs) | la table des textes d'événements | [`event_text`](code:src/kernel/event_text.rs#event_text) |
+| [`font/`](code:src/kernel/font/) | la police | [`draw_glyph`](code:src/kernel/font/mod.rs#draw_glyph) |
+| [`state.rs`](code:src/kernel/state.rs) | enregistrer et restaurer l'état | [`to_state`](code:src/kernel/state.rs#to_state), [`restore_state`](code:src/kernel/state.rs#restore_state) |
+| [`tests.rs`](code:src/kernel/tests.rs) | tests unitaires | |
+
+## Pourquoi ainsi
+
+- **Le noyau implémente `Hooks`** ([`impl Hooks for Kernel`](<code:src/kernel/svc.rs#~impl Hooks for Kernel>)) : le processeur ne sait pas qu'il y a un noyau. On pourrait brancher un autre `Hooks` (par exemple pour tester le processeur seul, comme le font les vecteurs QEMU).
+- **Un `svc` n'est jamais bloquant** : une attente pose un [`KernelStop`](code:src/kernel/mod.rs#KernelStop) et **recule `pc`**. Un thread endormi aurait exigé un second fil ou une machine à états extérieure ; avec le rejeu, l'état de l'attente tient dans quelques champs qu'on **sauvegarde** (`.nds`) et qu'on **copie** (points de reprise).
+- **Le noyau n'écrit pas dans la mémoire de l'appareil par ses propres chemins** : il utilise le `Bus` qu'on lui passe, donc ses accès sont suivis et observables comme ceux de l'application.
+- **Aucune dépendance au matériel** : l'écran est un tableau de `u16`, pas une surface ; l'hôte le lit et le dessine.
+
+## Pour modifier
+
+- **Ajouter un appel système** : voir [Implémentation des appels système](./appels-systeme.md#pour-modifier).
+- **Ajouter un état au noyau** : le champ doit aussi être dans [`to_state`](code:src/kernel/state.rs#to_state) et [`restore_state`](code:src/kernel/state.rs#restore_state), sinon un `.nds` ou un recul dans l'historique perdrait cette information. Le noyau est `Clone` (c'est ainsi que l'historique le copie) : un champ non clonable est un problème de conception.
+- **Changer le temps** : tout passe par [`micros`](code:src/kernel/mod.rs#micros) ; ne jamais lire d'horloge réelle dans le cœur.
+- **Tests** : [`kernel/tests.rs`](code:src/kernel/tests.rs), [`session.rs`](code:tests/session.rs), [`emulator_apps.rs`](code:tests/emulator_apps.rs).

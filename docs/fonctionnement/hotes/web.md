@@ -77,3 +77,30 @@ interpréteur de commandes à la GDB au-dessus des requêtes de session.
 
 `tests/web/*.mjs` testent la logique pure (sélection, GIF, instantanés, recherche de valeurs, console, descriptions d'instructions, locales) sous Node.js ; l'interface elle-même se vérifie à la main. La construction du site est `just build-emulator` ; `just build-docs` l'embarque dans
 le site de documentation à `/emulator/`.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`emulator.ts`](code:web/src/emulator.ts) | côté page : [`useEmulator`](code:web/src/emulator.ts#useEmulator), [`ask`](code:web/src/emulator.ts#ask), [`onMessage`](code:web/src/emulator.ts#onMessage), [`attach`](code:web/src/emulator.ts#attach) |
+| [`emulator.worker.ts`](code:web/src/emulator.worker.ts) | côté Worker : [`handle`](code:web/src/emulator.worker.ts#handle), [`show`](code:web/src/emulator.worker.ts#show), [`flush`](code:web/src/emulator.worker.ts#flush), [`carryFiles`](code:web/src/emulator.worker.ts#carryFiles) |
+| [`worker-protocol.ts`](code:web/src/worker-protocol.ts) | les types des messages : [`ToWorker`](code:web/src/worker-protocol.ts#ToWorker), [`FromWorker`](code:web/src/worker-protocol.ts#FromWorker) |
+| [`components/`](code:web/src/components/) | les composants Vue |
+| [`persist.ts`](code:web/src/persist.ts), [`idb.ts`](code:web/src/idb.ts) | conservation des fichiers |
+| [`serverLink.ts`](code:web/src/serverLink.ts) | rechargement par le serveur |
+| [`gdbBridge.ts`](code:web/src/gdbBridge.ts) | le pont GDB |
+| [`locales/`](code:web/src/locales/) | traductions françaises et anglaises |
+| [`vite.config.ts`](code:web/vite.config.ts) | la construction |
+
+## Pourquoi un Worker, et pourquoi ces messages
+
+Dans un navigateur, tout ce qui s'exécute sur le fil principal **fige l'interface** s'il dure plus de quelques millisecondes ; une application qui calcule sans attendre occupe un processeur entier. Le Worker isole l'émulation, et la page lui parle par messages **typés** : chaque requête a un identifiant (`ask` rend une promesse), chaque changement d'état est un **correctif** (`state { patch }`) qui ne contient que les champs modifiés, pour ne pas inonder la page.
+
+Le Worker envoie ses images **une par une** : voir [L'écran, image par image](#l-ecran-image-par-image) pour la raison.
+
+## Pour modifier
+
+- **Un nouveau message** : l'ajouter à [`ToWorker`](code:web/src/worker-protocol.ts#ToWorker) ou [`FromWorker`](code:web/src/worker-protocol.ts#FromWorker) (le compilateur signale alors les `switch` incomplets), le traiter dans [`handle`](code:web/src/emulator.worker.ts#handle) et l'émettre côté page.
+- **Un nouveau champ d'état partagé** : [`StatePatch`](code:web/src/worker-protocol.ts#StatePatch) puis [`flush`](code:web/src/emulator.worker.ts#flush) (qui le compare à `sent`).
+- **Un texte de l'interface** : ajouter la clé dans `fr.json` **et** `en.json` ; [`locales.mjs`](code:tests/web/locales.mjs) échoue si l'une manque ou si une clé n'est plus utilisée.
+- **Types et construction** : `just typecheck-web`, `just build-emulator`.

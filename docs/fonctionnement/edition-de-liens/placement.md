@@ -70,3 +70,24 @@ La **copie de `.data`** vit en flash juste après les constantes, à `data_flash
 La taille que l'en-tête écrit (`app_end − flash_start`) **ne compte pas** la copie de `.data`. L'outil de flashage, lui, place l'application suivante d'après la taille **réelle** de l'image. Si les deux tailles tombent dans des
 secteurs de 64 Kio différents, le système cherche l'application suivante au mauvais endroit et la « perd ». Ce défaut du format officiel est **reproduit tel quel**, et signalé : `LinkWarning::AppSizeMismatch` (voir
 [`device::list_apps`](../memoire/appareil.md#fabriquer-installer-relire)).
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`Class`](code:src/link/linker.rs#Class), [`classify`](code:src/link/linker.rs#classify), [`named_class`](code:src/link/linker.rs#named_class) | le rang de chaque section |
+| [`Placer`](code:src/link/linker.rs#Placer), [`place`](code:src/link/linker.rs#place) | placer un groupe en respectant les alignements |
+| [`layout`](code:src/link/linker.rs#layout) | l'ordre flash et RAM, les symboles, les contrôles |
+| [`LayoutParams`](code:src/link/mod.rs#LayoutParams) | la zone disponible |
+| [`DeviceImage::app_layout`](code:src/device/mod.rs#app_layout) | où viennent ces paramètres |
+| [`link_images.tsv`](code:tests/golden/link_images.tsv) | l'image attendue pour chaque application du corpus |
+
+## Pourquoi cet ordre précis
+
+C'est celui du script de link officiel : **en-tête, noms, icônes, code, constantes, copie de `.data`**. L'ordre à l'intérieur d'une classe (`.text` avant `.text.*` avant les orphelines) change les adresses des fonctions, donc les valeurs que les applications ont calculées à la compilation (tables, pointeurs). Les reproduire à l'octet près est la condition pour que `link_corpus` reste vert.
+
+## Pour modifier
+
+- **Changer une règle de placement** : [`layout`](code:src/link/linker.rs#layout), puis régénérer les références **seulement si le changement est voulu** (`just update-golden <dossier>`), en expliquant la différence dans le message de commit.
+- **Ajouter une zone de RAM** (autre modèle) : les valeurs viennent du profil ([Appareil](../memoire/appareil.md)), pas d'ici.
+- **Une erreur `FlashOverflow` ou `RamOverflow`** : elle donne « il faut » et « il y a » ; la taille d'image compte la copie de `.data`.

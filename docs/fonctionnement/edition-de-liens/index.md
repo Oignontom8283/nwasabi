@@ -80,3 +80,30 @@ section et l'objet.
 - [Relocations](./relocations.md)
 - [Le runtime EADK](./runtime.md)
 - [Application et export ELF](./application.md)
+
+## Dans le code
+
+| Fichier | Rôle | À regarder |
+|---|---|---|
+| [`link/mod.rs`](code:src/link/mod.rs) | l'API et les types | [`link`](code:src/link/mod.rs#link), [`LinkedApp`](code:src/link/mod.rs#LinkedApp), [`LayoutParams`](code:src/link/mod.rs#LayoutParams), [`LinkOptions`](code:src/link/mod.rs#LinkOptions), [`LinkWarning`](code:src/link/mod.rs#LinkWarning) |
+| [`link/linker.rs`](code:src/link/linker.rs) | le cœur : symboles, tri, placement, image | [`run`](code:src/link/linker.rs#run), [`Reachability`](code:src/link/linker.rs#Reachability), [`layout`](code:src/link/linker.rs#layout), [`classify`](code:src/link/linker.rs#classify) |
+| [`link/relocate.rs`](code:src/link/relocate.rs) | une relocation | [`apply`](code:src/link/relocate.rs#apply), [`RelocError`](code:src/link/relocate.rs#RelocError) |
+| [`link/thumb.rs`](code:src/link/thumb.rs) | l'encodage des branchements et de `movw`/`movt` | [`encode_branch_offset`](code:src/link/thumb.rs#encode_branch_offset), [`encode_mov16`](code:src/link/thumb.rs#encode_mov16) |
+| [`link/runtime.rs`](code:src/link/runtime.rs) | le runtime EADK fabriqué | [`build_runtime`](code:src/link/runtime.rs#build_runtime), [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC), [`START_CODE`](code:src/link/runtime.rs#START_CODE) |
+| [`link/export.rs`](code:src/link/export.rs) | l'ELF exécutable pour GDB | [`to_elf`](code:src/link/export.rs#to_elf) |
+| [`link/error.rs`](code:src/link/error.rs) | les erreurs | [`LinkError`](code:src/link/error.rs#LinkError) |
+| [`elf/`](code:src/elf/) | lecture et écriture ELF | [`ElfObject`](code:src/elf/mod.rs#ElfObject), [`ObjectWriter`](code:src/elf/writer.rs#ObjectWriter) |
+
+## Pourquoi refaire l'éditeur de liens
+
+- **Le comportement de l'outil officiel est le contrat** : ses adresses, son ordre de sections, ses défauts (la taille d'en-tête qui oublie `.data`, `COMMON` hors de `.bss`) sont ce que les applications supposent. Utiliser un éditeur de liens existant (GNU `ld`) aurait demandé d'embarquer un outil étranger dans une page web ; l'écrire en Rust le rend disponible dans le navigateur, avec les mêmes erreurs claires que le reste.
+- **La preuve de fidélité est automatique** : [`link_corpus.rs`](code:tests/link_corpus.rs) compare l'image de chaque application du corpus à une référence, elle-même confrontée à `arm-none-eabi-ld` avec le même script. Si un changement modifie un octet, le test échoue.
+- **Le runtime est fabriqué, pas copié** : le runtime officiel appartient à NumWorks ; ici chaque fonction est un `svc` écrit en octets et vérifié à l'assembleur, ce qui ne dépend d'aucun fichier tiers.
+
+## Pour modifier
+
+- **Un nouveau type de relocation** : [`relocate.rs`](code:src/link/relocate.rs) (une branche de `apply`), ses constantes dans [`elf/reloc.rs`](code:src/elf/reloc.rs), et un test d'encodage dans le même fichier. Si elle touche une instruction de 32 bits, passer par [`thumb.rs`](code:src/link/thumb.rs).
+- **Un nouvel ordre de sections** : [`classify`](code:src/link/linker.rs#classify) et [`layout`](code:src/link/linker.rs#layout) ; vérifier que `tests/golden/link_images.tsv` ne change pas pour un changement qui ne devrait rien changer.
+- **Une nouvelle fonction EADK** : [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC) et le noyau ([Appels système](../noyau/appels-systeme.md#pour-modifier)).
+- **Un nouveau diagnostic** : une variante de [`LinkError`](code:src/link/error.rs#LinkError) **avec les noms** (symbole, section, objet) ; un message qui dit « erreur de relocation » sans plus coûte des heures.
+- **Tests** : [`link_synthetic.rs`](code:tests/link_synthetic.rs) (objets fabriqués par `ObjectWriter`), [`link_corpus.rs`](code:tests/link_corpus.rs), [`emulator_apps.rs`](code:tests/emulator_apps.rs).

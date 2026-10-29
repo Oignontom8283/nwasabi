@@ -91,3 +91,25 @@ L'adresse que lit `ip` est celle du stub `svc #0x80 ; bx lr` que `device::fabric
 `build_external_data(octets)` fabrique l'objet d'une application qui utilise `eadk_external_data` (KhiCAS) : une section `.rodata.eadk_external_data` et deux symboles (`_eadk_external_data_start`, et `_eadk_external_data_size`, absolu).
 Le runtime définit en plus deux variables `eadk_external_data` et `eadk_external_data_size` (dans `.data`, initialisées par relocation) pour que l'application les lise comme des variables C. Ces octets sont **liés dans l'application**,
 à la différence des [données auxiliaires en flash](../../reference/donnees-flash.md), qui sont placées à des adresses de la flash à part.
+
+## Dans le code
+
+| Où | Quoi |
+|---|---|
+| [`build_runtime`](code:src/link/runtime.rs#build_runtime) | l'objet du runtime |
+| [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC), [`EADK_EXTENDED_SVC`](code:src/link/runtime.rs#EADK_EXTENDED_SVC) | les fonctions fournies |
+| [`START_CODE`](code:src/link/runtime.rs#START_CODE), [`START_POOL`](code:src/link/runtime.rs#START_POOL) | `_start` en octets, avec son pool de constantes |
+| [`DRAW_STRING_CODE`](code:src/link/runtime.rs#DRAW_STRING_CODE) | le tremplin de `drawString` |
+| [`build_external_data`](code:src/link/runtime.rs#build_external_data) | l'objet des données externes |
+| [`SVC_DRAW_STRING`](code:src/link/runtime.rs#SVC_DRAW_STRING), [`SVC_SBRK`](code:src/link/runtime.rs#SVC_SBRK), [`SVC_WRITE`](code:src/link/runtime.rs#SVC_WRITE), [`SVC_EXIT`](code:src/link/runtime.rs#SVC_EXIT) | les appels privés |
+| [`EXIT_STUB_OFFSET`](code:src/device/fabric.rs#EXIT_STUB_OFFSET) | où est le stub de fin |
+| [`ObjectWriter`](code:src/elf/writer.rs#ObjectWriter) | l'écrivain d'objets |
+
+## Pourquoi des octets écrits à la main
+
+Le runtime doit être **exactement** ce que l'application attend, sans dépendre d'un assembleur à l'exécution (le navigateur n'en a pas). Les demi-mots sont donc écrits en dur, avec leur désassemblage en commentaire, et ont été **vérifiés une fois** avec l'assembleur GNU. Les mots de constantes sont des **relocations** (`R_ARM_ABS32`) remplies par l'éditeur de liens, comme dans l'original.
+
+## Pour modifier
+
+- **Ajouter une fonction EADK** : une ligne dans [`EADK_SVC`](code:src/link/runtime.rs#EADK_SVC) (la fonction est alors `svc #N ; bx lr`), plus le noyau.
+- **Changer `_start`** : modifier [`START_CODE`](code:src/link/runtime.rs#START_CODE), **recompter** [`START_BL_OFFSET`](code:src/link/runtime.rs#START_BL_OFFSET) et le pool, puis vérifier avec `arm-none-eabi-as` (le commentaire du code donne le désassemblage) ; tout le corpus change d'adresses, donc `link_images.tsv` aussi.
