@@ -14,6 +14,22 @@
 
 </div>
 
+## AI Usage Declaration
+
+En raison de la complexité et de l'envergure de ce projet, l'utilisation de l'IA y est autorisée et utilisée pour son développement.
+
+- Il n'est pas absolument nécessaire de signaler l'utilisation de l'IA dans une contribution.
+- Vos commits ne doivent pas contenir de co-auteurs IA qui polluent git.
+- Vos branches Git doivent être propres et pas un spaghetti visuel et incompréhensible (ce que l'IA a tendance à faire). Réécrivez votre historique Git si nécessaire. L'IA sait très bien le faire si on lui demande.
+- Vous êtes l'auteur et le seul responsable de vos contributions! pas un agent IA.
+- Les instructions de contributing incluent des instructions spécifiques pour les contributeurs que l'IA doit respecter. Donnez-lui ce jeu d'instructions comme obligation, le code résultant devrait être correct. Mais uniquement techniquement, l'utilisabilité et l'abstraction ne sont pas ses forts, c'est votre taff.
+- Essayez tout de même, d'écrire vous-même vos PR, au moins le corps. L'IA peut faire les spécifications de modifications techniques. Ce n'est pas un problème. 
+
+Faites tout de même attention à ce qui est généré par l'IA : vérifiez toujours que le code fonctionne et qu'il passe les suites de tests et le formateur Clippy.
+Prendre le temps de relire ce qui a été généré reste la meilleure pratique dès que vous en avez la capacité :)
+
+Ces règles sur l'IA valent uniquement pour ce dépôt, en raison de sa nature.
+
 ## License & Disclaimer
 
 This project is licensed under the [GNU Affero General Public License
