@@ -481,7 +481,10 @@
     "statusOff": "Off: the server refuses debuggers.",
     "statusWaiting": "Waiting for a debugger…",
     "statusConnected": "{n} debugger connected | {n} debuggers connected",
-    "note": "The calculator keys stay usable while debugging. GDB does not read source-level debug information: it works on addresses and disassembly."
+    "exportElf": "Download the application's ELF",
+    "elfHelp": "Give it to GDB with “file”: it will read functions, source lines and variables (list, info locals, print…).",
+    "elfNoDebug": "Without debug information (application built without -g), GDB only has symbols.",
+    "note": "The calculator keys stay usable while debugging."
   },
   "screen": {
     "copied": "Screen copied to the clipboard",

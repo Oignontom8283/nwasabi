@@ -481,7 +481,10 @@
     "statusOff": "Désactivé : le serveur refuse les débogueurs.",
     "statusWaiting": "En attente d'un débogueur…",
     "statusConnected": "{n} débogueur connecté | {n} débogueurs connectés",
-    "note": "Les touches de la calculatrice restent utilisables pendant le débogage. GDB ne lit pas les informations de débogage du code source : il travaille sur les adresses et le désassemblage."
+    "exportElf": "Télécharger l'ELF de l'application",
+    "elfHelp": "Donnez-le à GDB avec « file » : il lira les fonctions, les lignes de source et les variables (list, info locals, print…).",
+    "elfNoDebug": "Sans informations de débogage (application compilée sans -g), GDB n'aura que les symboles.",
+    "note": "Les touches de la calculatrice restent utilisables pendant le débogage."
   },
   "screen": {
     "copied": "Écran copié dans le presse-papiers",
