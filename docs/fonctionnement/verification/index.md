@@ -97,7 +97,6 @@ puce n'a pas de sens. L'interface graphique n'a pas de test automatique de bout 
 | [`tests/wasm/`](code:tests/wasm/) | WebAssembly sous Node.js |
 | [`tests/web/`](code:tests/web/) | logique de l'interface |
 | [`justfile`](code:justfile) | `ci`, `check-all`, `test`, `test-wasm`, `test-corpus` |
-| [`.github/workflows/site.yml`](code:.github/workflows/site.yml) | la construction du site en intégration continue |
 
 ## Pourquoi cet empilement
 
