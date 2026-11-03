@@ -2,7 +2,7 @@
 import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { notify, recording, screenApi, ui, usePick } from "../ui.js";
+import { notify, recording, screenApi, ui, usePick, videoRecording } from "../ui.js";
 import { download, stem } from "../util.js";
 import { poll } from "../poll.js";
 import Icon from "./Icon.vue";
@@ -35,11 +35,13 @@ onMounted(() => {
   screenApi.capture = capture;
   screenApi.copy = copy;
   screenApi.toggleRecording = toggleRecording;
+  screenApi.toggleVideo = toggleVideo;
 });
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", onChange);
   clearTimeout(hideTimer);
   stopBrightness();
+  stopVideo(false);
 });
 
 function onChange() {
@@ -94,6 +96,53 @@ async function toggleRecording() {
   const gif = await emulator.stopRecording();
   if (gif) download(`${stem(state.appName || "nwasabi")}.gif`, new Blob([gif as BlobPart], { type: "image/gif" }));
   else notify(t("screen.recordEmpty"));
+}
+
+// Une vidéo : le navigateur enregistre un flux tiré d'un canvas. L'écran fait 320 × 240 pixels, trop petit pour une vidéo : on le recopie
+// trois fois plus grand, pixel contre pixel (sans lissage), dans un canvas qui n'est pas affiché, et c'est celui-là qu'on enregistre.
+const VIDEO_TYPES = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+const VIDEO_SCALE = 3;
+let video: { recorder: MediaRecorder; chunks: Blob[]; frame: number; type: string; keep: boolean } | null = null;
+
+function toggleVideo() {
+  if (video) return stopVideo(true);
+  const source = canvas.value;
+  const type = typeof MediaRecorder === "undefined" ? undefined : VIDEO_TYPES.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+  if (!source || !type) return notify(t("screen.videoUnsupported"));
+  const target = document.createElement("canvas");
+  target.width = source.width * VIDEO_SCALE;
+  target.height = source.height * VIDEO_SCALE;
+  const context = target.getContext("2d");
+  if (!context) return notify(t("screen.videoUnsupported"));
+  context.imageSmoothingEnabled = false;
+  const recorder = new MediaRecorder(target.captureStream(60), { mimeType: type, videoBitsPerSecond: 4_000_000 });
+  const current = { recorder, chunks: [] as Blob[], frame: 0, type, keep: true };
+  video = current;
+  recorder.ondataavailable = (event) => event.data.size > 0 && current.chunks.push(event.data);
+  recorder.onstop = () => {
+    if (!current.keep) return;
+    if (current.chunks.length === 0) return notify(t("screen.recordEmpty"));
+    const extension = type.startsWith("video/mp4") ? "mp4" : "webm";
+    download(`${stem(state.appName || "nwasabi")}.${extension}`, new Blob(current.chunks, { type }));
+  };
+  const draw = () => {
+    context.drawImage(source, 0, 0, target.width, target.height);
+    current.frame = requestAnimationFrame(draw);
+  };
+  draw();
+  recorder.start(1000);
+  videoRecording.on = true;
+}
+
+/** Termine la vidéo ; `keep` : la télécharger (faux quand la page se ferme). */
+function stopVideo(keep: boolean) {
+  if (!video) return;
+  const current = video;
+  video = null;
+  current.keep = keep;
+  cancelAnimationFrame(current.frame);
+  videoRecording.on = false;
+  if (current.recorder.state !== "inactive") current.recorder.stop();
 }
 </script>
 

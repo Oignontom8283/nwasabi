@@ -289,6 +289,8 @@
     "copy": "Copy the screen",
     "gif": "Record a GIF",
     "gifStop": "Stop the GIF",
+    "video": "Record a video",
+    "videoStop": "Stop the video",
     "fullscreen": "Full screen",
     "quickSave": "Quick save",
     "quickLoad": "Quick load",
@@ -423,7 +425,7 @@
     "groups": { "general": "General", "screen": "Screen and windows", "debug": "Debugging", "lists": "Lists (code, files…)" },
     "actions": {
       "general": { "palette": "Command palette", "toggleRun": "Pause or resume", "frame": "Advance one frame", "restart": "Restart the application", "quickSave": "Quick save", "quickLoad": "Quick load", "reload": "Reload the server's files" },
-      "screen": { "capture": "Capture the screen", "copy": "Copy the screen", "gif": "Record a GIF", "fullscreen": "Full screen", "large": "Large screen", "panel": "Open or close the panel" },
+      "screen": { "capture": "Capture the screen", "copy": "Copy the screen", "gif": "Record a GIF", "video": "Record a video", "fullscreen": "Full screen", "large": "Large screen", "panel": "Open or close the panel" },
       "debug": { "resume": "Resume or pause", "over": "Step over", "step": "Step", "out": "Step out of the function" },
       "lists": { "move": "Previous or next row", "extend": "Extend the selection", "all": "Select all", "copy": "Copy the selection", "menu": "Open the menu of a row or an address", "clear": "Clear the selection", "breakpoint": "Breakpoint on the active line (code)", "follow": "Follow the jump of the active line (code)" }
     }
@@ -478,6 +480,7 @@
     "copied": "Screen copied to the clipboard",
     "copyFailed": "Could not copy (the browser refused access to the clipboard)",
     "recordEmpty": "Nothing recorded: the screen did not change",
+    "videoUnsupported": "This browser cannot record video",
     "dropApp": "Drop a .nwa file here",
     "dropAppSub": "or use the menu at the top left",
     "dropData": "Drop the external data",
@@ -535,6 +538,10 @@
     "recordHint": "Records the screen as an animated image until the next click.",
     "recordStop": "Stop",
     "recordStopHint": "Ends the recording and downloads the GIF.",
+    "video": "Video",
+    "videoHint": "Records the screen as a video until the next click.",
+    "videoStop": "Stop video",
+    "videoStopHint": "Ends the recording and downloads the video.",
     "fullscreen": "Full screen",
     "fullscreenHint": "Shows only the screen, without the keys. Space or Escape to exit.",
     "tools": "Tools",

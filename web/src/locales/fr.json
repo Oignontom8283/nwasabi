@@ -289,6 +289,8 @@
     "copy": "Copier l'écran",
     "gif": "Enregistrer un GIF",
     "gifStop": "Arrêter le GIF",
+    "video": "Enregistrer une vidéo",
+    "videoStop": "Arrêter la vidéo",
     "fullscreen": "Plein écran",
     "quickSave": "Sauvegarde rapide",
     "quickLoad": "Chargement rapide",
@@ -423,7 +425,7 @@
     "groups": { "general": "Général", "screen": "Écran et fenêtres", "debug": "Débogage", "lists": "Listes (code, fichiers…)" },
     "actions": {
       "general": { "palette": "Palette de commandes", "toggleRun": "Pause ou reprise", "frame": "Avancer d'une image", "restart": "Relancer l'application", "quickSave": "Sauvegarde rapide", "quickLoad": "Chargement rapide", "reload": "Recharger les fichiers du serveur" },
-      "screen": { "capture": "Capture de l'écran", "copy": "Copier l'écran", "gif": "Enregistrer un GIF", "fullscreen": "Plein écran", "large": "Écran large", "panel": "Ouvrir ou fermer le panneau" },
+      "screen": { "capture": "Capture de l'écran", "copy": "Copier l'écran", "gif": "Enregistrer un GIF", "video": "Enregistrer une vidéo", "fullscreen": "Plein écran", "large": "Écran large", "panel": "Ouvrir ou fermer le panneau" },
       "debug": { "resume": "Reprendre ou pause", "over": "Pas par-dessus", "step": "Pas", "out": "Sortir de la fonction" },
       "lists": { "move": "Ligne précédente ou suivante", "extend": "Étendre la sélection", "all": "Tout sélectionner", "copy": "Copier la sélection", "menu": "Ouvrir le menu d'une ligne ou d'une adresse", "clear": "Désélectionner", "breakpoint": "Point d'arrêt sur la ligne active (code)", "follow": "Suivre le saut de la ligne active (code)" }
     }
@@ -478,6 +480,7 @@
     "copied": "Écran copié dans le presse-papiers",
     "copyFailed": "Copie impossible (le navigateur a refusé l'accès au presse-papiers)",
     "recordEmpty": "Rien à enregistrer : l'écran n'a pas changé",
+    "videoUnsupported": "Ce navigateur ne sait pas enregistrer de vidéo",
     "dropApp": "Glissez un fichier .nwa ici",
     "dropAppSub": "ou utilisez le menu en haut à gauche",
     "dropData": "Déposez les données annexes",
@@ -535,6 +538,10 @@
     "recordHint": "Enregistre l'écran en image animée jusqu'au prochain clic.",
     "recordStop": "Arrêter",
     "recordStopHint": "Termine l'enregistrement et télécharge le GIF.",
+    "video": "Vidéo",
+    "videoHint": "Enregistre l'écran en vidéo jusqu'au prochain clic.",
+    "videoStop": "Arrêter la vidéo",
+    "videoStopHint": "Termine l'enregistrement et télécharge la vidéo.",
     "fullscreen": "Plein écran",
     "fullscreenHint": "Affiche seulement l'écran, sans les touches. Espace ou Échap pour quitter.",
     "tools": "Outils",

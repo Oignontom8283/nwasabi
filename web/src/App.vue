@@ -20,7 +20,7 @@ import { FetchError, fetchFile, fileNameOf, launchFirmware, launchModel, launchP
 import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
-import { applyTheme, isCompact, isNarrow, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
+import { applyTheme, isCompact, isNarrow, notice, panelPixels, recording, screenApi, TABS, ui, videoRecording } from "./ui.js";
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
@@ -238,6 +238,7 @@ function runShortcut(id: ShortcutId): boolean {
     case "capture": if (!loaded) return false; screenApi.capture(); return true;
     case "copy": if (!loaded) return false; screenApi.copy(); return true;
     case "gif": if (!loaded) return false; screenApi.toggleRecording(); return true;
+    case "video": if (!loaded) return false; screenApi.toggleVideo(); return true;
     case "fullscreen": if (!loaded) return false; screenApi.toggleFullscreen(); return true;
     case "large": ui.large = !ui.large; return true;
     case "panel": ui.panelOpen = !ui.panelOpen; return true;
@@ -365,6 +366,7 @@ const commands = computed((): Command[] => {
     { id: "capture", label: t("palette.capture"), shortcut: SHORTCUTS.capture, enabled: loaded, run: () => screenApi.capture() },
     { id: "copy", label: t("palette.copy"), shortcut: SHORTCUTS.copy, enabled: loaded, run: () => screenApi.copy() },
     { id: "gif", label: recording.on ? t("palette.gifStop") : t("palette.gif"), enabled: loaded, shortcut: SHORTCUTS.gif, run: () => screenApi.toggleRecording() },
+    { id: "video", label: videoRecording.on ? t("palette.videoStop") : t("palette.video"), enabled: loaded, shortcut: SHORTCUTS.video, run: () => screenApi.toggleVideo() },
     { id: "fullscreen", label: t("palette.fullscreen"), shortcut: SHORTCUTS.fullscreen, enabled: loaded, run: () => screenApi.toggleFullscreen() },
     { id: "quick-save", label: t("palette.quickSave"), shortcut: SHORTCUTS.quickSave, enabled: loaded, run: () => void quickSave(emulator, { saved: t("quick.saved"), failed: t("quick.failed") }) },
     { id: "quick-load", label: t("palette.quickLoad"), shortcut: SHORTCUTS.quickLoad, run: () => void quickLoad(emulator, { loaded: t("quick.loaded"), none: t("quick.none"), failed: t("quick.failed") }) },

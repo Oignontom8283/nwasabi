@@ -4,7 +4,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { LOCALES, setLocale } from "../i18n.js";
 import { reload, server } from "../serverLink.js";
-import { isCompact, ui } from "../ui.js";
+import { isCompact, recording, screenApi, ui, videoRecording } from "../ui.js";
 import type { PickKind, Theme } from "../ui.js";
 import { valueOf } from "../util.js";
 import type { Firmware, Model } from "@nwasabi/js";
@@ -63,6 +63,10 @@ const escape = (e: KeyboardEvent) => {
 /** Un seul des deux menus est ouvert à la fois. */
 const toggleMenu = () => ((open.value = !open.value), (more.value = false));
 const toggleMore = () => ((more.value = !more.value), (open.value = false));
+const capture = () => screenApi.capture();
+const toggleGif = () => screenApi.toggleRecording();
+const toggleVideo = () => screenApi.toggleVideo();
+const fullscreen = () => screenApi.toggleFullscreen();
 const toggleLarge = () => (ui.large = !ui.large);
 /** Une action du menu des réglages : on le referme ensuite. */
 const act = (run: () => void) => () => {
@@ -159,6 +163,10 @@ onBeforeUnmount(() => {
           <button role="menuitem" :disabled="!state.loaded || state.running" @click="act(() => emulator.stepFrame())()"><Icon name="step" :size="16" /> {{ t("top.step") }}</button>
           <button role="menuitem" :disabled="!state.loaded" @click="act(() => emulator.restart())()"><Icon name="refresh" :size="16" /> {{ t("top.restart") }}</button>
           <button v-if="server.stale.length" role="menuitem" class="reload" @click="act(reload)()"><Icon name="refresh" :size="16" /> {{ t("top.reload") }}</button>
+          <button role="menuitem" :disabled="!state.loaded" @click="act(capture)()"><Icon name="camera" :size="16" /> {{ t("mini.capture") }}</button>
+          <button role="menuitem" :disabled="!state.loaded" :aria-pressed="recording.on" @click="act(toggleGif)()"><Icon name="dot" :size="16" /> {{ recording.on ? t("mini.recordStop") : t("mini.record") }}</button>
+          <button role="menuitem" :disabled="!state.loaded" :aria-pressed="videoRecording.on" @click="act(toggleVideo)()"><Icon name="video" :size="16" /> {{ videoRecording.on ? t("mini.videoStop") : t("mini.video") }}</button>
+          <button role="menuitem" :disabled="!state.loaded" @click="act(fullscreen)()"><Icon name="maximize" :size="16" /> {{ t("mini.fullscreen") }}</button>
           <button role="menuitem" :aria-pressed="ui.large" @click="act(toggleLarge)()"><Icon name="expand" :size="16" /> {{ t("mini.large") }}</button>
           <button role="menuitem" @click="nextTheme"><Icon :name="THEME_ICON[ui.theme]" :size="16" /> {{ themeLabel }}</button>
           <label class="field">{{ t("top.language") }}

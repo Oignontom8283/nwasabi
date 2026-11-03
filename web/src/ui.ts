@@ -132,10 +132,14 @@ export const screenApi = {
   capture: () => {},
   copy: () => {},
   toggleRecording: () => {},
+  toggleVideo: () => {},
 };
 
 /** Un GIF est en cours d'enregistrement ? */
 export const recording = reactive({ on: false, since: 0 });
+
+/** Une vidéo de l'écran est en cours d'enregistrement ? */
+export const videoRecording = reactive({ on: false });
 
 /** Un petit message qui s'efface (« État enregistré »…), affiché en bas de la page. */
 export const notice = reactive({ text: "", seq: 0 });

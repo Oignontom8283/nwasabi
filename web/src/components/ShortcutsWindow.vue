@@ -20,7 +20,7 @@ const GROUPS: Array<{ id: string; rows: Array<[string, string]> }> = [
       ["reload", SHORTCUTS.reload],
     ],
   },
-  { id: "screen", rows: [["capture", SHORTCUTS.capture], ["copy", SHORTCUTS.copy], ["gif", SHORTCUTS.gif], ["fullscreen", SHORTCUTS.fullscreen], ["large", SHORTCUTS.large], ["panel", SHORTCUTS.panel]] },
+  { id: "screen", rows: [["capture", SHORTCUTS.capture], ["copy", SHORTCUTS.copy], ["gif", SHORTCUTS.gif], ["video", SHORTCUTS.video], ["fullscreen", SHORTCUTS.fullscreen], ["large", SHORTCUTS.large], ["panel", SHORTCUTS.panel]] },
   { id: "debug", rows: [["resume", "F5"], ["over", "F10"], ["step", "F11"], ["out", "Maj + F11"]] },
   { id: "lists", rows: [["move", "↑ ↓"], ["extend", "Maj + ↑ ↓"], ["all", "Ctrl + A"], ["copy", "Ctrl + C"], ["menu", "Maj + F10"], ["clear", "Échap"], ["breakpoint", "F9"], ["follow", "Entrée"]] },
 ];

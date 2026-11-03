@@ -2,7 +2,7 @@
 import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { recording, screenApi, ui } from "../ui.js";
+import { recording, screenApi, ui, videoRecording } from "../ui.js";
 import { keyed } from "../shortcuts.js";
 import { formatDuration } from "../util.js";
 import Icon from "./Icon.vue";
@@ -44,6 +44,7 @@ const mhz = computed(() => (state.limitMhz ? `${state.limitMhz} MHz` : t("mini.n
     <button :disabled="!state.loaded" :title="keyed(t('mini.captureHint'), 'capture')" @click="screenApi.capture()"><Icon name="camera" /> {{ t("mini.capture") }}</button>
     <button :disabled="!state.loaded" :title="keyed(t('mini.copyHint'), 'copy')" @click="screenApi.copy()"><Icon name="copy" /> {{ t("mini.copy") }}</button>
     <button :disabled="!state.loaded" :aria-pressed="recording.on" :class="{ rec: recording.on }" :title="keyed(recording.on ? t('mini.recordStopHint') : t('mini.recordHint'), 'gif')" @click="screenApi.toggleRecording()"><Icon name="dot" /> {{ recording.on ? t("mini.recordStop") : t("mini.record") }}</button>
+    <button :disabled="!state.loaded" :aria-pressed="videoRecording.on" :class="{ rec: videoRecording.on }" :title="keyed(videoRecording.on ? t('mini.videoStopHint') : t('mini.videoHint'), 'video')" @click="screenApi.toggleVideo()"><Icon name="video" /> {{ videoRecording.on ? t("mini.videoStop") : t("mini.video") }}</button>
     <button :aria-pressed="ui.large" :title="keyed(t('mini.largeHint'), 'large')" @click="ui.large = !ui.large"><Icon name="expand" /> {{ t("mini.large") }}</button>
     <button :disabled="!state.loaded" :title="keyed(t('mini.fullscreenHint'), 'fullscreen')" @click="screenApi.toggleFullscreen()"><Icon name="maximize" /> {{ t("mini.fullscreen") }}</button>
     <button class="hide" :title="t('mini.hideHint')" :aria-label="t('mini.hideHint')" @click="ui.miniVisible = false"><Icon name="right" /></button>
