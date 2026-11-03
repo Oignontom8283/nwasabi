@@ -52,6 +52,10 @@ watch(
 export const NARROW = 760;
 export const isNarrow = () => ui.winWidth < NARROW;
 
+/** Écran compact (téléphone, tablette en hauteur) : la barre du haut range ses réglages dans un menu et le panneau s'ouvre par un bouton. */
+export const COMPACT = 1000;
+export const isCompact = () => ui.winWidth < COMPACT;
+
 export const PANEL_MIN = 340;
 export const PANEL_ROOM = 280; // largeur laissée à la calculatrice
 /** Largeur du grand panneau en pixels, ramenée à la taille de la fenêtre. */

@@ -16,6 +16,7 @@
     "unknownFile": "{name} : type de fichier non reconnu (attendu : .nwa, .nmk, .nfs, .nfd ou .nds)."
   },
   "top": {
+    "more": "Autres réglages",
     "about": "Nwasabi — émulateur d'applications NumWorks",
     "menu": "Charger…",
     "noApp": "Aucune application",
