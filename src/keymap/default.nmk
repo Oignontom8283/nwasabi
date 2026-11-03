@@ -39,7 +39,9 @@
       { "gesture": "swipe_left", "key": "left" },
       { "gesture": "swipe_right", "key": "right" },
       { "gesture": "swipe_up", "key": "up" },
-      { "gesture": "swipe_down", "key": "down" }
+      { "gesture": "swipe_down", "key": "down" },
+      { "gesture": "tap", "key": "ok" },
+      { "gesture": "u_turn", "key": "back" }
     ]
   }
 }

@@ -449,6 +449,14 @@ export const DEFAULT_NMK = {
       {
         "gesture": "swipe_down",
         "key": "down"
+      },
+      {
+        "gesture": "tap",
+        "key": "ok"
+      },
+      {
+        "gesture": "u_turn",
+        "key": "back"
       }
     ]
   }
