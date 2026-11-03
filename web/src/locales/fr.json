@@ -500,7 +500,8 @@
     "swipe_left": "Balayage vers la gauche",
     "swipe_right": "Balayage vers la droite",
     "swipe_up": "Balayage vers le haut",
-    "swipe_down": "Balayage vers le bas"
+    "swipe_down": "Balayage vers le bas",
+    "u_turn": "Demi-tour"
   },
   "mini": {
     "label": "Informations sur la simulation",
@@ -814,7 +815,8 @@
       "swipe_left": "glisser le doigt vers la gauche (distance ci-dessous)",
       "swipe_right": "glisser le doigt vers la droite",
       "swipe_up": "glisser le doigt vers le haut",
-      "swipe_down": "glisser le doigt vers le bas"
+      "swipe_down": "glisser le doigt vers le bas",
+      "u_turn": "tracer un demi-cercle d'un seul trait : un U ou un C, dans un sens ou dans l'autre"
     },
     "gestureHint": "Le mouvement qui déclenche la règle.",
     "fingersHint": "Nombre de doigts posés en même temps pour ce geste (1 à 3).",

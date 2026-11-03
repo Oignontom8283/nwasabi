@@ -500,7 +500,8 @@
     "swipe_left": "Swipe left",
     "swipe_right": "Swipe right",
     "swipe_up": "Swipe up",
-    "swipe_down": "Swipe down"
+    "swipe_down": "Swipe down",
+    "u_turn": "Half-turn"
   },
   "mini": {
     "label": "Simulation information",
@@ -814,7 +815,8 @@
       "swipe_left": "slide the finger to the left (distance below)",
       "swipe_right": "slide the finger to the right",
       "swipe_up": "slide the finger up",
-      "swipe_down": "slide the finger down"
+      "swipe_down": "slide the finger down",
+      "u_turn": "draw half a circle with one stroke: a U or a C, in either direction"
     },
     "gestureHint": "The movement that triggers the rule.",
     "fingersHint": "Number of fingers down at the same time for this gesture (1 to 3).",
