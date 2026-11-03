@@ -16,6 +16,7 @@ export const GESTURES = [
   "swipe_right",
   "swipe_up",
   "swipe_down",
+  "u_turn",
 ] as const;
 export type GestureName = (typeof GESTURES)[number];
 

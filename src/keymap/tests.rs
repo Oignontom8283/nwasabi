@@ -18,6 +18,12 @@ fn the_default_map_is_valid_and_has_the_arrow_swipes() {
 }
 
 #[test]
+fn the_half_turn_gesture_is_read_and_printed_as_u_turn() {
+    assert_eq!(Gesture::from_name("u_turn"), Some(Gesture::UTurn));
+    assert_eq!(Gesture::UTurn.name(), "u_turn");
+}
+
+#[test]
 fn a_minimal_file_is_the_default_map() {
     let map = KeyMap::parse(r#"{"nmk":1}"#).unwrap();
     let mut default = KeyMap::default_map();
