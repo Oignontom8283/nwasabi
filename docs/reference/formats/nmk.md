@@ -93,10 +93,24 @@ Réglages (tous facultatifs) :
 
 `rules` est une liste de règles `{ "gesture", "fingers", "key", "while_held" }` :
 
-- `gesture` : `tap`, `double_tap`, `long_press`, `swipe_left`, `swipe_right`, `swipe_up`, `swipe_down` ;
+- `gesture` : `tap`, `double_tap`, `long_press`, `swipe_left`, `swipe_right`, `swipe_up`, `swipe_down`, `u_turn` ;
 - `fingers` : nombre de doigts, de 1 à 3 (défaut 1) ;
 - `key` : comme pour le clavier (nom, liste, ou `null` pour retirer une règle par défaut) ;
 - `while_held` : seulement pour `long_press` ; la touche reste enfoncée tant que le doigt reste posé.
 
-Par défaut, un balayage à un doigt vers la gauche, la droite, le haut ou le bas appuie sur la flèche
-correspondante. Une règle du fichier remplace la règle par défaut de même `gesture` et même `fingers`.
+Le geste `u_turn` (demi-tour) est une courbe du doigt qui tourne de la moitié d'un cercle, dans un sens ou
+dans l'autre, comme un « U » ou un « C » tracé d'un trait. Il faut que le doigt tourne d'au moins 150 degrés
+et d'au plus 280, toujours du même côté, sur une longueur d'au moins une fois et demie `swipe_distance`.
+Un quart de cercle, une ligne droite, un zigzag ou un cercle entier n'en sont pas.
+
+Par défaut, à un doigt :
+
+| Geste | Touche |
+|---|---|
+| appui du doigt | `ok` |
+| demi-tour | `back` |
+| balayage à gauche, à droite, en haut, en bas | la flèche correspondante |
+
+Un clic de souris n'est jamais un appui, un double appui ni un appui long : on clique sur l'écran pour lui donner le focus. Les gestes tracés (balayage, demi-tour) fonctionnent aussi à la souris.
+
+Une règle du fichier remplace la règle par défaut de même `gesture` et même `fingers` ; `"key": null` la retire.
