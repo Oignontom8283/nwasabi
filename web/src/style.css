@@ -76,6 +76,8 @@
 
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; }
+/* Sur téléphone : la hauteur suit la barre d'adresse (dvh) et la page évite l'encoche et les barres du système. */
+body { height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overscroll-behavior: none; }
 body {
   margin: 0;
   background: var(--bg);
@@ -158,3 +160,10 @@ kbd {
 
 /* Pas de zoom au double toucher sur les boutons et les touches. */
 button, [data-calc-key] { touch-action: manipulation; }
+
+/* Au doigt : les boutons des menus et des barres sont plus hauts, et les champs ont 16 pixels (en dessous, iOS zoome la page à la saisie). */
+@media (pointer: coarse) {
+  .topbar button, .menu button, .tab, .fw button { min-height: 36px; }
+  .topbar button.icon, .fw button.icon { min-width: 36px; justify-content: center; }
+  select, textarea, input:not([type]), input[type="text"], input[type="search"], input[type="number"] { font-size: 16px; }
+}

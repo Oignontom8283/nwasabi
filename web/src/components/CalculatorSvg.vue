@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import type { KeyName, TouchRule } from "@nwasabi/js";
 import { BEZEL, BODY, CROSS, KEYS, SCREEN, VIEW } from "../calc-layout.js";
 import type { CalcKey } from "../calc-layout.js";
-import { ui } from "../ui.js";
+import { isShort, ui } from "../ui.js";
 import ScreenView from "./ScreenView.vue";
 
 const props = withDefaults(
@@ -23,6 +23,9 @@ type Sources = { keyboard: string[]; rules: TouchRule[] };
 const { t } = useI18n();
 const emulator = useEmu();
 const { state } = emulator;
+
+/** L'écran seul, sans la calculatrice autour : à la demande, ou quand l'écran est trop bas pour la calculatrice entière. */
+const large = computed(() => props.mode === "play" && (ui.large || isShort()));
 
 const keymap = computed(() => (state.keymapVersion >= 0 ? emulator.keymap() : null));
 const sources = computed(() => {
@@ -105,8 +108,8 @@ function keyup(key: CalcKey, event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="calc" :class="[mode, { large: mode === 'play' && ui.large }]" :style="{ '--ratio': VIEW.width / VIEW.height }">
-    <svg v-show="!(mode === 'play' && ui.large)" :viewBox="`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`" xmlns="http://www.w3.org/2000/svg" role="group" :aria-label="t('calc.label')">
+  <div class="calc" :class="[mode, { large }]" :style="{ '--ratio': VIEW.width / VIEW.height }" @contextmenu.prevent>
+    <svg v-show="!large" :viewBox="`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`" xmlns="http://www.w3.org/2000/svg" role="group" :aria-label="t('calc.label')">
       <defs>
         <linearGradient id="key-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#ffffff" />
@@ -153,12 +156,12 @@ function keyup(key: CalcKey, event: KeyboardEvent) {
         </template>
       </g>
     </svg>
-    <div v-if="mode === 'play'" class="screen" :style="ui.large ? null : screenStyle"><ScreenView /></div>
+    <div v-if="mode === 'play'" class="screen" :style="large ? null : screenStyle"><ScreenView /></div>
   </div>
 </template>
 
 <style scoped>
-.calc { position: relative; width: min(100cqw, calc(100cqh * var(--ratio))); aspect-ratio: var(--ratio); user-select: none; touch-action: manipulation; }
+.calc { -webkit-touch-callout: none; position: relative; width: min(100cqw, calc(100cqh * var(--ratio))); aspect-ratio: var(--ratio); user-select: none; touch-action: manipulation; }
 svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .body { fill: #fbfbfb; stroke: #d6d6d8; stroke-width: 4; }
 .brand { font: 700 42px system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; fill: #555; }

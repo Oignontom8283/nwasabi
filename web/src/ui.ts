@@ -25,8 +25,9 @@ export const ui = reactive({
   fullscreen: false,
   /** Thème : "auto", "light" ou "dark". */
   theme: remember.get<Theme>("nwasabi.theme", "auto"),
-  /** Largeur de la fenêtre (suivie par l'application). */
+  /** Largeur et hauteur de la fenêtre (suivies par l'application). */
   winWidth: innerWidth,
+  winHeight: innerHeight,
   /** Demande de l'onglet Mémoire : adresse à montrer dans l'éditeur hexadécimal. */
   hexGoto: null as { address: number; length: number; seq: number } | null,
   /** Outil montré dans l'onglet Débogage. */
@@ -55,6 +56,9 @@ export const isNarrow = () => ui.winWidth < NARROW;
 /** Écran compact (téléphone, tablette en hauteur) : la barre du haut range ses réglages dans un menu et le panneau s'ouvre par un bouton. */
 export const COMPACT = 1000;
 export const isCompact = () => ui.winWidth < COMPACT;
+
+/** Téléphone tenu en travers : trop bas pour la calculatrice entière, l'écran seul prend la place (les gestes remplacent les touches). */
+export const isShort = () => ui.winHeight < 520 && ui.winWidth > ui.winHeight;
 
 export const PANEL_MIN = 340;
 export const PANEL_ROOM = 280; // largeur laissée à la calculatrice

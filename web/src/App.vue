@@ -20,7 +20,7 @@ import { FetchError, fetchFile, fileNameOf, launchFirmware, launchModel, launchP
 import { attachPersistence, disableKeeping, enableKeeping, keep, needsAnswer } from "./persist.js";
 import { baseline, fetchPart, reload, server, stop as stopWatching, watch } from "./serverLink.js";
 import type { Part } from "./serverLink.js";
-import { applyTheme, isNarrow, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
+import { applyTheme, isCompact, isNarrow, notice, panelPixels, recording, screenApi, TABS, ui } from "./ui.js";
 import { loadAppKeymap } from "./appKeymaps.js";
 import { recentBytes, refreshRecent, rememberApp } from "./recent.js";
 import { quickLoad, quickSave, refreshQuick } from "./quicksave.js";
@@ -288,7 +288,10 @@ function onVisibility() {
 }
 
 let detachKeyboard = () => {};
-const onResize = () => (ui.winWidth = innerWidth);
+const onResize = () => {
+  ui.winWidth = innerWidth;
+  ui.winHeight = innerHeight;
+};
 onMounted(async () => {
   applyTheme();
   addEventListener("resize", onResize);
@@ -400,7 +403,7 @@ provide("pick", pick);
       </div>
       <SidePanel v-show="ui.panelOpen" />
       <template v-if="!ui.panelOpen">
-        <button v-if="isNarrow()" class="tools-fab" :title="keyed(t('mini.openPanel'), 'panel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
+        <button v-if="isCompact()" class="tools-fab" :title="keyed(t('mini.openPanel'), 'panel')" @click="ui.panelOpen = true"><Icon name="panel" :size="16" /> {{ t("mini.tools") }}</button>
         <MiniBar v-else-if="ui.miniVisible" />
         <button v-else class="peek icon" :title="t('mini.showHint')" :aria-label="t('mini.showHint')" @click="ui.miniVisible = true"><Icon name="left" /></button>
       </template>
