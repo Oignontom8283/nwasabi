@@ -83,7 +83,7 @@ async function save() {
 </template>
 
 <style scoped>
-.form { display: grid; gap: 12px; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .error { margin: 0; font-size: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

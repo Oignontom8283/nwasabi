@@ -75,7 +75,7 @@ function submit() {
 </template>
 
 <style scoped>
-.form { display: grid; gap: 12px; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .where { margin: 0; }
 .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .preview { margin: 0; font-size: 12px; }

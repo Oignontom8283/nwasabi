@@ -139,7 +139,7 @@ const locked = computed(() => store.started);
 </template>
 
 <style scoped>
-.scanner { display: grid; gap: 14px; }
+.scanner { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .help { margin: 0; font-size: 12px; }
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
 .inline { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; }

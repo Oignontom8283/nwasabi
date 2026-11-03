@@ -68,7 +68,7 @@ function onKey(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.palette { display: grid; gap: 8px; }
+.palette { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .q { width: 100%; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; display: grid; }
 .list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }

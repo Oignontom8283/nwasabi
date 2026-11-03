@@ -63,7 +63,7 @@ function cancel() {
 <style scoped>
 .message { margin: 0 0 10px; white-space: pre-line; }
 input[type="text"], input:not([type]) { width: 100%; }
-.choices { display: grid; gap: 6px; margin-bottom: 4px; }
+.choices { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-bottom: 4px; }
 .choice { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 </style>

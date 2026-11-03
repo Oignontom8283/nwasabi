@@ -108,7 +108,7 @@ async function restart() {
 </template>
 
 <style scoped>
-.fault { display: grid; gap: 10px; }
+.fault { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .fault p { margin: 0; }
 .what { color: var(--danger); }
 .code { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }

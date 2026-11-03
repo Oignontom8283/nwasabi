@@ -96,7 +96,7 @@ const when = computed(() => (snapshot.value ? new Date(snapshot.value.takenAt).t
 </template>
 
 <style scoped>
-.snap { display: grid; gap: 8px; }
+.snap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .help { margin: 0; font-size: 12px; }
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .cols { grid-template-columns: 100px 52px minmax(0, 1fr) minmax(0, 1fr); }

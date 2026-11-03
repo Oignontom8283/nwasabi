@@ -44,7 +44,7 @@ const GROUPS: Array<{ id: string; rows: Array<[string, string]> }> = [
 </template>
 
 <style scoped>
-.sc { display: grid; gap: 10px; font-size: 13.5px; }
+.sc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; font-size: 13.5px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; font-weight: normal; }
 td { text-align: right; white-space: nowrap; }

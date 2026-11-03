@@ -719,14 +719,16 @@ const beyond = (c: Column, length: number) => c.size > length;
 </template>
 
 <style scoped>
-.hex { display: grid; gap: 14px; }
+.hex { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 .find { display: flex; gap: 4px; }
 .find input { width: 14em; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .spacer { flex: 1; }
 .banner { margin: 0; padding: 4px 8px; background: color-mix(in srgb, var(--warn) 16%, transparent); border-radius: 6px; font-size: 12px; }
-.viewer { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+/* Sur un écran étroit, les 16 octets d'une ligne et leurs caractères ne tiennent pas : tout le visualiseur (titres compris) défile en travers. */
+.viewer { --hex-width: calc(70ch + 62px); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; overflow-y: hidden; background: var(--surface-2); font-family: var(--mono); font-size: 12.5px; }
+.viewer > .head, .viewer > .scroller { min-width: var(--hex-width); }
 .head { display: flex; gap: 14px; padding: 4px 10px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--surface); }
 .scroller { overflow: auto; position: relative; }
 .spacer-v { position: relative; }
