@@ -240,3 +240,15 @@ pub fn png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
     writer.finish().expect("fin du PNG");
     out
 }
+
+/// Compare `actual` au fichier de référence `tests/golden/<name>.snap`. Après un changement voulu, `INSTA_UPDATE=always cargo test`
+/// réécrit le fichier (voir la bibliothèque `insta`).
+pub fn snapshot(name: &str, actual: String) {
+    insta::with_settings!({
+        snapshot_path => "../golden",
+        prepend_module_to_snapshot => false,
+        omit_expression => true,
+    }, {
+        insta::assert_snapshot!(name, actual);
+    });
+}

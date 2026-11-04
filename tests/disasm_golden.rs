@@ -4,13 +4,12 @@
 //! suites avec bloc `it` complètent le fichier. Garde-fou de tout remaniement ou remplacement du désassembleur : tant que le
 //! fichier de référence ne change pas, le texte affiché dans le débogueur est le même.
 //!
-//! Pour régénérer le fichier après un changement voulu : `NWASABI_UPDATE_GOLDEN=1 cargo test --test disasm_golden`.
+//! Pour mettre à jour le fichier de référence après un changement voulu : `INSTA_UPDATE=always cargo test --test disasm_golden`.
 
 mod support;
 
 use nwasabi::cpu::{disassemble, is_32bit};
 
-const GOLDEN: &str = "tests/golden/disasm.txt";
 const START: u32 = 0x0800_0000;
 
 /// Les seconds demi-mots essayés avec chaque premier demi-mot de 32 bits : des motifs de bits et des valeurs pseudo-aléatoires
@@ -108,24 +107,5 @@ fn transcript() -> String {
 
 #[test]
 fn the_disassembler_prints_exactly_as_recorded() {
-    let actual = transcript();
-    let path = format!("{}/{GOLDEN}", env!("CARGO_MANIFEST_DIR"));
-    if std::env::var_os("NWASABI_UPDATE_GOLDEN").is_some() {
-        std::fs::write(&path, &actual).unwrap();
-    }
-    let expected = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{path} : {e} (NWASABI_UPDATE_GOLDEN=1 pour le créer)"));
-    if actual != expected {
-        let first = actual
-            .lines()
-            .zip(expected.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| actual.lines().count().min(expected.lines().count()));
-        panic!(
-            "le désassemblage a changé à la ligne {} :\n  attendu : {}\n  obtenu  : {}",
-            first + 1,
-            expected.lines().nth(first).unwrap_or("(fin)"),
-            actual.lines().nth(first).unwrap_or("(fin)"),
-        );
-    }
+    support::snapshot("disasm", transcript());
 }

@@ -1,7 +1,9 @@
 //! Le texte de chaque erreur de la bibliothèque : une instance de chaque variante, avec son message. Garde-fou des changements
 //! d'écriture des erreurs (attributs, bibliothèque) : tant que le fichier de référence ne change pas, les messages sont les mêmes.
 //!
-//! Pour régénérer le fichier après un changement voulu : `NWASABI_UPDATE_GOLDEN=1 cargo test --test error_texts_golden`.
+//! Pour mettre à jour le fichier de référence après un changement voulu : `INSTA_UPDATE=always cargo test --test error_texts_golden`.
+
+mod support;
 
 use nwasabi::debuginfo::EvalError;
 use nwasabi::device::DeviceError;
@@ -12,8 +14,6 @@ use nwasabi::link::LinkError;
 use nwasabi::memory::MemoryError;
 use nwasabi::profile::ProfileError;
 use nwasabi::storage::FsError;
-
-const GOLDEN: &str = "tests/golden/errors.txt";
 
 fn memory() -> Vec<MemoryError> {
     vec![
@@ -197,12 +197,5 @@ fn transcript() -> String {
 
 #[test]
 fn the_error_messages_are_exactly_as_recorded() {
-    let actual = transcript();
-    let path = format!("{}/{GOLDEN}", env!("CARGO_MANIFEST_DIR"));
-    if std::env::var_os("NWASABI_UPDATE_GOLDEN").is_some() {
-        std::fs::write(&path, &actual).unwrap();
-    }
-    let expected = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{path} : {e} (NWASABI_UPDATE_GOLDEN=1 pour le créer)"));
-    assert_eq!(actual, expected);
+    support::snapshot("errors", transcript());
 }

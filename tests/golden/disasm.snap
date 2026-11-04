@@ -1,3 +1,6 @@
+---
+source: tests/support/mod.rs
+---
 # crc32 par tranche de 256 premiers demi-mots : 16 bits seuls | 32 bits avec 64 seconds demi-mots
 00xx  afcbee75  00000000
 01xx  149f1198  00000000

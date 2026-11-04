@@ -3,7 +3,9 @@
 //! dossier, passage à une bibliothèque de protocole) : tant que le fichier de référence ne change pas, un débogueur voit les
 //! mêmes réponses à l'octet.
 //!
-//! Pour régénérer le fichier après un changement voulu : `NWASABI_UPDATE_GOLDEN=1 cargo test --test gdb_golden`.
+//! Pour mettre à jour le fichier de référence après un changement voulu : `INSTA_UPDATE=always cargo test --test gdb_golden`.
+
+mod support;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -12,8 +14,6 @@ use std::thread;
 use nwasabi::gdb::serve_connection;
 use nwasabi::json::{self, Value};
 use nwasabi::session::Session;
-
-const GOLDEN: &str = "tests/golden/gdb.txt";
 
 struct Debugger(TcpStream);
 
@@ -129,26 +129,7 @@ fn transcript() -> String {
 
 #[test]
 fn the_gdb_server_answers_exactly_as_recorded() {
-    let actual = transcript();
-    let path = format!("{}/{GOLDEN}", env!("CARGO_MANIFEST_DIR"));
-    if std::env::var_os("NWASABI_UPDATE_GOLDEN").is_some() {
-        std::fs::write(&path, &actual).unwrap();
-    }
-    let expected = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{path} : {e} (NWASABI_UPDATE_GOLDEN=1 pour le créer)"));
-    if actual != expected {
-        let first = actual
-            .lines()
-            .zip(expected.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| actual.lines().count().min(expected.lines().count()));
-        panic!(
-            "la transcription GDB a changé à la ligne {} :\n  attendu : {}\n  obtenu  : {}",
-            first + 1,
-            expected.lines().nth(first).unwrap_or("(fin)"),
-            actual.lines().nth(first).unwrap_or("(fin)"),
-        );
-    }
+    support::snapshot("gdb", transcript());
 }
 
 #[test]
