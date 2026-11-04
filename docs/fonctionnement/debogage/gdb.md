@@ -10,7 +10,7 @@ GDB parle un protocole texte très simple (des paquets `$…#somme`). Nwasabi **
 :::
 
 
-`gdb.rs` permet à GDB (ou à un éditeur qui le pilote) de se brancher par TCP « comme sur une sonde ST-Link » et de piloter un appareil émulé. Le protocole est le **Remote Serial Protocol** de GDB : des paquets `$données#somme`, où la somme est la somme des octets modulo 256.
+Le dossier [`src/gdb/`](code:src/gdb/) permet à GDB (ou à un éditeur qui le pilote) de se brancher par TCP « comme sur une sonde ST-Link » et de piloter un appareil émulé. Le protocole est le **Remote Serial Protocol** de GDB : des paquets `$données#somme`, où la somme est la somme des octets modulo 256.
 Tout passe par les commandes JSON de la [session](./session.md) (`run`, `step`, `break`, `watch`, `cpu`, `memory_read`…) : **GDB voit exactement ce que voit la page**, sans second chemin d'exécution.
 
 ## Le trait `Debuggee`
@@ -110,14 +110,15 @@ et `backtrace` de fonctionner sans extension de protocole. Les expressions sont 
 
 | Où | Quoi |
 |---|---|
-| [`serve_connection`](code:src/gdb.rs#serve_connection) | la boucle d'un client |
-| [`Debuggee`](code:src/gdb.rs#Debuggee) | « quelque chose qui répond à des commandes JSON » |
-| [`answer`](code:src/gdb.rs#answer) | le `match` sur la première lettre du paquet |
-| [`query`](code:src/gdb.rs#query), [`TARGET_XML`](code:src/gdb.rs#TARGET_XML) | `qSupported`, `qXfer` |
-| [`resume`](code:src/gdb.rs#resume), [`step`](code:src/gdb.rs#step), [`reverse`](code:src/gdb.rs#reverse) | exécuter |
-| [`stop_reply`](code:src/gdb.rs#stop_reply) | la réponse d'arrêt |
-| [`breakpoint_packet`](code:src/gdb.rs#breakpoint_packet) | `Z` / `z` |
-| [`Bridge`](code:src/gdb.rs#Bridge) | le pont avec la page |
+| [`src/gdb/`](code:src/gdb/) | `mod.rs` (l'interface), `paquets.rs` (somme, hexadécimal, description des registres), `client.rs` (la conversation avec le débogueur), `pont.rs` (le pont avec la page) |
+| [`serve_connection`](code:src/gdb/client.rs#serve_connection) | la boucle d'un client |
+| [`Debuggee`](code:src/gdb/mod.rs#Debuggee) | « quelque chose qui répond à des commandes JSON » |
+| [`answer`](code:src/gdb/client.rs#answer) | le `match` sur la première lettre du paquet |
+| [`query`](code:src/gdb/client.rs#query), [`TARGET_XML`](code:src/gdb/paquets.rs#TARGET_XML) | `qSupported`, `qXfer` |
+| [`resume`](code:src/gdb/client.rs#resume), [`step`](code:src/gdb/client.rs#step), [`reverse`](code:src/gdb/client.rs#reverse) | exécuter |
+| [`stop_reply`](code:src/gdb/client.rs#stop_reply) | la réponse d'arrêt |
+| [`breakpoint_packet`](code:src/gdb/client.rs#breakpoint_packet) | `Z` / `z` |
+| [`Bridge`](code:src/gdb/pont.rs#Bridge) | le pont avec la page |
 | [`serve_gdb`](code:src/server/main.rs#serve_gdb), [`gdb_session`](code:src/server/main.rs#gdb_session) | les deux modes du serveur |
 | [`gdbBridge.ts`](code:web/src/gdbBridge.ts), [`GdbView.vue`](code:web/src/components/debug/GdbView.vue) | le côté page |
 | [`gdb.rs` (tests)](code:tests/gdb.rs), [`gdb_real.rs`](code:tests/gdb_real.rs) | simulé / avec un vrai GDB |
@@ -130,7 +131,7 @@ Le **pont** existe parce que l'émulation de la page vit dans le navigateur, qui
 
 ## Pour modifier
 
-- **Un paquet de plus** : une branche dans [`answer`](code:src/gdb.rs#answer) qui appelle une commande de session ; si la commande n'existe pas, l'ajouter d'abord à la [session](./session.md#pour-modifier). Ne jamais lire la mémoire de l'appareil depuis `gdb.rs`.
-- **Décrire plus de registres** (FPU) : [`TARGET_XML`](code:src/gdb.rs#TARGET_XML), [`registers`](code:src/gdb.rs#registers) et `REGISTER_COUNT` ensemble, et les paquets `g`/`G`.
-- **Un arrêt de plus** : [`stop_reply`](code:src/gdb.rs#stop_reply).
+- **Un paquet de plus** : une branche dans [`answer`](code:src/gdb/client.rs#answer) qui appelle une commande de session ; si la commande n'existe pas, l'ajouter d'abord à la [session](./session.md#pour-modifier). Ne jamais lire la mémoire de l'appareil depuis `gdb.rs`.
+- **Décrire plus de registres** (FPU) : [`TARGET_XML`](code:src/gdb/paquets.rs#TARGET_XML), [`registers`](code:src/gdb/client.rs#registers) et `REGISTER_COUNT` ensemble, et les paquets `g`/`G`.
+- **Un arrêt de plus** : [`stop_reply`](code:src/gdb/client.rs#stop_reply).
 - **Tester** : [`tests/gdb.rs`](code:tests/gdb.rs) rejoue des paquets sans GDB ; [`gdb_real.rs`](code:tests/gdb_real.rs) lance un vrai GDB si `NWASABI_GDB` ou `gdb-multiarch` est disponible.
