@@ -830,6 +830,7 @@ dependencies = [
  "proptest",
  "rust-embed",
  "rustc-demangle",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",
