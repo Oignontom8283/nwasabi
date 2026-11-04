@@ -4,6 +4,10 @@
 //! Les objets sont écrits avec leurs clés triées : la sortie est déterministe, pour que les
 //! résultats puissent être comparés tels quels.
 
+use base64::Engine as _;
+use base64::alphabet;
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig, general_purpose};
+
 pub use serde_json::Value;
 
 /// Erreur d'analyse (position et description de `serde_json`).
@@ -58,59 +62,35 @@ impl ValueExt for Value {
 
 // ---- base64 et hexadécimal ----------------------------------------------------------------------
 
-const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+/// Le décodeur de base64 : sans remplissage obligatoire, et des bits de fin non nuls acceptés (comme les anciens fichiers).
+const LENIENT: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new()
+        .with_decode_padding_mode(DecodePaddingMode::Indifferent)
+        .with_decode_allow_trailing_bits(true),
+);
 
 pub fn base64_encode(data: &[u8]) -> String {
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let n = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |n, (i, &b)| n | u32::from(b) << (16 - 8 * i));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(B64[(n >> (18 - 6 * i) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
+    general_purpose::STANDARD.encode(data)
 }
 
 /// Décode du base64 (avec ou sans remplissage, espaces ignorés).
 pub fn base64_decode(text: &str) -> Option<Vec<u8>> {
-    let mut out = Vec::with_capacity(text.len() / 4 * 3);
-    let (mut acc, mut bits) = (0u32, 0);
-    for c in text
+    let digits: Vec<u8> = text
         .bytes()
         .filter(|b| !b.is_ascii_whitespace() && *b != b'=')
-    {
-        let v = B64.iter().position(|&x| x == c)? as u32;
-        acc = acc << 6 | v;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-            acc &= (1 << bits) - 1;
-        }
-    }
-    (bits < 6).then_some(out)
+        .collect();
+    LENIENT.decode(digits).ok()
 }
 
 pub fn hex_encode(data: &[u8]) -> String {
-    data.iter().map(|b| format!("{b:02x}")).collect()
+    hex::encode(data)
 }
 
+/// Décode de l'hexadécimal (majuscules ou minuscules, espaces ignorés).
 pub fn hex_decode(text: &str) -> Option<Vec<u8>> {
     let digits: Vec<u8> = text.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
-    if !digits.len().is_multiple_of(2) {
-        return None;
-    }
-    digits
-        .chunks(2)
-        .map(|p| u8::from_str_radix(std::str::from_utf8(p).ok()?, 16).ok())
-        .collect()
+    hex::decode(digits).ok()
 }
 
 #[cfg(test)]
@@ -180,5 +160,9 @@ mod tests {
         assert_eq!(hex_decode("00 AB ff").unwrap(), [0, 0xab, 0xff]);
         assert!(hex_decode("abc").is_none());
         assert!(hex_decode("zz").is_none());
+        assert!(
+            hex_decode("+a").is_none(),
+            "un signe n'est pas un chiffre hexadécimal"
+        );
     }
 }
