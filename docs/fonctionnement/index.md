@@ -93,7 +93,7 @@ Le trait `cpu::Bus` (la mémoire) et le trait `cpu::Hooks` (les `svc`) sont les 
 | `elf/`, `link/` | lecture ELF, édition de liens, export ELF | [Édition de liens](./edition-de-liens/index.md) |
 | `emulator.rs` | exécution coopérative, points d'arrêt, profil | [Exécution](./execution/index.md) |
 | `debuginfo/`, `symbols.rs` | DWARF, pile, expressions, noms lisibles | [Débogage](./debogage/index.md) |
-| `session/`, `gdb.rs` | protocole JSON, historique, serveur GDB | [Session](./debogage/session.md), [GDB](./debogage/gdb.md) |
+| `session/`, `gdb/` | protocole JSON, historique, serveur GDB | [Session](./debogage/session.md), [GDB](./debogage/gdb.md) |
 | `formats/`, `keymap/`, `json.rs` | formats `.nds`, `.nfd`, `.nfs`, `.nrp`, `.nmk` | [Formats](../reference/formats/index.md) |
 | `wasm.rs`, `server/`, `cli/`, `packages/`, `web/` | hôtes | [Hôtes](./hotes/index.md) |
 

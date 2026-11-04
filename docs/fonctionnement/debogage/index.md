@@ -15,7 +15,7 @@ aucun second chemin d'exécution à maintenir : un débogueur GDB voit exactemen
 
 ```mermaid
 flowchart LR
-  gdb[GDB / IDE] -->|RSP| srv[gdb.rs]
+  gdb[GDB / IDE] -->|RSP| srv[gdb/]
   srv -->|JSON| ses[Session]
   page[Page web] -->|JSON| ses
   cli[nwasabi-cli] -->|JSON| ses
@@ -58,7 +58,7 @@ symboles du fichier `.nwa` (qui donnent les noms de fonctions). `step` et `next`
 |---|---|
 | [`src/debuginfo/`](code:src/debuginfo/) | lecture DWARF, types, valeurs, expressions, pile |
 | [`src/session/`](code:src/session/) | la session, l'historique, les commandes de source |
-| [`src/gdb.rs`](code:src/gdb.rs) | le serveur GDB et le pont |
+| [`src/gdb/`](code:src/gdb/) | le serveur GDB et le pont |
 | [`src/symbols.rs`](code:src/symbols.rs) | noms lisibles (démanglage) |
 | [`web/src/gdbConsole.ts`](code:web/src/gdbConsole.ts) | la console à la GDB de la page |
 | [`web/src/components/debug/`](code:web/src/components/debug/) | les vues de l'onglet Débogage |
