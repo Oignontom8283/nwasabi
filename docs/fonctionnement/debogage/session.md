@@ -123,7 +123,13 @@ les fichiers au serveur à chaque chargement (`/__nwasabi/source`), qui ne sert 
 
 | Fichier | Rôle | À regarder |
 |---|---|---|
-| [`session/mod.rs`](code:src/session/mod.rs) | la session, `dispatch`, `run`, les commandes d'appareil | [`Session`](code:src/session/mod.rs#Session), [`handle`](code:src/session/mod.rs#handle), [`dispatch`](code:src/session/mod.rs#dispatch), [`run`](code:src/session/mod.rs#run) |
+| [`session/mod.rs`](code:src/session/mod.rs) | la session et son entrée | [`Session`](code:src/session/mod.rs#Session), [`handle`](code:src/session/mod.rs#handle) |
+| [`session/dispatch.rs`](code:src/session/dispatch.rs) | l'aiguillage : le texte de `cmd` désigne la fonction qui traite la commande | [`dispatch`](code:src/session/dispatch.rs#dispatch) |
+| [`session/appareil.rs`](code:src/session/appareil.rs) | création, chargement, lancement, état enregistré, données en flash | [`load`](code:src/session/appareil.rs#load), [`dump`](code:src/session/appareil.rs#dump), [`restore`](code:src/session/appareil.rs#restore) |
+| [`session/execution.rs`](code:src/session/execution.rs) | exécution, temps, touches, pas à pas, points d'arrêt | [`run`](code:src/session/execution.rs#run), [`step`](code:src/session/execution.rs#step), [`advance`](code:src/session/execution.rs#advance) |
+| [`session/observation.rs`](code:src/session/observation.rs) | processeur, mémoire, points d'observation, appels système, symboles, désassemblage | [`cpu`](code:src/session/observation.rs#cpu), [`memory_read`](code:src/session/observation.rs#memory_read), [`disasm`](code:src/session/observation.rs#disasm) |
+| [`session/fichiers.rs`](code:src/session/fichiers.rs), [`session/reglages.rs`](code:src/session/reglages.rs) | fichiers de la calculatrice ; réglages de l'appareil | [`fs`](code:src/session/fichiers.rs#fs), [`settings`](code:src/session/reglages.rs#settings) |
+| [`session/aide.rs`](code:src/session/aide.rs) | la liste des commandes de `help` | [`COMMANDS`](code:src/session/aide.rs#COMMANDS) |
 | [`session/source.rs`](code:src/session/source.rs) | débogage du code source | [`COMMANDS`](code:src/session/source.rs#COMMANDS), [`step_source`](code:src/session/source.rs#step_source), [`debug_of`](code:src/session/source.rs#debug_of), [`frames_of`](code:src/session/source.rs#frames_of), [`STEP_BUDGET`](code:src/session/source.rs#STEP_BUDGET) |
 | [`session/history.rs`](code:src/session/history.rs) | l'historique | voir [Historique](./historique.md) |
 | [`session/debug.rs`](code:src/session/debug.rs) | arrêts, symboles, pile estimée, profil | [`stop_json`](code:src/session/debug.rs#stop_json), [`backtrace`](code:src/session/debug.rs#backtrace) |
@@ -139,8 +145,8 @@ Chaque hôte aurait pu parler à `Emulator` directement. On a choisi un **protoc
 
 **Ajouter une commande de session** :
 
-1. Une branche dans [`dispatch`](code:src/session/mod.rs#dispatch) (ou dans [`COMMANDS`](code:src/session/source.rs#COMMANDS) si elle concerne le code source) qui lit ses champs avec les aides de [`json.rs`](code:src/json.rs) et rend un `Reply`.
-2. L'ajouter à la liste de la commande `help`.
+1. Une fonction dans le fichier de son domaine (voir le tableau ci-dessus) qui lit ses champs avec les aides de [`json.rs`](code:src/json.rs) et rend un `Reply`, et une ligne dans [`dispatch`](code:src/session/dispatch.rs#dispatch) (ou dans [`COMMANDS`](code:src/session/source.rs#COMMANDS) si elle concerne le code source).
+2. L'ajouter à la liste [`COMMANDS`](code:src/session/aide.rs#COMMANDS) de la commande `help`.
 3. **La classer** dans [`effect_of`](code:src/session/history.rs#effect_of) : lecture (`None`), entrée rejouable (`Input`), avancement (`Forward`) ou modification (le défaut, `Reset`).
 4. La documenter dans le [protocole](../../reference/protocole-session.md).
 5. La tester dans [`session.rs`](code:tests/session.rs) et, si la page s'en sert, dans [`tests/wasm/`](code:tests/wasm/) (parité native/WebAssembly).

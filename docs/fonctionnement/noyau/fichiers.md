@@ -62,7 +62,7 @@ Une structure abîmée **n'est pas une erreur** : `parse` rend ce qui a pu être
 | [`storage/mod.rs`](code:src/storage/mod.rs) | l'API : [`Storage`](code:src/storage/mod.rs#Storage), [`Fs`](code:src/storage/mod.rs#Fs), [`FsError`](code:src/storage/mod.rs#FsError), [`generation`](code:src/storage/mod.rs#generation) |
 | [`storage/records.rs`](code:src/storage/records.rs) | le format, sans accès mémoire : [`parse`](code:src/storage/records.rs#parse), [`write`](code:src/storage/records.rs#write), [`remove`](code:src/storage/records.rs#remove), [`rename`](code:src/storage/records.rs#rename), [`check_name`](code:src/storage/records.rs#check_name) |
 | [`formats/nfs.rs`](code:src/formats/nfs.rs) | le format `.nfs` (fichiers exportés) |
-| [`Session::fs`](code:src/session/mod.rs#fs) | les commandes `fs_*` |
+| [`Session::fs`](code:src/session/fichiers.rs#fs) | les commandes `fs_*` |
 | [`emulator_fs.rs`](code:tests/emulator_fs.rs) | les tests |
 
 ## Pourquoi ainsi
