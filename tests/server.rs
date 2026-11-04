@@ -331,3 +331,86 @@ fn sources_are_served_from_the_given_folder_only() {
     let without = start(&[]);
     assert_eq!(get(&without, "/__nwasabi/source?name=src/main.c").0, 404);
 }
+
+/// Envoie une requête brute et rend (en-têtes en minuscules, corps brut).
+fn request_with_headers(server: &Server, raw: &str) -> (String, Vec<u8>) {
+    let mut stream = TcpStream::connect(&server.address).unwrap();
+    stream.write_all(raw.as_bytes()).unwrap();
+    let mut reply = Vec::new();
+    stream.read_to_end(&mut reply).unwrap();
+    let split = reply
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .expect("fin des en-têtes");
+    let head = String::from_utf8_lossy(&reply[..split]).to_lowercase();
+    (head, reply[split + 4..].to_vec())
+}
+
+/// Recompose un corps envoyé par morceaux (`Transfer-Encoding: chunked`).
+fn dechunk(mut body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    loop {
+        let line_end = body
+            .windows(2)
+            .position(|w| w == b"\r\n")
+            .expect("taille de morceau");
+        let size =
+            usize::from_str_radix(std::str::from_utf8(&body[..line_end]).unwrap().trim(), 16)
+                .unwrap();
+        body = &body[line_end + 2..];
+        if size == 0 {
+            return out;
+        }
+        out.extend_from_slice(&body[..size]);
+        body = &body[size + 2..];
+    }
+}
+
+#[test]
+fn compresses_the_site_for_browsers_that_accept_gzip() {
+    use std::io::Read as _;
+    let server = start(&[]);
+    // Le premier script de la page : un gros fichier de JavaScript.
+    let (_, page) = get(&server, "/");
+    let page = String::from_utf8_lossy(&page).into_owned();
+    let script = page
+        .split("src=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap();
+    let path = script.trim_start_matches('.');
+    let (plain_code, plain) = get(&server, path);
+    assert_eq!(plain_code, 200);
+
+    let raw = format!(
+        "GET {path} HTTP/1.1\r\nHost: x\r\nAccept-Encoding: gzip\r\nConnection: close\r\n\r\n"
+    );
+    let (head, body) = request_with_headers(&server, &raw);
+    assert!(head.contains("content-encoding: gzip"), "{head}");
+    let packed = if head.contains("transfer-encoding: chunked") {
+        dechunk(&body)
+    } else {
+        body
+    };
+    assert!(
+        packed.len() < plain.len() / 2,
+        "{} octets compressés pour {}",
+        packed.len(),
+        plain.len()
+    );
+    let mut unpacked = Vec::new();
+    flate2::read::GzDecoder::new(&packed[..])
+        .read_to_end(&mut unpacked)
+        .unwrap();
+    assert_eq!(
+        unpacked, plain,
+        "le contenu décompressé est celui qu'on obtient sans compression"
+    );
+
+    // Sans `Accept-Encoding`, rien n'est compressé.
+    let raw = format!("GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    let (head, _) = request_with_headers(&server, &raw);
+    assert!(!head.contains("content-encoding"), "{head}");
+}
