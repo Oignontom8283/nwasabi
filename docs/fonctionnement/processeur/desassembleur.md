@@ -30,7 +30,7 @@ Il sert à la vue **Code** de la page, à la commande `disasm` de la [session](.
 |---|---|
 | [`disassemble`](code:src/cpu/disasm.rs#disassemble) | l'entrée : une plage d'adresses → des [`Line`](code:src/cpu/disasm.rs#Line) |
 | [`decode16`](code:src/cpu/decode.rs#decode16), [`decode32`](code:src/cpu/decode.rs#decode32) | le décodage réutilisé |
-| [commande `disasm`](<code:src/session/mod.rs#~"disasm" =>) | la commande JSON |
+| [commande `disasm`](code:src/session/observation.rs#disasm) | la commande JSON |
 
 ## Pourquoi réutiliser le décodeur
 
