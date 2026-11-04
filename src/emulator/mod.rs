@@ -7,184 +7,30 @@
 //! passer le temps ([`Kernel::advance_time`]).
 
 use std::collections::HashMap;
-use std::fmt;
 use std::sync::Arc;
 
-use crate::cpu::{BusFault, Cpu, Stop, UsageFault};
+use crate::cpu::{Cpu, Stop};
 use crate::debuginfo::DebugInfo;
-use crate::device::{DeviceError, DeviceImage, EXIT_STUB_OFFSET};
+use crate::device::{DeviceImage, EXIT_STUB_OFFSET};
 use crate::elf::SymbolKind;
 use crate::formats::nfd::{self, Segment};
 use crate::kernel::{DeviceStatus, Kernel, KernelConfig, KernelStop};
-use crate::link::{LinkError, LinkOptions, LinkedApp, Origin, link};
-use crate::memory::{WatchHit, access};
+use crate::link::{LinkOptions, LinkedApp, Origin, link};
+use crate::memory::access;
 use crate::profile::{FirmwareProfile, Model};
 use crate::settings::Settings;
 use crate::storage::{Fs, Storage};
 
-/// Une faute qui arrête l'application.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Fault {
-    Bus(BusFault),
-    /// Instruction que l'émulateur ne sait pas (encore) exécuter.
-    Unimplemented {
-        pc: u32,
-        halfword: u16,
-    },
-    UsageFault {
-        pc: u32,
-        kind: UsageFault,
-    },
-    /// Instruction `bkpt`.
-    Breakpoint {
-        imm8: u8,
-    },
-    /// `wfi` / `wfe` : rien ne pourrait réveiller le processeur.
-    WaitForInterrupt,
-    /// Appel système inconnu du noyau simulé.
-    UnknownSvc(u8),
-}
+mod arrets;
+mod erreur;
+mod usage;
 
-/// Comparaison d'une condition de point d'arrêt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Compare {
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    /// Au moins un bit en commun (`registre & valeur != 0`).
-    And,
-}
-
-impl Compare {
-    pub fn parse(text: &str) -> Option<Self> {
-        Some(match text {
-            "==" => Self::Eq,
-            "!=" => Self::Ne,
-            "<" => Self::Lt,
-            "<=" => Self::Le,
-            ">" => Self::Gt,
-            ">=" => Self::Ge,
-            "&" => Self::And,
-            _ => return None,
-        })
-    }
-
-    pub fn symbol(self) -> &'static str {
-        match self {
-            Self::Eq => "==",
-            Self::Ne => "!=",
-            Self::Lt => "<",
-            Self::Le => "<=",
-            Self::Gt => ">",
-            Self::Ge => ">=",
-            Self::And => "&",
-        }
-    }
-
-    fn test(self, left: u32, right: u32) -> bool {
-        match self {
-            Self::Eq => left == right,
-            Self::Ne => left != right,
-            Self::Lt => left < right,
-            Self::Le => left <= right,
-            Self::Gt => left > right,
-            Self::Ge => left >= right,
-            Self::And => left & right != 0,
-        }
-    }
-}
-
-/// Le point d'arrêt ne s'applique que si un registre vérifie cette comparaison (valeurs non signées).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Condition {
-    /// Numéro de registre : 0 à 12, 13 (sp), 14 (lr), 15 (pc).
-    pub register: u8,
-    pub compare: Compare,
-    pub value: u32,
-}
-
-/// Un point d'arrêt, éventuellement conditionnel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Breakpoint {
-    pub address: u32,
-    pub condition: Option<Condition>,
-}
+pub use arrets::{Breakpoint, Compare, Condition, Fault, RunStop};
+pub use erreur::EmulatorError;
+pub use usage::{Span, Usage};
 
 /// Nombre d'instructions entre deux relevés du profil d'exécution (environ).
 const PROFILE_SLICE: u64 = 509;
-
-/// Pourquoi [`Emulator::run`] a rendu la main.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunStop {
-    /// L'image est prête : l'écran peut être affiché.
-    Frame,
-    /// L'application dort (le temps virtuel a déjà avancé).
-    Sleep {
-        ms: u32,
-    },
-    /// L'application attend un événement du clavier ; l'hôte doit faire passer du temps ou
-    /// appuyer sur une touche avant de relancer.
-    WaitEvent {
-        remaining_ms: Option<u32>,
-    },
-    /// `main` est revenue avec ce code.
-    Exited(i32),
-    /// L'application a demandé un redémarrage.
-    Reset,
-    /// L'utilisateur a quitté l'application avec `Home`.
-    HomePressed,
-    /// Le budget d'instructions est épuisé.
-    Budget,
-    /// Un point d'observation « avec arrêt » a été touché (voir `Memory::watch`).
-    Watchpoint(WatchHit),
-    /// L'exécution est arrivée à une instruction où l'hôte a posé un point d'arrêt (pas encore exécutée).
-    Breakpoint {
-        pc: u32,
-    },
-    Fault(Fault),
-}
-
-/// Ce qui peut échouer en préparant l'application.
-#[derive(Debug)]
-pub enum EmulatorError {
-    Link(LinkError),
-    Device(DeviceError),
-    /// Aucune application n'est installée.
-    NoApp,
-    /// Le mode examen cache les applications externes.
-    ExamMode,
-    /// Des octets à placer en flash ne peuvent pas l'être (voir [`Emulator::install_flash`]).
-    Flash(String),
-}
-
-impl fmt::Display for EmulatorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Link(e) => write!(f, "édition de liens : {e}"),
-            Self::Device(e) => write!(f, "{e}"),
-            Self::NoApp => write!(f, "aucune application installée"),
-            Self::ExamMode => write!(f, "mode examen : les applications externes sont cachées"),
-            Self::Flash(message) => write!(f, "flash : {message}"),
-        }
-    }
-}
-
-impl std::error::Error for EmulatorError {}
-
-impl From<LinkError> for EmulatorError {
-    fn from(e: LinkError) -> Self {
-        Self::Link(e)
-    }
-}
-
-impl From<DeviceError> for EmulatorError {
-    fn from(e: DeviceError) -> Self {
-        Self::Device(e)
-    }
-}
 
 /// Un segment en quelques mots, pour un message d'erreur.
 fn describe(segment: &Segment) -> String {
@@ -611,27 +457,6 @@ impl Emulator {
             Stop::WaitForInterrupt => RunStop::Fault(Fault::WaitForInterrupt),
         }
     }
-}
-
-/// Une plage d'adresses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    pub start: u32,
-    pub end: u32,
-}
-
-/// Utilisation de la mémoire par l'application depuis son lancement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Usage {
-    /// Plage réservée au tas, limite actuelle du programme (`brk`) et plus haute adresse écrite.
-    pub heap: Span,
-    pub heap_break: u32,
-    pub heap_high_water: Option<u32>,
-    /// Plage réservée à la pile (la pile descend depuis `end`) et adresse la plus basse écrite.
-    pub stack: Span,
-    pub stack_low_water: Option<u32>,
-    /// Pile actuelle.
-    pub sp: u32,
 }
 
 impl Emulator {

@@ -82,7 +82,7 @@ pointeur passé à un appel système (par exemple un tampon hors mémoire) est r
 | [`bx_write_pc`](code:src/cpu/exec.rs#bx_write_pc) | où un retour d'exception est reconnu |
 | [`SvcAction`](code:src/cpu/hooks.rs#SvcAction) | `Raise` : le seul chemin qui lève `SVCall` |
 | [`scb::record`](code:src/scb.rs#record) | remplir les registres de faute |
-| [`Emulator::run`](code:src/emulator.rs#run) | où une faute est convertie et enregistrée |
+| [`Emulator::run`](code:src/emulator/mod.rs#run) | où une faute est convertie et enregistrée |
 
 ## Pourquoi arrêter plutôt qu'exécuter un gestionnaire
 
@@ -90,5 +90,5 @@ Une application NumWorks n'a **pas de gestionnaire d'exception** : sur la vraie 
 
 ## Pour modifier
 
-- **Signaler une nouvelle cause de faute** : ajouter une variante à [`Stop`](code:src/cpu/mod.rs#Stop), la convertir dans [`run_inner`](code:src/emulator.rs#run_inner), la classer dans [`scb::record`](code:src/scb.rs#record) (bit de `CFSR`, `DFSR`…), et l'ajouter au tableau de cette page.
+- **Signaler une nouvelle cause de faute** : ajouter une variante à [`Stop`](code:src/cpu/mod.rs#Stop), la convertir dans [`run_inner`](code:src/emulator/mod.rs#run_inner), la classer dans [`scb::record`](code:src/scb.rs#record) (bit de `CFSR`, `DFSR`…), et l'ajouter au tableau de cette page.
 - **Faire fonctionner des gestionnaires** : il faudrait un vrai NVIC (priorités, masquage, `PendSV`, `SysTick`) — hors périmètre, voir [Compatibilité](../../reference/compatibilite.md).

@@ -136,7 +136,7 @@ Toute commande inconnue de `effect_of` est `Reset` par défaut — une règle de
 | [`history_fork`](code:src/session/history.rs#history_fork), [`history_reset`](code:src/session/history.rs#history_reset), [`history_record`](code:src/session/history.rs#history_record) | maintenir le journal |
 | [`effect_of`](code:src/session/history.rs#effect_of) | **la table qui classe chaque commande** |
 | [`snapshot_volatile`](code:src/memory/mod.rs#snapshot_volatile), [`restore_volatile`](code:src/memory/mod.rs#restore_volatile) | les photos de mémoire |
-| [`suspend_debugging`](code:src/emulator.rs#suspend_debugging) | ignorer les points pendant un rejeu |
+| [`suspend_debugging`](code:src/emulator/mod.rs#suspend_debugging) | ignorer les points pendant un rejeu |
 
 ## Pourquoi des photos plutôt que d'enregistrer chaque instruction
 
