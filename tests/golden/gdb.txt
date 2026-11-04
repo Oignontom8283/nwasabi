@@ -1,0 +1,84 @@
+> qSupported:multiprocess+;swbreak+;hwbreak+;vContSupported+
+< PacketSize=4000;qXfer:features:read+;swbreak+;hwbreak+;vContSupported+;QStartNoAckMode+;ReverseStep+;ReverseContinue+
+> qXfer:features:read:target.xml:0,1000
+< l<?xml version="1.0"?>
+<!DOCTYPE target SYSTEM "gdb-target.dtd">
+<target version="1.0">
+  <architecture>arm</architecture>
+  <feature name="org.gnu.gdb.arm.m-profile">
+    <reg name="r0" bitsize="32" regnum="0"/>
+    <reg name="r1" bitsize="32" regnum="1"/>
+    <reg name="r2" bitsize="32" regnum="2"/>
+    <reg name="r3" bitsize="32" regnum="3"/>
+    <reg name="r4" bitsize="32" regnum="4"/>
+    <reg name="r5" bitsize="32" regnum="5"/>
+    <reg name="r6" bitsize="32" regnum="6"/>
+    <reg name="r7" bitsize="32" regnum="7"/>
+    <reg name="r8" bitsize="32" regnum="8"/>
+    <reg name="r9" bitsize="32" regnum="9"/>
+    <reg name="r10" bitsize="32" regnum="10"/>
+    <reg name="r11" bitsize="32" regnum="11"/>
+    <reg name="r12" bitsize="32" regnum="12"/>
+    <reg name="sp" bitsize="32" type="data_ptr" regnum="13"/>
+    <reg name="lr" bitsize="32" regnum="14"/>
+    <reg name="pc" bitsize="32" type="code_ptr" regnum="15"/>
+    <reg name="xpsr" bitsize="32" regnum="16"/>
+  </feature>
+</target>
+
+> ?
+< T05
+> qAttached
+< 1
+> qC
+< QC1
+> qfThreadInfo
+< m1
+> qsThreadInfo
+< l
+> Hg0
+< OK
+> Hc-1
+< OK
+> g
+< 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f8ef032049004190f004579000000001
+> p0
+< 00000000
+> pf
+< f0045790
+> m20000000,10
+< badbeeef0800409000004190badbeeef
+> M20000000,4:deadbeef
+< OK
+> m20000000,4
+< deadbeef
+> Z0,905703b0,2
+< OK
+> Z2,20000010,4
+< OK
+> vCont?
+< vCont;c;s;t
+> c
+< T05swbreak:;0d:c8ef0320;0e:69045790;0f:b0035790;
+> g
+< 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c8ef032069045790b003579000000021
+> pf
+< b0035790
+> s
+< T050d:c0ef0320;0e:69045790;0f:b2035790;
+> g
+< 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c0ef032069045790b203579000000021
+> bs
+< T050d:c8ef0320;0e:69045790;0f:b0035790;
+> g
+< 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c8ef032069045790b003579000000021
+> z0,905703b0,2
+< OK
+> z2,20000010,4
+< OK
+> vCont;s
+< T050d:c0ef0320;0e:69045790;0f:b2035790;
+> inconnu
+< 
+> D
+< OK
