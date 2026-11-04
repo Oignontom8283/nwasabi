@@ -117,14 +117,15 @@ d'appel système).
 
 | Où | Quoi |
 |---|---|
-| [`Emulator`](code:src/emulator.rs#Emulator) | la structure : appareil, processeur, noyau, fichiers, points d'arrêt |
-| [`with_profile`](code:src/emulator.rs#with_profile), [`install_nwa`](code:src/emulator.rs#install_nwa), [`install_flash`](code:src/emulator.rs#install_flash), [`launch`](code:src/emulator.rs#launch) | la mise en route |
-| [`run`](code:src/emulator.rs#run), [`step`](code:src/emulator.rs#step), [`run_inner`](code:src/emulator.rs#run_inner) | l'exécution |
-| [`RunStop`](code:src/emulator.rs#RunStop), [`Fault`](code:src/emulator.rs#Fault) | ce qu'on rend à l'hôte |
-| [`Breakpoint`](code:src/emulator.rs#Breakpoint), [`Condition`](code:src/emulator.rs#Condition), [`Compare`](code:src/emulator.rs#Compare) | les points d'arrêt |
-| [`PROFILE_SLICE`](code:src/emulator.rs#PROFILE_SLICE), [`start_profile`](code:src/emulator.rs#start_profile) | le profil |
-| [`usage`](code:src/emulator.rs#usage) | mesure du tas et de la pile |
-| [`debug_info`](code:src/emulator.rs#debug_info) | le DWARF, lu à la demande et gardé |
+| [`src/emulator/`](code:src/emulator/) | `mod.rs` (l'appareil et son exécution), `arrets.rs` (fautes, conditions, raisons d'arrêt), `erreur.rs` (les erreurs), `usage.rs` (tas et pile) |
+| [`Emulator`](code:src/emulator/mod.rs#Emulator) | la structure : appareil, processeur, noyau, fichiers, points d'arrêt |
+| [`with_profile`](code:src/emulator/mod.rs#with_profile), [`install_nwa`](code:src/emulator/mod.rs#install_nwa), [`install_flash`](code:src/emulator/mod.rs#install_flash), [`launch`](code:src/emulator/mod.rs#launch) | la mise en route |
+| [`run`](code:src/emulator/mod.rs#run), [`step`](code:src/emulator/mod.rs#step), [`run_inner`](code:src/emulator/mod.rs#run_inner) | l'exécution |
+| [`RunStop`](code:src/emulator/arrets.rs#RunStop), [`Fault`](code:src/emulator/arrets.rs#Fault) | ce qu'on rend à l'hôte |
+| [`Breakpoint`](code:src/emulator/arrets.rs#Breakpoint), [`Condition`](code:src/emulator/arrets.rs#Condition), [`Compare`](code:src/emulator/arrets.rs#Compare) | les points d'arrêt |
+| [`PROFILE_SLICE`](code:src/emulator/mod.rs#PROFILE_SLICE), [`start_profile`](code:src/emulator/mod.rs#start_profile) | le profil |
+| [`usage`](code:src/emulator/mod.rs#usage) | mesure du tas et de la pile |
+| [`debug_info`](code:src/emulator/mod.rs#debug_info) | le DWARF, lu à la demande et gardé |
 
 ## Pourquoi coopératif
 
@@ -134,7 +135,7 @@ d'appel système).
 
 ## Pour modifier
 
-- **Un nouvel arrêt** (par exemple une nouvelle cause de rendre la main) : une variante de [`RunStop`](code:src/emulator.rs#RunStop) **et** sa conversion en JSON ([`views::stop`](code:src/session/views.rs#stop) et [`debug::stop_json`](code:src/session/debug.rs#stop_json)), sinon l'hôte la verra comme un arrêt inconnu.
-- **Un nouveau type de condition de point d'arrêt** : [`Compare`](code:src/emulator.rs#Compare) et [`Compare::parse`](code:src/emulator.rs#parse), puis la commande `break` de la [session](../debogage/session.md).
+- **Un nouvel arrêt** (par exemple une nouvelle cause de rendre la main) : une variante de [`RunStop`](code:src/emulator/arrets.rs#RunStop) **et** sa conversion en JSON ([`views::stop`](code:src/session/views.rs#stop) et [`debug::stop_json`](code:src/session/debug.rs#stop_json)), sinon l'hôte la verra comme un arrêt inconnu.
+- **Un nouveau type de condition de point d'arrêt** : [`Compare`](code:src/emulator/arrets.rs#Compare) et [`Compare::parse`](code:src/emulator/arrets.rs#parse), puis la commande `break` de la [session](../debogage/session.md).
 - **Si l'on touche à `run_inner`** : relire le diagramme ci-dessus ; les cas les plus fragiles sont « on repart d'un point d'arrêt » (`resume_from`) et « un point d'observation touche à la dernière instruction d'une tranche ».
 - **Tests** : [`emulator_apps.rs`](code:tests/emulator_apps.rs), [`debugger.rs`](code:tests/debugger.rs), [`emulator_nested.rs`](code:tests/emulator_nested.rs).

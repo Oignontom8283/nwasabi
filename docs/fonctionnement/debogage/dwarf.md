@@ -81,7 +81,7 @@ C++ (aucune bibliothèque standard n'est liée). Du code compilé en `-O2` produ
 | [`debuginfo/types.rs`](code:src/debuginfo/types.rs) | types ajoutés après lecture | [`complete`](code:src/debuginfo/types.rs#complete), [`type_named`](code:src/debuginfo/types.rs#type_named) |
 | [`debuginfo/eval.rs`](code:src/debuginfo/eval.rs) | emplacements et valeurs | [`locate`](code:src/debuginfo/eval.rs#locate), [`Place`](code:src/debuginfo/eval.rs#Place), [`read_value`](code:src/debuginfo/eval.rs#read_value), [`Value`](code:src/debuginfo/eval.rs#Value), [`Context`](code:src/debuginfo/eval.rs#Context) |
 | [`debuginfo/unwind.rs`](code:src/debuginfo/unwind.rs) | pile par CFI | [`unwind`](code:src/debuginfo/unwind.rs#unwind) |
-| [`emulator.rs`](code:src/emulator.rs#debug_info) | la lecture à la demande | [`debug_info`](code:src/emulator.rs#debug_info) |
+| [`emulator/`](code:src/emulator/mod.rs#debug_info) | la lecture à la demande | [`debug_info`](code:src/emulator/mod.rs#debug_info) |
 
 ## Pourquoi des « structures simples » plutôt que de garder `gimli`
 
