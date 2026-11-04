@@ -1,0 +1,48 @@
+MemoryError[0] zone sram invalide (début 0x20000001, taille 0x100) : début et taille doivent être des multiples de 4 Kio, taille non nulle
+MemoryError[1] la zone a chevauche la zone b
+MemoryError[2] adresse 0x00001234 hors de toute zone
+ProfileError[0] serial invalide : "é\n"
+ProfileError[1] kernel_header hors de la zone attendue
+ProfileError[2] a chevauche b
+ElfError[0] fichier ELF tronqué : en-tête
+ElfError[1] ce n'est pas un fichier ELF
+ElfError[2] classe ELF 2 non gérée (seul le 32 bits l'est)
+ElfError[3] ordre des octets 2 non géré (seul le little-endian l'est)
+ElfError[4] type ELF 2 non géré (un .nwa est un objet relogeable, type 1)
+ElfError[5] machine ELF 3 non gérée (ARM attendu, valeur 40)
+ElfError[6] le fichier ELF ne contient aucune section
+ElfError[7] la section 7 sort des limites du fichier
+ElfError[8] chaîne invalide : nom de section
+ElfError[9] le symbole 4 utilise l'indice de section réservé 0xfff1
+ElfError[10] trop de sections : 70000 (limite 65535)
+ElfError[11] la section 3 utilise des relocations RELA, non gérées
+ElfError[12] section 5 mal formée : symboles
+LinkError[0] fichier .nwa illisible : ce n'est pas un fichier ELF
+LinkError[1] section obligatoire absente : .text
+LinkError[2] eadk_api_level doit faire 4 octets, il en fait 3
+LinkError[3] symbole non défini : f (utilisé par .text.main)
+LinkError[4] l'application utilise eadk_external_data : il faut fournir des données externes
+LinkError[5] le symbole s désigne la section supprimée .x
+LinkError[6] l'application occupe 70000 octets de flash, 65536 disponibles
+LinkError[7] l'application occupe 300000 octets de RAM, 262144 disponibles
+LinkError[8] non géré : TLS
+FsError[0] fichier introuvable : a.py
+FsError[1] le fichier existe déjà : a.py
+FsError[2] nom invalide (attendu nom.extension) : "sans extension"
+FsError[3] système de fichiers abîmé à l'octet 12
+FsError[4] plus de place : 100 octets demandés, 10 libres
+FsError[5] fichier trop grand pour un enregistrement
+FsError[6] adresse 0x00000004 hors de toute zone
+DeviceError[0] profil de firmware incohérent
+DeviceError[1] profil de firmware incohérent ; serial invalide : "é\n" ; kernel_header hors de la zone attendue ; a chevauche b
+DeviceError[2] adresse 0x00000008 hors de toute zone
+DeviceError[3] l'application est liée pour 0x90060000 mais le prochain emplacement libre est 0x90050000
+DeviceError[4] il faut 100 octets et il n'en reste que 10 pour les applications
+EmulatorError[0] édition de liens : l'application utilise eadk_external_data : il faut fournir des données externes
+EmulatorError[1] il faut 1 octets et il n'en reste que 0 pour les applications
+EmulatorError[2] aucune application installée
+EmulatorError[3] mode examen : les applications externes sont cachées
+EmulatorError[4] flash : trop grand
+NmkError[0] fichier vide
+NmkError[1] touch.rules[1].gesture : geste inconnu
+EvalError[0] variable inconnue : x
