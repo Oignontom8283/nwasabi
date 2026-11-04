@@ -16,6 +16,7 @@ export const GESTURES = [
   "swipe_right",
   "swipe_up",
   "swipe_down",
+  "u_turn",
 ] as const;
 export type GestureName = (typeof GESTURES)[number];
 
@@ -448,6 +449,14 @@ export const DEFAULT_NMK = {
       {
         "gesture": "swipe_down",
         "key": "down"
+      },
+      {
+        "gesture": "tap",
+        "key": "ok"
+      },
+      {
+        "gesture": "u_turn",
+        "key": "back"
       }
     ]
   }

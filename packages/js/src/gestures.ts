@@ -31,6 +31,53 @@ interface Finger {
   y0: number;
   x: number;
   y: number;
+  /** Le trajet du doigt, un point tous les `STEP` pixels au moins (pour reconnaître un demi-tour). */
+  path: Array<[number, number]>;
+}
+
+/** Distance minimale entre deux points du trajet : en dessous, le tremblement du doigt fausserait la direction. */
+const STEP = 10;
+/** Un demi-tour tourne d'au moins ce nombre de degrés (180 pour un demi-cercle parfait, un peu moins à la main) … */
+const UTURN_MIN_DEGREES = 150;
+/** … et d'au plus celui-ci : au-delà, c'est un cercle, pas un demi-tour. */
+const UTURN_MAX_DEGREES = 280;
+/** Le trajet doit être au moins aussi long que cette fois la distance d'un balayage. */
+const UTURN_MIN_LENGTH = 1.5;
+/** Un trajet en zigzag (qui tourne tantôt d'un côté, tantôt de l'autre) n'est pas un demi-tour. */
+const UTURN_STRAIGHTNESS = 1.6;
+
+/** Le plus petit angle entre deux directions, signé, en radians (de −π à π). */
+const turnBetween = (a: number, b: number): number => {
+  let d = b - a;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d <= -Math.PI) d += 2 * Math.PI;
+  return d;
+};
+
+/**
+ * Le trajet est-il un demi-tour : une courbe qui tourne de la moitié d'un cercle (de 150° à 280°), toujours du même côté ?
+ * Un quart de cercle (90°), une ligne droite ou un zigzag n'en sont pas.
+ */
+export function isUTurn(path: ReadonlyArray<readonly [number, number]>, swipeDistance: number): boolean {
+  if (path.length < 3) return false;
+  let length = 0;
+  const headings: number[] = [];
+  for (let i = 1; i < path.length; i++) {
+    const [x0, y0] = path[i - 1]!;
+    const [x1, y1] = path[i]!;
+    length += Math.hypot(x1 - x0, y1 - y0);
+    headings.push(Math.atan2(y1 - y0, x1 - x0));
+  }
+  if (length < swipeDistance * UTURN_MIN_LENGTH) return false;
+  let signed = 0;
+  let total = 0;
+  for (let i = 1; i < headings.length; i++) {
+    const turn = turnBetween(headings[i - 1]!, headings[i]!);
+    signed += turn;
+    total += Math.abs(turn);
+  }
+  const degrees = (Math.abs(signed) * 180) / Math.PI;
+  return degrees >= UTURN_MIN_DEGREES && degrees <= UTURN_MAX_DEGREES && total <= Math.abs(signed) * UTURN_STRAIGHTNESS;
 }
 
 export class GestureRecognizer {
@@ -68,7 +115,7 @@ export class GestureRecognizer {
 
   down(id: number, x: number, y: number): void {
     if (this.fingers.size === 0) this.begin();
-    this.fingers.set(id, { x0: x, y0: y, x, y });
+    this.fingers.set(id, { x0: x, y0: y, x, y, path: [[x, y]] });
     this.maxFingers = Math.max(this.maxFingers, this.fingers.size);
   }
 
@@ -77,6 +124,13 @@ export class GestureRecognizer {
     if (!finger) return;
     finger.x = x;
     finger.y = y;
+    this.extend(finger, x, y);
+  }
+
+  /** Ajoute un point au trajet si le doigt a assez avancé depuis le dernier. */
+  private extend(finger: Finger, x: number, y: number): void {
+    const [lastX, lastY] = finger.path[finger.path.length - 1]!;
+    if (Math.hypot(x - lastX, y - lastY) >= STEP) finger.path.push([x, y]);
   }
 
   up(id: number, x?: number, y?: number): void {
@@ -85,6 +139,7 @@ export class GestureRecognizer {
     if (x !== undefined && y !== undefined) {
       finger.x = x;
       finger.y = y;
+      this.extend(finger, x, y);
     }
     // Le geste se juge quand le dernier doigt se lève, avec les positions de tous les doigts.
     if (this.fingers.size > 1) {
@@ -139,6 +194,12 @@ export class GestureRecognizer {
     return Math.hypot(dx, dy) >= this.settings.swipeDistance;
   }
 
+  /** Le trajet du doigt qui a le plus bougé est-il un demi-tour ? */
+  private uTurn(): boolean {
+    const all = [...this.lifted.values(), ...this.fingers.values()];
+    return all.some((f) => isUTurn(f.path, this.settings.swipeDistance));
+  }
+
   private onLongPress(): void {
     this.longHandle = null;
     // Un doigt qui a déjà bougé comme pour un balayage n'est plus un appui.
@@ -155,6 +216,10 @@ export class GestureRecognizer {
     if (this.long) {
       if (this.long.held) this.handler("long_press", this.long.fingers, "end");
       this.long = null;
+      return;
+    }
+    if (this.rule("u_turn", fingers) && this.uTurn()) {
+      this.handler("u_turn", fingers, "instant");
       return;
     }
     const { dx, dy } = this.displacement();

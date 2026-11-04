@@ -13,8 +13,25 @@ fn the_default_map_is_valid_and_has_the_arrow_swipes() {
     let map = KeyMap::default_map();
     assert_eq!(names(map.resolve("", "ArrowUp").unwrap()), ["up"]);
     assert_eq!(names(map.resolve("", " ").unwrap()), ["ok"]);
-    assert_eq!(map.rules().len(), 4);
+    assert_eq!(map.rules().len(), 6);
     assert!(map.rules().iter().all(|r| r.fingers == 1));
+}
+
+#[test]
+fn a_tap_presses_ok_and_a_half_turn_presses_back_by_default() {
+    let map = KeyMap::default_map();
+    let keys_of = |gesture| {
+        let rule = map.rules().iter().find(|r| r.gesture == gesture).unwrap();
+        names(&rule.keys)
+    };
+    assert_eq!(keys_of(Gesture::Tap), ["ok"]);
+    assert_eq!(keys_of(Gesture::UTurn), ["back"]);
+}
+
+#[test]
+fn the_half_turn_gesture_is_read_and_printed_as_u_turn() {
+    assert_eq!(Gesture::from_name("u_turn"), Some(Gesture::UTurn));
+    assert_eq!(Gesture::UTurn.name(), "u_turn");
 }
 
 #[test]
@@ -43,7 +60,7 @@ fn null_removes_a_default_binding_and_a_default_rule() {
     .unwrap();
     assert_eq!(map.resolve("", "e"), None);
     assert!(map.rules().iter().all(|r| r.gesture != Gesture::SwipeUp));
-    assert_eq!(map.rules().len(), 3);
+    assert_eq!(map.rules().len(), 5);
 }
 
 #[test]

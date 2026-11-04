@@ -67,9 +67,11 @@ pub enum Gesture {
     SwipeRight,
     SwipeUp,
     SwipeDown,
+    /// Un demi-tour : une courbe du doigt qui tourne de la moitié d'un cercle.
+    UTurn,
 }
 
-const GESTURE_NAMES: [(&str, Gesture); 7] = [
+const GESTURE_NAMES: [(&str, Gesture); 8] = [
     ("tap", Gesture::Tap),
     ("double_tap", Gesture::DoubleTap),
     ("long_press", Gesture::LongPress),
@@ -77,6 +79,7 @@ const GESTURE_NAMES: [(&str, Gesture); 7] = [
     ("swipe_right", Gesture::SwipeRight),
     ("swipe_up", Gesture::SwipeUp),
     ("swipe_down", Gesture::SwipeDown),
+    ("u_turn", Gesture::UTurn),
 ];
 
 impl Gesture {

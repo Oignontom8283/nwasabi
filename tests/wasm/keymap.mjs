@@ -176,11 +176,79 @@ check("les quatre balayages par défaut", () => {
   }
 });
 
-check("un déplacement trop court n'est pas un balayage", () => {
+check("un déplacement trop court n'est pas un balayage mais un appui, qui appuie sur OK (défaut)", () => {
   const { log, touch } = rig();
   touch(1, "down", 100, 100);
   touch(1, "up", 110, 100);
-  assert.deepEqual(log, []); // pas de règle « tap » par défaut
+  assert.deepEqual(log, ["+ok"]);
+});
+
+check("un clic de souris n'appuie sur rien, mais un balayage à la souris oui", () => {
+  const { input, log } = rig();
+  const mouse = (kind, x, y) => input[{ down: "pointerDown", up: "pointerUp" }[kind]]({ pointerId: 7, pointerType: "mouse", clientX: x, clientY: y });
+  mouse("down", 100, 100);
+  mouse("up", 100, 100);
+  assert.deepEqual(log, []);
+  mouse("down", 100, 100);
+  mouse("up", 180, 100);
+  assert.deepEqual(log, ["+right"]);
+});
+
+check("un doigt qui touche l'écran appuie sur OK", () => {
+  const { input, log } = rig();
+  input.pointerDown({ pointerId: 1, pointerType: "touch", clientX: 100, clientY: 100 });
+  input.pointerUp({ pointerId: 1, pointerType: "touch", clientX: 100, clientY: 100 });
+  assert.deepEqual(log, ["+ok"]);
+});
+
+// Un demi-cercle (ou un demi-tour) : le doigt part, tourne et revient en sens inverse.
+const arc = (cx, cy, r, from, to, steps = 18) =>
+  Array.from({ length: steps + 1 }, (_, i) => {
+    const a = ((from + ((to - from) * i) / steps) * Math.PI) / 180;
+    return [Math.round(cx + r * Math.cos(a)), Math.round(cy + r * Math.sin(a))];
+  });
+const drag = (touch, points) => {
+  touch(1, "down", ...points[0]);
+  for (const point of points.slice(1, -1)) touch(1, "move", ...point);
+  touch(1, "up", ...points[points.length - 1]);
+};
+
+check("un demi-cercle appuie sur retour (défaut), dans les deux sens et dans toutes les orientations", () => {
+  for (const [from, to] of [[-90, 90], [90, -90], [180, 0], [0, -180], [-60, 130], [20, 215]]) {
+    const { log, touch } = rig();
+    drag(touch, arc(200, 200, 40, from, to));
+    assert.deepEqual(log, ["+back"], `de ${from}° à ${to}°`);
+  }
+});
+
+check("un quart de cercle n'est pas un demi-tour : c'est un balayage", () => {
+  const { log, touch } = rig();
+  drag(touch, arc(200, 200, 60, -90, 0));
+  assert.deepEqual(log, ["+right"]);
+});
+
+check("un balayage droit n'est pas un demi-tour", () => {
+  const { log, touch } = rig();
+  drag(touch, [[100, 100], [130, 100], [160, 100], [190, 100], [220, 100]]);
+  assert.deepEqual(log, ["+right"]);
+});
+
+check("un zigzag n'est pas un demi-tour : seul son déplacement d'ensemble compte (un balayage)", () => {
+  const { log, touch } = rig();
+  drag(touch, [[100, 100], [140, 120], [100, 140], [140, 160], [100, 180], [140, 200]]);
+  assert.deepEqual(log, ["+down"]);
+});
+
+check("un cercle entier n'est pas un demi-tour", () => {
+  const { log, touch } = rig();
+  drag(touch, arc(200, 200, 40, 0, 360, 36));
+  assert.deepEqual(log, ["+ok"]);
+});
+
+check("un petit tremblement du doigt reste un appui", () => {
+  const { log, touch } = rig();
+  drag(touch, [[100, 100], [103, 99], [101, 104], [99, 101], [102, 100]]);
+  assert.deepEqual(log, ["+ok"]);
 });
 
 const game = KeyMap.parse(readFileSync(join(fixtures, "wasd.nmk"), "utf8"));
@@ -197,13 +265,14 @@ check("un appui long tient la touche tant que le doigt reste posé", () => {
   assert.deepEqual(log, ["+ok", "-ok"]);
 });
 
-check("un appui court n'est pas un appui long", () => {
+check("un appui court n'est pas un appui long : c'est un appui, bref", () => {
   const { log, advance, touch } = rig(game);
   touch(1, "down", 50, 50);
   advance(100);
   touch(1, "up", 50, 50);
+  assert.deepEqual(log, ["+ok"]);
   advance(1000);
-  assert.deepEqual(log, []);
+  assert.deepEqual(log, ["+ok", "-ok"]);
 });
 
 check("un appui à deux doigts appuie sur la touche de la règle", () => {
@@ -285,12 +354,12 @@ check("annuler un geste en cours relâche l'appui long", () => {
 // --- modification et export ----------------------------------------------------------------------
 check("withBinding, withRule et withName rendent de nouveaux mappings sans toucher l'ancien", () => {
   const base = KeyMap.default();
-  const edited = base.withBinding("KeyW", ["up"]).withRule({ gesture: "tap", keys: ["ok"] }).withName("édité");
+  const edited = base.withBinding("KeyW", ["up"]).withRule({ gesture: "double_tap", keys: ["ok"] }).withName("édité");
   assert.deepEqual(edited.resolve("KeyW", "w"), ["up"]);
   assert.equal(base.resolve("KeyW", "w"), undefined);
   assert.equal(edited.name, "édité");
-  assert.ok(edited.rules.some((r) => r.gesture === "tap"));
-  assert.ok(!base.rules.some((r) => r.gesture === "tap"));
+  assert.ok(edited.rules.some((r) => r.gesture === "double_tap"));
+  assert.ok(!base.rules.some((r) => r.gesture === "double_tap"));
 });
 
 check("retirer une liaison ou une règle", () => {

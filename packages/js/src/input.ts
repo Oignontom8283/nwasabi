@@ -25,6 +25,8 @@ export interface HostPointerEvent {
   pointerId: number;
   clientX: number;
   clientY: number;
+  /** "touch", "pen" ou "mouse" : un clic de souris n'est ni un appui, ni un appui long (on clique sur l'écran pour y mettre le focus). */
+  pointerType?: string;
 }
 
 /** Ce qu'il faut d'un élément ou d'une fenêtre pour y brancher les événements. */
@@ -40,6 +42,9 @@ export class InputMapper {
   /** Touches de l'ordinateur enfoncées → touches de la calculatrice qu'elles tiennent (mapping d'alors). */
   private readonly held = new Map<string, readonly KeyName[]>();
   private readonly gestureHeld = new Map<GestureName, readonly KeyName[]>();
+  /** Le type de chaque pointeur posé, et si le geste en cours a commencé à la souris. */
+  private readonly pointerKinds = new Map<number, string>();
+  private mouseGesture = false;
 
   constructor(
     private readonly sink: KeySink,
@@ -117,6 +122,8 @@ export class InputMapper {
 
   /** Événements de pointeur (doigt, stylet, souris) sur l'écran, pour les gestes. */
   pointerDown(event: HostPointerEvent): void {
+    if (this.pointerKinds.size === 0) this.mouseGesture = event.pointerType === "mouse";
+    this.pointerKinds.set(event.pointerId, event.pointerType ?? "");
     this.recognizer.down(event.pointerId, event.clientX, event.clientY);
   }
 
@@ -125,14 +132,18 @@ export class InputMapper {
   }
 
   pointerUp(event: HostPointerEvent): void {
+    this.pointerKinds.delete(event.pointerId);
     this.recognizer.up(event.pointerId, event.clientX, event.clientY);
   }
 
   pointerCancel(): void {
+    this.pointerKinds.clear();
     this.recognizer.cancel();
   }
 
   private onGesture(gesture: GestureName, fingers: number, phase: GesturePhase): void {
+    // À la souris, seuls les gestes tracés (balayage, demi-tour) comptent : un simple clic ne doit rien appuyer.
+    if (this.mouseGesture && (gesture === "tap" || gesture === "double_tap" || gesture === "long_press")) return;
     const rule = this.map.rules.find((r) => r.gesture === gesture && r.fingers === fingers);
     if (!rule) return;
     if (phase === "end") {

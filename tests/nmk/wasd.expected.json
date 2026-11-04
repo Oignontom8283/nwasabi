@@ -131,6 +131,22 @@
       },
       {
         "fingers": 1,
+        "gesture": "tap",
+        "key": [
+          "ok"
+        ],
+        "while_held": false
+      },
+      {
+        "fingers": 1,
+        "gesture": "u_turn",
+        "key": [
+          "back"
+        ],
+        "while_held": false
+      },
+      {
+        "fingers": 1,
         "gesture": "long_press",
         "key": [
           "ok"
