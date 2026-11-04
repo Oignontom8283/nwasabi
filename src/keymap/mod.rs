@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use thiserror::Error;
+
 use crate::json::{self, Value, ValueExt};
 use crate::kernel::keyboard::Key;
 
@@ -129,23 +131,21 @@ impl Default for TouchSettings {
 }
 
 /// Erreur de lecture : l'endroit du fichier (`keyboard.KeyW`, `touch.rules[1].gesture`) et le problème.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("{}", located(.path, .message))]
 pub struct NmkError {
     pub path: String,
     pub message: String,
 }
 
-impl fmt::Display for NmkError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.path.is_empty() {
-            f.write_str(&self.message)
-        } else {
-            write!(f, "{} : {}", self.path, self.message)
-        }
+/// Le message d'une [`NmkError`] : l'endroit du fichier, puis le problème (sans l'endroit pour une erreur du fichier entier).
+fn located(path: &str, message: &str) -> String {
+    if path.is_empty() {
+        message.to_owned()
+    } else {
+        format!("{path} : {message}")
     }
 }
-
-impl std::error::Error for NmkError {}
 
 fn error<T>(path: impl Into<String>, message: impl Into<String>) -> Result<T, NmkError> {
     Err(NmkError {
