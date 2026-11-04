@@ -8,24 +8,30 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
+use assert_cmd::cargo::cargo_bin_cmd;
 use nwasabi::json::{self, Value};
+use predicates::str::contains;
+use tempfile::TempDir;
+
+/// Le binaire `nwasabi-cli`, prêt à recevoir ses arguments et ses vérifications (`assert_cmd`).
+fn cmd() -> assert_cmd::Command {
+    cargo_bin_cmd!("nwasabi-cli")
+}
 
 fn cli(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_nwasabi-cli"))
-        .args(args)
-        .output()
-        .expect("lancement de nwasabi-cli")
+    cmd().args(args).output().expect("lancement de nwasabi-cli")
 }
 
 fn stdout(o: &Output) -> String {
     String::from_utf8_lossy(&o.stdout).into_owned()
 }
 
-/// Dossier de travail propre à un test.
-fn workdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nwasabi-cli-{}-{name}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// Dossier de travail propre à un test, effacé à la fin du test.
+fn workdir(name: &str) -> TempDir {
+    tempfile::Builder::new()
+        .prefix(&format!("nwasabi-cli-{name}-"))
+        .tempdir()
+        .unwrap()
 }
 
 fn corpus_file(prefix: &str) -> Option<PathBuf> {
@@ -41,18 +47,20 @@ fn corpus_file(prefix: &str) -> Option<PathBuf> {
 
 #[test]
 fn usage_and_exit_codes() {
-    let help = cli(&["help"]);
-    assert_eq!(help.status.code(), Some(0));
-    assert!(stdout(&help).contains("session"));
-    assert_eq!(cli(&[]).status.code(), Some(2));
-    assert_eq!(cli(&["nimporte"]).status.code(), Some(2));
+    cmd()
+        .arg("help")
+        .assert()
+        .success()
+        .stdout(contains("session"));
+    cmd().assert().code(2);
+    cmd().arg("nimporte").assert().code(2);
     // Un argument obligatoire manquant est un mauvais usage (code 2), pas une erreur d'exécution.
-    assert_eq!(cli(&["run"]).status.code(), Some(2));
-    assert_eq!(
-        cli(&["run", "a.nwa", "--model", "n9999"]).status.code(),
-        Some(2)
-    );
-    assert_eq!(cli(&["run", "/inexistant.nwa"]).status.code(), Some(1));
+    cmd().arg("run").assert().code(2);
+    cmd()
+        .args(["run", "a.nwa", "--model", "n9999"])
+        .assert()
+        .code(2);
+    cmd().args(["run", "/inexistant.nwa"]).assert().code(1);
 }
 
 #[test]
@@ -66,7 +74,8 @@ fn keys_are_listed_as_json() {
 
 #[test]
 fn a_filesystem_image_can_be_edited_from_the_command_line() {
-    let image = workdir("fs").join("storage.bin");
+    let dir = workdir("fs");
+    let image = dir.path().join("storage.bin");
     let image = image.to_str().unwrap();
     assert!(
         cli(&["fs", "--image", image, "write", "a.py", "--text", "hello"])
@@ -162,7 +171,8 @@ fn run_is_deterministic_and_matches_the_reference_screen() {
         Some("8876b506")
     );
 
-    let png = workdir("shot").join("mandelbrot.png");
+    let dir = workdir("shot");
+    let png = dir.path().join("mandelbrot.png");
     let shot = cli(&[
         "run",
         app,
@@ -353,7 +363,7 @@ fn a_mapped_host_key_reaches_the_application() {
 fn nfs_and_nds_files_go_through_the_cli() {
     let dir = workdir("formats");
     let app = format!("{}/tests/apps/bin/keys.nwa", env!("CARGO_MANIFEST_DIR"));
-    let (nfs, nds) = (dir.join("files.nfs"), dir.join("state.nds"));
+    let (nfs, nds) = (dir.path().join("files.nfs"), dir.path().join("state.nds"));
     std::fs::write(
         &nfs,
         r#"{"nfs":1,"files":[{"name":"hello.py","content":"cHJpbnQoMSk="}]}"#,
@@ -361,7 +371,7 @@ fn nfs_and_nds_files_go_through_the_cli() {
     .unwrap();
 
     // Charge des fichiers, exécute, enregistre l'état puis les fichiers.
-    let saved_nfs = dir.join("saved.nfs");
+    let saved_nfs = dir.path().join("saved.nfs");
     let out = cli(&[
         "run",
         &app,
@@ -408,7 +418,7 @@ fn nfs_and_nds_files_go_through_the_cli() {
 #[test]
 fn fs_export_and_import_use_the_nfs_format() {
     let dir = workdir("fs-nfs");
-    let image = dir.join("image.bin");
+    let image = dir.path().join("image.bin");
     let image = image.to_str().unwrap();
     assert!(
         cli(&[
@@ -417,7 +427,7 @@ fn fs_export_and_import_use_the_nfs_format() {
         .status
         .success()
     );
-    let nfs = dir.join("all.nfs");
+    let nfs = dir.path().join("all.nfs");
     assert!(
         cli(&["fs", "--image", image, "export", nfs.to_str().unwrap()])
             .status
@@ -426,7 +436,7 @@ fn fs_export_and_import_use_the_nfs_format() {
     let document: Value = json::parse(&std::fs::read_to_string(&nfs).unwrap()).unwrap();
     assert_eq!(document["files"][0]["name"], "a.py");
 
-    let other = dir.join("other.bin");
+    let other = dir.path().join("other.bin");
     let other = other.to_str().unwrap();
     assert!(
         cli(&["fs", "--image", other, "write", "old.py", "--text", "x"])
@@ -467,7 +477,7 @@ fn test_app(name: &str) -> String {
 #[test]
 fn a_run_is_recorded_and_replays_identically() {
     let dir = workdir("replay-run");
-    let recording = dir.join("keys.nrp");
+    let recording = dir.path().join("keys.nrp");
     let recorded = cli(&[
         "run",
         &test_app("keys"),
@@ -515,7 +525,7 @@ fn a_run_is_recorded_and_replays_identically() {
 #[test]
 fn a_session_is_recorded_with_its_keys_and_time() {
     let dir = workdir("replay-session");
-    let recording = dir.join("session.nrp");
+    let recording = dir.path().join("session.nrp");
     let app = std::fs::read(test_app("keys")).unwrap();
     let nwa = json::base64_encode(&app);
     let script = format!(
@@ -561,7 +571,7 @@ fn a_session_is_recorded_with_its_keys_and_time() {
 #[test]
 fn a_tampered_recording_is_detected() {
     let dir = workdir("replay-tamper");
-    let recording = dir.join("keys.nrp");
+    let recording = dir.path().join("keys.nrp");
     cli(&[
         "run",
         &test_app("keys"),
@@ -591,7 +601,7 @@ fn a_tampered_recording_is_detected() {
 #[test]
 fn an_invalid_recording_is_refused() {
     let dir = workdir("replay-invalid");
-    let bad = dir.join("bad.nrp");
+    let bad = dir.path().join("bad.nrp");
     std::fs::write(&bad, r#"{"nfs":1}"#).unwrap();
     let out = cli(&["replay", bad.to_str().unwrap(), &test_app("keys")]);
     assert_eq!(out.status.code(), Some(1));
@@ -603,10 +613,13 @@ fn an_invalid_recording_is_refused() {
 #[test]
 fn flash_pack_and_list_round_trip() {
     let dir = workdir("flash-pack");
-    let (program, table) = (dir.join("programme.bin"), dir.join("table.bin"));
+    let (program, table) = (
+        dir.path().join("programme.bin"),
+        dir.path().join("table.bin"),
+    );
     std::fs::write(&program, [1u8, 2, 3, 4, 5]).unwrap();
     std::fs::write(&table, [9u8; 16]).unwrap();
-    let out = dir.join("aux.nfd");
+    let out = dir.path().join("aux.nfd");
     let packed = cli(&[
         "flash",
         "pack",
@@ -650,9 +663,9 @@ fn flash_pack_and_list_round_trip() {
 #[test]
 fn flash_pack_refuses_overlaps_and_bad_addresses() {
     let dir = workdir("flash-bad");
-    let file = dir.join("x.bin");
+    let file = dir.path().join("x.bin");
     std::fs::write(&file, [0u8; 32]).unwrap();
-    let out = dir.join("bad.nfd");
+    let out = dir.path().join("bad.nfd");
     let f = file.display();
     for specs in [
         vec![format!("0x90400000={f}"), format!("0x90400010={f}")],
@@ -674,7 +687,7 @@ fn flash_pack_refuses_overlaps_and_bad_addresses() {
 #[test]
 fn link_can_write_the_elf_for_gdb() {
     let dir = workdir("elf");
-    let elf = dir.join("debugme.elf");
+    let elf = dir.path().join("debugme.elf");
     let linked = cli(&[
         "link",
         &test_app("debugme"),
