@@ -1,17 +1,14 @@
 //! Les expressions que l'on saisit pour regarder ou modifier une variable : `x`, `shape.corner.x`, `*p`, `&n`, `a[2][3]`, `n + 1`,
 //! `(char)n`, `sizeof(Shape)`, `x = 5`, `i++`, `n > 2 ? a : b`, `factorial(4)`, `$r0 = 1`. La syntaxe est celle du C.
 
+use thiserror::Error;
+
 use super::eval::{CallArg, Context, Place, Value, ValueKind, locate, read_value};
 use super::{DebugInfo, Encoding, TypeId, TypeKind};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("{0}")]
 pub struct EvalError(pub String);
-
-impl std::fmt::Display for EvalError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
 
 fn fail<T>(message: impl Into<String>) -> Result<T, EvalError> {
     Err(EvalError(message.into()))

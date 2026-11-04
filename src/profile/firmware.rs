@@ -1,6 +1,6 @@
 //! Le profil d'un firmware et ses contrôles de cohérence.
 
-use std::fmt;
+use thiserror::Error;
 
 use super::Model;
 use super::layout::{EXTERNAL_FLASH_BASE, EXTERNAL_FLASH_SIZE, Slot, SlotLayout};
@@ -74,30 +74,21 @@ pub struct FirmwareProfile {
 }
 
 /// Une incohérence dans un profil.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ProfileError {
     /// Une chaîne est trop longue ou non ASCII.
+    #[error("{field} invalide : {value:?}")]
     BadString { field: &'static str, value: String },
     /// Une adresse ou une plage sort de la zone où elle devrait se trouver.
+    #[error("{field} hors de la zone attendue")]
     OutOfBounds { field: &'static str },
     /// Deux plages qui ne doivent pas se chevaucher se chevauchent.
+    #[error("{first} chevauche {second}")]
     Overlap {
         first: &'static str,
         second: &'static str,
     },
 }
-
-impl fmt::Display for ProfileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BadString { field, value } => write!(f, "{field} invalide : {value:?}"),
-            Self::OutOfBounds { field } => write!(f, "{field} hors de la zone attendue"),
-            Self::Overlap { first, second } => write!(f, "{first} chevauche {second}"),
-        }
-    }
-}
-
-impl std::error::Error for ProfileError {}
 
 impl FirmwareProfile {
     /// Début de la SRAM (adresse du `SlotInfo`).

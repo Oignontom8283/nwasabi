@@ -12,7 +12,7 @@ pub use apps::{AppEntry, list_apps};
 pub use fabric::{EXIT_STUB_OFFSET, FCC_ID_OFFSET, FCC_ID_SIZE, write_structures};
 pub use map::build_memory;
 
-use std::fmt;
+use thiserror::Error;
 
 use crate::link::{LayoutParams, LinkedApp};
 use crate::memory::{Memory, MemoryError};
@@ -27,53 +27,27 @@ pub struct DeviceOptions {
 }
 
 /// Ce qui peut échouer en construisant ou en modifiant l'appareil.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum DeviceError {
     /// Le profil du firmware est incohérent.
+    #[error("profil de firmware incohérent{}", joined(.0))]
     Profile(Vec<ProfileError>),
-    Memory(MemoryError),
+    #[error(transparent)]
+    Memory(#[from] MemoryError),
     /// L'application n'a pas été liée pour l'emplacement où elle serait installée.
-    WrongPlace {
-        expected: u32,
-        found: u32,
-    },
+    #[error(
+        "l'application est liée pour {found:#x} mais le prochain emplacement libre est {expected:#x}"
+    )]
+    WrongPlace { expected: u32, found: u32 },
     /// Pas assez de place dans la zone des applications.
-    NoRoom {
-        needed: u32,
-        available: u32,
-    },
+    #[error("il faut {needed} octets et il n'en reste que {available} pour les applications")]
+    NoRoom { needed: u32, available: u32 },
 }
 
-impl From<MemoryError> for DeviceError {
-    fn from(e: MemoryError) -> Self {
-        Self::Memory(e)
-    }
+/// Les erreurs d'un profil, chacune précédée de « ; » (pour les ajouter au message d'une [`DeviceError`]).
+fn joined(errors: &[ProfileError]) -> String {
+    errors.iter().map(|e| format!(" ; {e}")).collect()
 }
-
-impl fmt::Display for DeviceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Profile(errors) => {
-                write!(f, "profil de firmware incohérent")?;
-                for e in errors {
-                    write!(f, " ; {e}")?;
-                }
-                Ok(())
-            }
-            Self::Memory(e) => write!(f, "{e}"),
-            Self::WrongPlace { expected, found } => write!(
-                f,
-                "l'application est liée pour {found:#x} mais le prochain emplacement libre est {expected:#x}"
-            ),
-            Self::NoRoom { needed, available } => write!(
-                f,
-                "il faut {needed} octets et il n'en reste que {available} pour les applications"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for DeviceError {}
 
 /// Un appareil : mémoire, profil et prochain emplacement libre pour une application.
 pub struct DeviceImage {

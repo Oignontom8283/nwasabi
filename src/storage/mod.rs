@@ -8,60 +8,35 @@
 
 pub mod records;
 
-use std::fmt;
+use thiserror::Error;
 
 use crate::memory::{Memory, MemoryError};
 
 use records::Record;
 
 /// Ce qui peut échouer en manipulant les fichiers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FsError {
+    #[error("fichier introuvable : {0}")]
     NotFound(String),
+    #[error("le fichier existe déjà : {0}")]
     Exists(String),
     /// Le nom doit être de la forme `nom.extension`, sans zéro.
+    #[error("nom invalide (attendu nom.extension) : {0:?}")]
     InvalidName(String),
     /// Le tampon est abîmé à cette position (souvent par l'application) : lecture de ce qui
     /// précède possible, écriture refusée.
-    Corrupt {
-        offset: usize,
-    },
+    #[error("système de fichiers abîmé à l'octet {offset}")]
+    Corrupt { offset: usize },
     /// Plus assez de place : `needed` octets demandés pour l'enregistrement.
-    NoSpace {
-        needed: usize,
-        available: usize,
-    },
+    #[error("plus de place : {needed} octets demandés, {available} libres")]
+    NoSpace { needed: usize, available: usize },
     /// Un enregistrement ne peut pas dépasser 65 535 octets.
+    #[error("fichier trop grand pour un enregistrement")]
     TooLarge,
-    Memory(MemoryError),
+    #[error(transparent)]
+    Memory(#[from] MemoryError),
 }
-
-impl From<MemoryError> for FsError {
-    fn from(e: MemoryError) -> Self {
-        Self::Memory(e)
-    }
-}
-
-impl fmt::Display for FsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NotFound(n) => write!(f, "fichier introuvable : {n}"),
-            Self::Exists(n) => write!(f, "le fichier existe déjà : {n}"),
-            Self::InvalidName(n) => write!(f, "nom invalide (attendu nom.extension) : {n:?}"),
-            Self::Corrupt { offset } => write!(f, "système de fichiers abîmé à l'octet {offset}"),
-            Self::NoSpace { needed, available } => {
-                write!(
-                    f,
-                    "plus de place : {needed} octets demandés, {available} libres"
-                )
-            }
-            Self::TooLarge => write!(f, "fichier trop grand pour un enregistrement"),
-            Self::Memory(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl std::error::Error for FsError {}
 
 /// Sorte de fichier, d'après son extension.
 #[derive(Debug, Clone, PartialEq, Eq)]
