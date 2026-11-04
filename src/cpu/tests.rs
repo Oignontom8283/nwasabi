@@ -3,7 +3,7 @@
 use super::*;
 
 /// Mémoire plate de 64 Kio commençant à l'adresse 0, pour exécuter de petits programmes.
-struct Flat(Vec<u8>);
+pub(super) struct Flat(Vec<u8>);
 
 impl Flat {
     fn new() -> Self {
@@ -82,7 +82,7 @@ impl Hooks for RecordingHooks {
 const START: u32 = 0x100;
 
 /// Exécute `count` instructions du programme et renvoie le processeur.
-fn run(code: &[u16], setup: impl FnOnce(&mut Cpu), count: u64) -> (Cpu, Flat, Stop) {
+pub(super) fn run(code: &[u16], setup: impl FnOnce(&mut Cpu), count: u64) -> (Cpu, Flat, Stop) {
     let mut bus = Flat::with_halfwords(code);
     let mut cpu = Cpu::new();
     cpu.regs.pc = START;

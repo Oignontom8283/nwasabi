@@ -91,4 +91,6 @@ impl Cpu {
 }
 
 #[cfg(test)]
+mod proptests;
+#[cfg(test)]
 mod tests;
