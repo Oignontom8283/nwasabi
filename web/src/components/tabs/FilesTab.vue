@@ -404,7 +404,7 @@ watch(() => state.revision, () => refresh(true));
 </template>
 
 <style scoped>
-.files { display: grid; gap: 8px; }
+.files { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
 .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 .explorer { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); overflow: hidden; display: grid; grid-template-rows: auto minmax(110px, 1fr) auto; }

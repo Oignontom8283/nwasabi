@@ -146,16 +146,16 @@ async function saveState() {
 </template>
 
 <style scoped>
-.memory { display: grid; gap: 20px; }
+.memory { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .card:first-child { border-top: none; padding-top: 0; }
 .card { border-top: 1px solid var(--line); padding: 16px 0 0; }
 .card > .help { margin: 4px 0 10px; font-size: 12px; }
-.state { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.state { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
 .state p { margin: 0; font-size: 12px; }
 .state p + p { margin-top: 4px; }
 .quick-buttons { display: grid; gap: 6px; }
-.usage { display: grid; gap: 10px; }
-.label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.usage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; font-size: 13px; }
 .bar { height: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin: 3px 0; }
 .bar div { height: 100%; background: var(--accent); transition: width 0.3s; }
 .bar.stack div { background: #e3a008; }

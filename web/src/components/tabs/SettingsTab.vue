@@ -161,7 +161,7 @@ watch(() => state.revision, load);
 </template>
 
 <style scoped>
-.settings { display: grid; gap: 22px; }
+.settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 section { display: grid; }
 h2 { padding-bottom: 3px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .help { margin: 0 0 10px; font-size: 12px; }

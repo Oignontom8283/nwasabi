@@ -286,7 +286,7 @@ const blockTip = (b: Block): Omit<Tip, "x" | "y"> => ({
 </template>
 
 <style scoped>
-.map { position: relative; display: grid; gap: 4px; }
+.map { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .marks { position: relative; height: 66px; margin-top: 4px; }
 .lab { padding: 0 6px; font-size: 11px; height: 18px; border-radius: 4px; position: relative; z-index: 2; }
 .mark { position: absolute; top: 0; bottom: 0; width: 0; }

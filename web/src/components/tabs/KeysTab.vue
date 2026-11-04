@@ -254,7 +254,7 @@ const nameValue = computed(() => map.value?.name ?? "");
 </template>
 
 <style scoped>
-.keys { display: grid; gap: 20px; }
+.keys { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .own { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .own p { margin: 0; font-size: 12px; flex: 1 1 100%; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }

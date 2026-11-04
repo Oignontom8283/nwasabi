@@ -121,7 +121,7 @@ async function copyOutput() {
 </template>
 
 <style scoped>
-.trace { display: grid; gap: 20px; }
+.trace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .card:first-child { border-top: none; padding-top: 0; }
 .card { border-top: 1px solid var(--line); padding: 16px 0 0; }
 .card h2 { margin-bottom: 8px; }

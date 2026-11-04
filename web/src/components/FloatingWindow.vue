@@ -33,6 +33,8 @@ const opener = document.activeElement instanceof HTMLElement ? document.activeEl
 onMounted(async () => {
   await nextTick();
   if (!win.value) return;
+  // Sur un téléphone, la fenêtre prend toute la largeur (moins une marge) au lieu de garder sa largeur de bureau.
+  if (innerWidth < 600) win.value.style.width = `${innerWidth - 16}px`;
   const box = win.value.getBoundingClientRect();
   x = Math.max(8, (innerWidth - box.width) / 2);
   y = Math.max(8, (innerHeight - box.height) / 3);
@@ -111,10 +113,10 @@ function key(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.layer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.layer { position: fixed; inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); z-index: 60; pointer-events: none; }
 .layer.modal { pointer-events: auto; background: rgb(0 0 0 / 28%); }
 .fw {
-  position: absolute; left: 0; top: 0; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); display: flex; flex-direction: column; pointer-events: auto;
+  position: absolute; left: 0; top: 0; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); display: flex; flex-direction: column; pointer-events: auto;
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgb(0 0 0 / 28%); outline: none; will-change: transform;
 }
 header { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); border-radius: 8px 8px 0 0; cursor: move; touch-action: none; user-select: none; flex: none; }
