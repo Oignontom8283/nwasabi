@@ -1,3 +1,6 @@
+---
+source: tests/support/mod.rs
+---
 > qSupported:multiprocess+;swbreak+;hwbreak+;vContSupported+
 < PacketSize=4000;qXfer:features:read+;swbreak+;hwbreak+;vContSupported+;QStartNoAckMode+;ReverseStep+;ReverseContinue+
 > qXfer:features:read:target.xml:0,1000

@@ -4,14 +4,13 @@
 //!
 //! Les réponses très longues (écran, état complet…) sont réduites à leur taille et à leur CRC-32.
 //!
-//! Pour régénérer le fichier après un changement voulu : `NWASABI_UPDATE_GOLDEN=1 cargo test --test protocol_golden`.
+//! Pour mettre à jour le fichier de référence après un changement voulu : `INSTA_UPDATE=always cargo test --test protocol_golden`.
 
 mod support;
 
 use nwasabi::json;
 use nwasabi::session::Session;
 
-const GOLDEN: &str = "tests/golden/protocol.txt";
 /// Au-delà, une réponse est réduite à sa taille et à son CRC-32.
 const LONG: usize = 1500;
 
@@ -142,26 +141,7 @@ fn transcript() -> String {
 
 #[test]
 fn the_session_protocol_answers_exactly_as_recorded() {
-    let actual = transcript();
-    let path = format!("{}/{GOLDEN}", env!("CARGO_MANIFEST_DIR"));
-    if std::env::var_os("NWASABI_UPDATE_GOLDEN").is_some() {
-        std::fs::write(&path, &actual).unwrap();
-    }
-    let expected = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("{path} : {e} (NWASABI_UPDATE_GOLDEN=1 pour le créer)"));
-    if actual != expected {
-        let first = actual
-            .lines()
-            .zip(expected.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| actual.lines().count().min(expected.lines().count()));
-        panic!(
-            "la transcription du protocole a changé à la ligne {} :\n  attendu : {}\n  obtenu  : {}",
-            first + 1,
-            expected.lines().nth(first).unwrap_or("(fin)"),
-            actual.lines().nth(first).unwrap_or("(fin)"),
-        );
-    }
+    support::snapshot("protocol", transcript());
 }
 
 #[test]

@@ -42,3 +42,6 @@ docs/public/logo-bordered.svg
 
 # Paquets npm : le module .wasm n'est copié que pour publier.
 packages/wasm/nwasabi.wasm
+
+# Fichiers de référence en attente de relecture (insta)
+*.snap.new

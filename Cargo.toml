@@ -60,6 +60,7 @@ tower-http = { version = "0.7.1", default-features = false, features = ["compres
 [dev-dependencies]
 divan = "0.1.21"
 flate2 = "1.1.10"
+insta = "1.49.0"
 png = "0.18"
 
 # Les tests du corpus exécutent des dizaines de millions d'instructions émulées.
