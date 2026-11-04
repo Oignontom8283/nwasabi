@@ -583,7 +583,9 @@ async fn run(options: Options) -> Result<(), String> {
         .route("/__nwasabi/source", get(source))
         .route("/__nwasabi/nds", get(nds))
         .fallback(get(site))
-        .with_state(served);
+        .with_state(served)
+        // Le module WebAssembly (1,2 Mio) et le JavaScript arrivent compressés aux navigateurs qui l'acceptent.
+        .layer(tower_http::compression::CompressionLayer::new());
 
     let (host, port) = (options.host.as_str(), options.port);
     let listener = tokio::net::TcpListener::bind((host, port))
