@@ -16,13 +16,16 @@ const { t } = useI18n();
 const emulator = useEmu();
 const { state } = emulator;
 
-const PROMPT = "(nwasabi) ";
+/** L'invite, en vert et en gras (les séquences `\x1b[…m` sont des couleurs du terminal). */
+const PROMPT = "\x1b[1;32m(nwasabi)\x1b[0m ";
 /** Largeur du terminal en colonnes : assez large pour qu'une ligne ne soit jamais coupée ; au-delà de l'écran, on fait défiler. */
 const COLS = 240;
 const MIN_HEIGHT = 120;
 /** Hauteur de la zone, réglée par le poignée en bas à droite et gardée d'une visite à l'autre. */
 const height = ref(remember.get("nwasabi.consoleHeight", 380));
 let fit: FitAddon | null = null;
+/** Fond de la zone (celui du terminal, pour que le pourtour ait la même couleur). */
+const background = ref("");
 const host = ref<HTMLElement | null>(null);
 const frame = ref<HTMLElement | null>(null);
 const history: string[] = consoleHistory;
@@ -47,6 +50,7 @@ const backend: Backend = {
 
 /** Écrit du texte (les fins de ligne `\n` deviennent `\r\n`) et le garde pour la prochaine ouverture de la vue. */
 function print(text: string, remember = true) {
+  if (text.startsWith("Erreur")) text = `\x1b[31m${text}\x1b[0m`;
   if (remember) consoleLog.push(text);
   if (consoleLog.length > 1000) consoleLog.splice(0, consoleLog.length - 1000);
   term?.write(`${text.replace(/\r?\n/g, "\r\n")}\r\n`);
@@ -128,11 +132,22 @@ function onData(data: string) {
   redraw();
 }
 
-/** Les couleurs du terminal sont celles de la page : elles suivent le thème. */
+/** Les palettes des terminaux de Visual Studio Code : « Dark+ » et « Light+ ». */
+const DARK = {
+  background: "#1e1e1e", foreground: "#cccccc", cursor: "#aeafad", cursorAccent: "#1e1e1e", selectionBackground: "#264f78",
+  black: "#000000", red: "#cd3131", green: "#0dbc79", yellow: "#e5e510", blue: "#2472c8", magenta: "#bc3fbc", cyan: "#11a8cd", white: "#e5e5e5",
+  brightBlack: "#666666", brightRed: "#f14c4c", brightGreen: "#23d18b", brightYellow: "#f5f543", brightBlue: "#3b8eea", brightMagenta: "#d670d6", brightCyan: "#29b8db", brightWhite: "#e5e5e5",
+};
+const LIGHT = {
+  background: "#ffffff", foreground: "#333333", cursor: "#000000", cursorAccent: "#ffffff", selectionBackground: "#add6ff",
+  black: "#000000", red: "#cd3131", green: "#00bc00", yellow: "#949800", blue: "#0451a5", magenta: "#bc05bc", cyan: "#0598bc", white: "#555555",
+  brightBlack: "#666666", brightRed: "#cd3131", brightGreen: "#14ce14", brightYellow: "#b5ba00", brightBlue: "#0451a5", brightMagenta: "#bc05bc", brightCyan: "#0598bc", brightWhite: "#a5a5a5",
+};
+
+/** Le thème de la page : celui choisi par l'utilisateur, sinon celui du système. */
 function colors() {
-  const css = getComputedStyle(document.documentElement);
-  const get = (name: string) => css.getPropertyValue(name).trim();
-  return { background: get("--surface"), foreground: get("--text"), cursor: get("--accent-strong"), cursorAccent: get("--surface"), selectionBackground: get("--accent-soft") || undefined };
+  const dark = ui.theme === "dark" || (ui.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  return dark ? DARK : LIGHT;
 }
 
 /** Ajuste le nombre de lignes à la hauteur de la zone, sans toucher aux colonnes. */
@@ -164,7 +179,10 @@ async function open() {
 }
 
 // Le terminal s'ouvre dès qu'il y a une application (la zone n'existe pas avant).
-onMounted(() => void openWhenLoaded());
+onMounted(() => {
+  background.value = colors().background;
+  void openWhenLoaded();
+});
 watch(() => state.loaded, () => void openWhenLoaded());
 async function openWhenLoaded() {
   await nextTick();
@@ -172,7 +190,11 @@ async function openWhenLoaded() {
 }
 // Le thème change (choix de l'utilisateur ou réglage du système) : le terminal reprend les couleurs de la page.
 const media = matchMedia("(prefers-color-scheme: dark)");
-const retheme = () => void nextTick(() => term && (term.options.theme = colors()));
+const retheme = () =>
+  void nextTick(() => {
+    background.value = colors().background;
+    if (term) term.options.theme = colors();
+  });
 watch(() => ui.theme, retheme);
 media.addEventListener("change", retheme);
 onBeforeUnmount(() => {
@@ -208,7 +230,7 @@ const consoleHistory: string[] = [];
   <div class="console">
     <p v-if="!state.loaded" class="empty muted">{{ t("debug.noApp") }}</p>
     <template v-else>
-      <div ref="frame" class="frame" :style="{ height: height + 'px' }"><div ref="host" class="terminal" role="log" :aria-label="t('console.label')" data-keep-keys /></div>
+      <div ref="frame" class="frame" :style="{ height: height + 'px', background }"><div ref="host" class="terminal" role="log" :aria-label="t('console.label')" data-keep-keys /></div>
       <p class="muted small">{{ t("console.hint") }} <button class="link" @click="run('help')">{{ t("console.help") }}</button> · <button class="link" @click="clear">{{ t("console.clear") }}</button></p>
     </template>
   </div>
@@ -218,7 +240,7 @@ const consoleHistory: string[] = [];
 .console { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .empty { padding: 24px 8px; text-align: center; margin: 0; }
 /* La zone : sa hauteur se règle à la poignée en bas à droite ; plus large que l'écran, elle défile en travers (pas de retour à la ligne). */
-.frame { min-width: 0; min-height: 120px; resize: vertical; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); }
+.frame { min-width: 0; min-height: 120px; resize: vertical; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 3px; }
 .terminal { height: 100%; width: max-content; padding: 4px; }
 .small { margin: 0; font-size: 12px; }
 .link { border: none; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; font: inherit; }

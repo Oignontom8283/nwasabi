@@ -23,31 +23,89 @@ const ALIASES: Record<string, string> = { fp: "r11", ip: "r12", cpsr: "xpsr", ps
 
 const hex0x = (n: number, width = 1) => `0x${hex(n >>> 0, width)}`;
 
-export const HELP = [
-  "Commandes (abréviations entre parenthèses) :",
-  "  break (b) <adresse|fonction> [if r0 == 5]   poser un point d'arrêt (conditionnel)   info breakpoints   les lister",
-  "  delete (d) [adresse|fonction]     retirer un point d'arrêt (tous sans argument)",
-  "  watch <adresse> [octets]          observer en écriture          rwatch / awatch          en lecture / les deux",
-  "  info watchpoints                  lister les points d'observation       unwatch <n°>     en retirer un",
-  "  continue (c)                      reprendre                     pause                    interrompre",
-  "  stepi (si)                        une instruction               nexti (ni)               idem, sans entrer dans les appels",
-  "  finish                            jusqu'au retour de la fonction",
-  "  info registers (i r) [reg]        registres                     print (p) $reg           un registre",
-  "  set $reg = valeur                 modifier un registre",
-  "  x/NFU <adresse>                   lire la mémoire : N éléments, format x d u o t c a s i, taille b h w g",
-  "  disassemble [adresse] [n]         désassembler                  backtrace (bt)           pile d'appels",
-  "  info symbol <adresse>             nom de la fonction",
-  "Avec les informations de débogage du code source (application compilée avec -g) :",
-  "  break <fichier>:<ligne> | <ligne> | <fonction>   point d'arrêt sur une ligne ou après le prologue d'une fonction",
-  "  list [<ligne>|<fonction>|<fichier>:<ligne>]       montrer le code source (les fichiers sont donnés dans la vue Source)",
-  "  step (s) / next (n) / finish                      avancer d'une ligne, en entrant / sans entrer dans les appels / jusqu'au retour",
-  "  print (p) <expression>            valeur d'une variable ou d'une expression C (a.b, p->x, t[2], *p, &x, n + 1)",
-  "  ptype <expression|type>           décrire un type            whatis <expression>     son type seul",
-  "  set var <expression> = <valeur>   modifier une variable      info locals / args / frame / source / line / variables",
-  "  frame [n] / up / down             choisir un cadre de la pile (les variables et print en dépendent)    backtrace (bt) avec fonctions et lignes",
-  "  watch <variable|expression>       observer l'adresse d'une variable (en écriture)",
-  "Une adresse peut être un nombre (0x20000000), un registre ($sp, $pc…), un nom de fonction, avec +N ou -N.",
+// L'aide, dans le style de `clap` : des sections, une commande par ligne, les descriptions alignées. Les séquences `\x1b[…m`
+// sont des couleurs et du gras du terminal (titres en gras, noms de commandes en cyan, arguments en couleur atténuée).
+const BOLD = "\x1b[1m";
+const CYAN = "\x1b[36m";
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
+
+type HelpEntry = [usage: string, description: string];
+const HELP_SECTIONS: Array<[title: string, entries: HelpEntry[]]> = [
+  [
+    "Points d'arrêt et d'observation",
+    [
+      ["break, b <adresse|fonction> [if cond]", "Poser un point d'arrêt, avec une condition facultative (if r0 == 5)"],
+      ["delete, d [adresse|fonction]", "Retirer un point d'arrêt (tous, sans argument)"],
+      ["info breakpoints", "Lister les points d'arrêt"],
+      ["watch <adresse> [octets]", "Observer une zone en écriture"],
+      ["rwatch, awatch <adresse> [octets]", "Observer en lecture, ou en lecture et écriture"],
+      ["info watchpoints", "Lister les points d'observation"],
+      ["unwatch <n°>", "Retirer un point d'observation"],
+    ],
+  ],
+  [
+    "Exécution",
+    [
+      ["continue, c", "Reprendre l'exécution"],
+      ["pause", "Interrompre l'exécution"],
+      ["stepi, si", "Exécuter une instruction"],
+      ["nexti, ni", "Idem, sans entrer dans les appels"],
+      ["finish", "Continuer jusqu'au retour de la fonction"],
+    ],
+  ],
+  [
+    "Registres et mémoire",
+    [
+      ["info registers, i r [reg]", "Afficher les registres"],
+      ["print, p $reg", "Afficher un registre"],
+      ["set $reg = valeur", "Modifier un registre"],
+      ["x/NFU <adresse>", "Lire la mémoire : N éléments, format x d u o t c a s i, taille b h w g"],
+      ["disassemble [adresse] [n]", "Désassembler"],
+      ["backtrace, bt", "Pile d'appels"],
+      ["info symbol <adresse>", "Nom de la fonction à une adresse"],
+    ],
+  ],
+  [
+    "Code source (application compilée avec -g)",
+    [
+      ["break <fichier>:<ligne> | <ligne> | <fonction>", "Point d'arrêt sur une ligne, ou après le prologue d'une fonction"],
+      ["list [<ligne>|<fonction>|<fichier>:<ligne>]", "Montrer le code source (les fichiers sont dans la vue Source)"],
+      ["step, s", "Avancer d'une ligne, en entrant dans les appels"],
+      ["next, n", "Avancer d'une ligne, sans entrer dans les appels"],
+      ["print, p <expression>", "Valeur d'une variable ou d'une expression C (a.b, p->x, t[2], *p, &x, n + 1)"],
+      ["ptype <expression|type>", "Décrire un type"],
+      ["whatis <expression>", "Le type d'une expression"],
+      ["set var <expression> = <valeur>", "Modifier une variable"],
+      ["info locals | args | frame | source | line | variables", "Variables et position"],
+      ["frame [n], up, down", "Choisir un cadre de la pile (print et les variables en dépendent)"],
+      ["watch <variable|expression>", "Observer l'adresse d'une variable (en écriture)"],
+    ],
+  ],
 ];
+
+function helpLines(): string[] {
+  // Les descriptions sont alignées dans une colonne ; un usage trop long pour elle garde sa ligne, et sa description passe dessous.
+  const width = 30;
+  // Le nom de la commande en cyan, ses arguments (<…> et […]) atténués.
+  const colored = (usage: string) => {
+    const at = usage.search(/[<[$/|]/);
+    const head = at < 0 ? usage : usage.slice(0, at);
+    return `${CYAN}${head}${RESET}${at < 0 ? "" : `${DIM}${usage.slice(at)}${RESET}`}`;
+  };
+  const lines = [`${BOLD}Commandes${RESET} (une abréviation est donnée après la virgule)`];
+  for (const [title, entries] of HELP_SECTIONS) {
+    lines.push("", `${BOLD}${title}${RESET}`);
+    for (const [usage, description] of entries) {
+      if (usage.length < width - 1) lines.push(`  ${colored(usage)}${" ".repeat(width - usage.length)}${description}`);
+      else lines.push(`  ${colored(usage)}`, `  ${" ".repeat(width)}${description}`);
+    }
+  }
+  lines.push("", "Une adresse peut être un nombre (0x20000000), un registre ($sp, $pc…), un nom de fonction, avec +N ou -N.");
+  return lines;
+}
+
+export const HELP = helpLines();
 
 /** Évalue une expression d'adresse : nombre, `$registre`, fonction, éventuellement suivie de `+N` ou `-N`. */
 export async function evaluate(expression: string, backend: Backend): Promise<number> {
