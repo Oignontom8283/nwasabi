@@ -245,7 +245,7 @@ efxx  00000000  aad97602
 f0xx  00000000  c5d6fb84
 f1xx  00000000  27e0e982
 f2xx  00000000  ae5f9f58
-f3xx  00000000  6874fc58
+f3xx  00000000  12edd227
 f4xx  00000000  d98418bd
 f5xx  00000000  12b581dd
 f6xx  00000000  942e8ed2
@@ -273,7 +273,7 @@ e92d 4ff0  4 push {r4, r5, r6, r7, r8, r9, r10, r11, lr} None
 fb00 f101  4 mul r1, r0, r1 None
 eeb0 0a40  4 vmov.f32 s0, s0 None
 ed9f 0a01  4 vldr s0, [pc, #4] None
-f3bf 8f4f  4 dmb  None
+f3bf 8f4f  4 dsb sy None
 
 # des suites avec bloc it
   08000000  it eq

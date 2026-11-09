@@ -800,7 +800,10 @@ fn decode_branches_and_misc(a: u32, b: u32) -> Option<Instr> {
                 // clrex, puis les barrières dsb, dmb, isb
                 0b0111011 => match bits(b, 7, 4) {
                     2 => Some(Instr::Clrex),
-                    4..=6 => Some(Instr::Barrier),
+                    4..=6 => Some(Instr::Barrier {
+                        kind: bits(b, 7, 4) as u8,
+                        option: bits(b, 3, 0) as u8,
+                    }),
                     _ => None,
                 },
                 // mrs

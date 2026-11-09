@@ -773,7 +773,7 @@ impl Cpu {
             }
 
             Instr::It { firstcond, mask } => self.regs.set_it_state((firstcond << 4) | mask),
-            Instr::Nop | Instr::Barrier => {}
+            Instr::Nop | Instr::Barrier { .. } => {}
             Instr::Clrex => self.exclusive = None,
             Instr::Exclusive {
                 op,

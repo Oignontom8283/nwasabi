@@ -701,7 +701,25 @@ fn render(instr: &Instr, pc: u32, size: u32, in_it: bool) -> (String, String, Op
             let which = format!("{}{}", if i { "i" } else { "" }, if f { "f" } else { "" });
             m(if disable { "cpsid" } else { "cpsie" }, which)
         }
-        Instr::Barrier => m("dmb", String::new()),
+        Instr::Barrier { kind, option } => {
+            let name = match kind {
+                4 => "dsb",
+                5 => "dmb",
+                _ => "isb",
+            };
+            let option = match option {
+                15 => "sy".to_owned(),
+                14 => "st".to_owned(),
+                11 => "ish".to_owned(),
+                10 => "ishst".to_owned(),
+                7 => "nsh".to_owned(),
+                6 => "nshst".to_owned(),
+                3 => "osh".to_owned(),
+                2 => "oshst".to_owned(),
+                n => format!("#{n}"),
+            };
+            m(name, option)
+        }
         Instr::Clrex => m("clrex", String::new()),
         Instr::Exclusive {
             op,
@@ -1046,5 +1064,22 @@ mod tests {
         assert_eq!(lines[0].0, "udf #1");
         let mut read = |a: u32| (a < 4).then_some(0xbf00u16);
         assert_eq!(disassemble(&mut read, 0, 10).len(), 2);
+    }
+
+    #[test]
+    fn barriers_keep_their_name_and_option() {
+        let text = |hw2: u16| {
+            let mut read = |a: u32| match a {
+                0 => Some(0xf3bf),
+                2 => Some(hw2),
+                _ => None,
+            };
+            let l = &disassemble(&mut read, 0, 1)[0];
+            format!("{} {}", l.mnemonic, l.operands)
+        };
+        assert_eq!(text(0x8f4f), "dsb sy");
+        assert_eq!(text(0x8f5b), "dmb ish");
+        assert_eq!(text(0x8f6f), "isb sy");
+        assert_eq!(text(0x8f5c), "dmb #12");
     }
 }

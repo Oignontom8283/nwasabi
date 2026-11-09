@@ -514,8 +514,11 @@ pub enum Instr {
         i: bool,
         f: bool,
     },
-    /// `dmb`, `dsb`, `isb` : sans effet sur un processeur à un seul cœur émulé.
-    Barrier,
+    /// `dsb` (`kind` 4), `dmb` (5) ou `isb` (6), avec leur option : sans effet sur un processeur à un seul cœur émulé.
+    Barrier {
+        kind: u8,
+        option: u8,
+    },
     /// `clrex` : efface le moniteur d'exclusivité local.
     Clrex,
     /// `ldrex`, `ldrexb`, `ldrexh`, `strex`, `strexb`, `strexh`.
