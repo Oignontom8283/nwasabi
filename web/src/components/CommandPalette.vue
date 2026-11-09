@@ -2,6 +2,7 @@
 // Palette de commandes (Ctrl + K) : on tape quelques lettres du nom d'une action, Entrée la lance.
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { searchCommands } from "../paletteSearch.js";
 import FloatingWindow from "./FloatingWindow.vue";
 
 export interface Command {
@@ -20,19 +21,7 @@ const { t } = useI18n();
 const query = ref("");
 const selected = ref(0);
 
-/** Les lettres de la recherche doivent apparaître dans l'ordre dans le nom (sans accent ni casse). */
-const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-const matches = (label: string, q: string) => {
-  const text = plain(label);
-  let at = 0;
-  for (const ch of plain(q).replace(/\s+/g, "")) {
-    at = text.indexOf(ch, at);
-    if (at < 0) return false;
-    at++;
-  }
-  return true;
-};
-const shown = computed(() => props.commands.filter((c) => c.enabled !== false && matches(c.label, query.value)));
+const shown = computed(() => searchCommands(props.commands.filter((c) => c.enabled !== false), query.value));
 watch(query, () => (selected.value = 0));
 
 function run(command: Command | undefined) {
