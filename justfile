@@ -128,6 +128,10 @@ clippy:
 test:
     cargo test --all-features
 
+# Lance les tests de l'interface web (vitest, DOM simulé : aucun navigateur). `cd web && npx vitest run -u` met à jour les structures de référence après un changement voulu.
+test-web: (npm-install ".")
+    cd web && npm test
+
 # Lance les tests natifs avec un corpus d'applications .nwa de son choix (dossier de fichiers .nwa), à la place de local/nwa.
 test-corpus corpus:
     NWASABI_REQUIRE_CORPUS=1 NWASABI_CORPUS={{corpus}} cargo test --all-features
