@@ -140,8 +140,8 @@ const DARK = {
 };
 const LIGHT = {
   background: "#ffffff", foreground: "#333333", cursor: "#000000", cursorAccent: "#ffffff", selectionBackground: "#add6ff",
-  black: "#000000", red: "#cd3131", green: "#00bc00", yellow: "#949800", blue: "#0451a5", magenta: "#bc05bc", cyan: "#0598bc", white: "#555555",
-  brightBlack: "#666666", brightRed: "#cd3131", brightGreen: "#14ce14", brightYellow: "#b5ba00", brightBlue: "#0451a5", brightMagenta: "#bc05bc", brightCyan: "#0598bc", brightWhite: "#a5a5a5",
+  black: "#000000", red: "#cd3131", green: "#1b7f3b", yellow: "#949800", blue: "#0451a5", magenta: "#bc05bc", cyan: "#0598bc", white: "#555555",
+  brightBlack: "#666666", brightRed: "#cd3131", brightGreen: "#1b7f3b", brightYellow: "#b5ba00", brightBlue: "#0451a5", brightMagenta: "#bc05bc", brightCyan: "#0598bc", brightWhite: "#a5a5a5",
 };
 
 /** Le thème de la page : celui choisi par l'utilisateur, sinon celui du système. */
@@ -154,6 +154,34 @@ function colors() {
 function fitRows() {
   const rows = fit?.proposeDimensions()?.rows;
   if (term && rows && rows !== term.rows) term.resize(COLS, rows);
+}
+
+/**
+ * Copier et coller. Avec du texte sélectionné, Ctrl + C (ou Ctrl + Maj + C, ou Cmd + C) le copie : sans sélection, Ctrl + C reste
+ * l'interruption de la saisie. Ctrl + V et Ctrl + Maj + V collent (le navigateur donne le texte à xterm). Ctrl + Maj + C ne doit
+ * pas ouvrir les outils du navigateur.
+ */
+function onKey(event: KeyboardEvent): boolean {
+  if (event.type !== "keydown") return true;
+  const modifier = event.ctrlKey || event.metaKey;
+  const key = event.key.toLowerCase();
+  if (modifier && key === "c") {
+    const selection = term?.getSelection() ?? "";
+    if (selection) {
+      void navigator.clipboard?.writeText(selection).catch(() => {});
+      term?.clearSelection();
+      event.preventDefault();
+      return false;
+    }
+    if (event.shiftKey) {
+      event.preventDefault();
+      return false;
+    }
+    return true; // Ctrl + C sans sélection : interruption (traitée par onData)
+  }
+  // Coller : on laisse le navigateur faire, xterm reçoit le texte collé.
+  if (modifier && key === "v") return false;
+  return true;
 }
 
 async function open() {
@@ -172,6 +200,7 @@ async function open() {
   });
   if (frame.value) resize.observe(frame.value);
   term.onData(onData);
+  term.attachCustomKeyEventHandler(onKey);
   if (!consoleLog.length) consoleLog.push(t("console.welcome"));
   for (const text of consoleLog) print(text, false);
   prompt();
