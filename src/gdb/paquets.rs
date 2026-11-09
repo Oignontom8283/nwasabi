@@ -1,10 +1,6 @@
-//! Les petits éléments du protocole GDB : la description des registres donnée au débogueur, la somme de contrôle d'un paquet et
-//! l'écriture en hexadécimal.
+//! La description des registres donnée au débogueur (profil M d'ARM, numérotation simple 0 à 16).
 
-/// Taille maximale d'un paquet annoncée au débogueur.
-pub(super) const PACKET_SIZE: usize = 0x4000;
-
-/// La description des registres donnée au débogueur (profil M d'ARM, numérotation simple 0 à 16).
+/// Le fichier XML de la cible, lu par GDB avec `qXfer:features:read`.
 pub(super) const TARGET_XML: &str = r#"<?xml version="1.0"?>
 <!DOCTYPE target SYSTEM "gdb-target.dtd">
 <target version="1.0">
@@ -30,34 +26,3 @@ pub(super) const TARGET_XML: &str = r#"<?xml version="1.0"?>
   </feature>
 </target>
 "#;
-
-/// Somme de contrôle d'un paquet : la somme des octets modulo 256.
-pub(super) fn checksum(data: &[u8]) -> u8 {
-    data.iter().fold(0u8, |sum, &b| sum.wrapping_add(b))
-}
-
-fn hex_byte(b: u8) -> [u8; 2] {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    [DIGITS[usize::from(b >> 4)], DIGITS[usize::from(b & 15)]]
-}
-
-pub(super) fn to_hex(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .flat_map(|&b| hex_byte(b))
-        .map(char::from)
-        .collect()
-}
-
-pub(super) fn from_hex(text: &str) -> Option<Vec<u8>> {
-    if !text.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..text.len() / 2)
-        .map(|i| u8::from_str_radix(text.get(2 * i..2 * i + 2)?, 16).ok())
-        .collect()
-}
-
-pub(super) fn word_hex(value: u32) -> String {
-    to_hex(&value.to_le_bytes())
-}

@@ -2,9 +2,9 @@
 source: tests/support/mod.rs
 ---
 > qSupported:multiprocess+;swbreak+;hwbreak+;vContSupported+
-< PacketSize=4000;qXfer:features:read+;swbreak+;hwbreak+;vContSupported+;QStartNoAckMode+;ReverseStep+;ReverseContinue+
+< PacketSize=1000;vContSupported+;multiprocess+;QStartNoAckMode+;fork-events+;vfork-events+;vforkdone-events+;ReverseContinue+;ReverseStep+;swbreak+;hwbreak+;qXfer:features:read+
 > qXfer:features:read:target.xml:0,1000
-< l<?xml version="1.0"?>
+< m<?xml version="1.0"?>
 <!DOCTYPE target SYSTEM "gdb-target.dtd">
 <target version="1.0">
   <architecture>arm</architecture>
@@ -28,15 +28,14 @@ source: tests/support/mod.rs
     <reg name="xpsr" bitsize="32" regnum="16"/>
   </feature>
 </target>
-
 > ?
-< T05
+< T05thread:p01.01;
 > qAttached
 < 1
 > qC
-< QC1
+< 
 > qfThreadInfo
-< m1
+< mp01.01
 > qsThreadInfo
 < l
 > Hg0
@@ -60,19 +59,19 @@ source: tests/support/mod.rs
 > Z2,20000010,4
 < OK
 > vCont?
-< vCont;c;s;t
+< vCont;c;C;s;S
 > c
-< T05swbreak:;0d:c8ef0320;0e:69045790;0f:b0035790;
+< T05thread:p01.01;swbreak:;
 > g
 < 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c8ef032069045790b003579000000021
 > pf
 < b0035790
 > s
-< T050d:c0ef0320;0e:69045790;0f:b2035790;
+< S05
 > g
 < 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c0ef032069045790b203579000000021
 > bs
-< T050d:c8ef0320;0e:69045790;0f:b0035790;
+< S05
 > g
 < 05000000030000000200000005000000ccef03200000000000000000c8ef03200000000000000000000000000000000000000000c8ef032069045790b003579000000021
 > z0,905703b0,2
@@ -80,7 +79,7 @@ source: tests/support/mod.rs
 > z2,20000010,4
 < OK
 > vCont;s
-< T050d:c0ef0320;0e:69045790;0f:b2035790;
+< S05
 > inconnu
 < 
 > D

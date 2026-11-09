@@ -7,11 +7,12 @@
 //! Tout passe par les commandes JSON de la session (`run`, `step`, `break`, `watch`, `cpu`, `memory_read`…) : le débogueur voit
 //! exactement ce que voit l'interface web, sans second chemin d'exécution à maintenir.
 
-mod client;
+mod arch;
+mod cible;
 mod paquets;
 mod pont;
 
-pub use client::serve_connection;
+pub use cible::serve_connection;
 pub use pont::{Bridge, PageDebuggee};
 
 use crate::session::Session;
