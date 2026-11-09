@@ -403,8 +403,6 @@
   "console": {
     "label": "Console output",
     "welcome": "Debug console. Type help to see the commands (break main, x/8x $sp, bt, stepi, continue…).",
-    "placeholder": "Command (help)",
-    "run": "Run",
     "hint": "Up and down arrows: history.",
     "help": "Help",
     "clear": "Clear"

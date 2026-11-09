@@ -403,8 +403,6 @@
   "console": {
     "label": "Sortie de la console",
     "welcome": "Console de débogage. Tapez help pour voir les commandes (break main, x/8x $sp, bt, stepi, continue…).",
-    "placeholder": "Commande (help)",
-    "run": "Exécuter",
     "hint": "Flèches haut et bas : historique.",
     "help": "Aide",
     "clear": "Effacer"
