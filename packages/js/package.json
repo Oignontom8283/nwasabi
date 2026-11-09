@@ -20,7 +20,14 @@
     "./LICENSE/APACHE"
   ],
   "sideEffects": false,
-  "keywords": ["numworks", "emulator", "webassembly", "wasm", "nwa", "epsilon"],
+  "keywords": [
+    "numworks",
+    "emulator",
+    "webassembly",
+    "wasm",
+    "nwa",
+    "epsilon"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Oignontom8283/nwasabi.git",
@@ -31,6 +38,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "docs": "typedoc"
+  },
+  "devDependencies": {
+    "typedoc": "^0.28.20"
   }
 }

@@ -123,6 +123,10 @@ fmt:
 clippy:
     cargo clippy --all-targets --all-features -- -D warnings
 
+# Génère la référence de l'API de @nwasabi/js depuis ses commentaires (packages/js/api, ignoré par git).
+api-js: (npm-install ".")
+    npm run docs -w @nwasabi/js
+
 # Lance les tests natifs (architecture de la machine hôte). Si le dossier local/nwa existe, les .nwa de tiers qu'il contient
 # sont aussi testés ; sinon (ou si NWASABI_CORPUS ne désigne rien), ces tests sont ignorés avec un message. `NWASABI_REQUIRE_CORPUS=1` les rend obligatoires (et une application sans référence devient une erreur).
 test:

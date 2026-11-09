@@ -1,0 +1,9 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "api",
+  "name": "@nwasabi/js",
+  "readme": "none",
+  "excludePrivate": true,
+  "validation": { "notExported": false, "invalidLink": true }
+}
