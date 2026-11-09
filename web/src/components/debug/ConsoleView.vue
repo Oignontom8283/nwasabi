@@ -2,11 +2,14 @@
 // Console de commandes à la GDB : mêmes actions que les autres vues, au clavier, dans un terminal (xterm.js, avec son apparence par défaut).
 // xterm.js est chargé à l'ouverture de cette vue seulement : il ne pèse pas sur le démarrage de l'émulateur.
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import type { FitAddon } from "@xterm/addon-fit";
 import { useI18n } from "vue-i18n";
 import type { Terminal } from "@xterm/xterm";
 import { useEmu } from "../../emulator.js";
 import { runCommand } from "../../gdbConsole.js";
 import { source, sourceLines } from "../../sourceStore.js";
+import { ui } from "../../ui.js";
+import { remember } from "../../util.js";
 import type { Backend } from "../../gdbConsole.js";
 
 const { t } = useI18n();
@@ -14,7 +17,14 @@ const emulator = useEmu();
 const { state } = emulator;
 
 const PROMPT = "(nwasabi) ";
+/** Largeur du terminal en colonnes : assez large pour qu'une ligne ne soit jamais coupée ; au-delà de l'écran, on fait défiler. */
+const COLS = 240;
+const MIN_HEIGHT = 120;
+/** Hauteur de la zone, réglée par le poignée en bas à droite et gardée d'une visite à l'autre. */
+const height = ref(remember.get("nwasabi.consoleHeight", 380));
+let fit: FitAddon | null = null;
 const host = ref<HTMLElement | null>(null);
+const frame = ref<HTMLElement | null>(null);
 const history: string[] = consoleHistory;
 let term: Terminal | null = null;
 let resize: ResizeObserver | null = null;
@@ -118,17 +128,34 @@ function onData(data: string) {
   redraw();
 }
 
+/** Les couleurs du terminal sont celles de la page : elles suivent le thème. */
+function colors() {
+  const css = getComputedStyle(document.documentElement);
+  const get = (name: string) => css.getPropertyValue(name).trim();
+  return { background: get("--surface"), foreground: get("--text"), cursor: get("--accent-strong"), cursorAccent: get("--surface"), selectionBackground: get("--accent-soft") || undefined };
+}
+
+/** Ajuste le nombre de lignes à la hauteur de la zone, sans toucher aux colonnes. */
+function fitRows() {
+  const rows = fit?.proposeDimensions()?.rows;
+  if (term && rows && rows !== term.rows) term.resize(COLS, rows);
+}
+
 async function open() {
   if (!host.value) return;
   const [{ Terminal }, { FitAddon }] = await Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit"), import("@xterm/xterm/css/xterm.css")]);
   if (disposed || !host.value || term) return;
-  term = new Terminal({ rows: 22, cursorBlink: true, convertEol: false, scrollback: 2000, fontSize: 13 });
-  const fit = new FitAddon();
+  term = new Terminal({ cols: COLS, rows: 22, cursorBlink: true, convertEol: false, scrollback: 2000, fontSize: 13, theme: colors() });
+  fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host.value);
-  fit.fit();
-  resize = new ResizeObserver(() => fit.fit());
-  resize.observe(host.value);
+  fitRows();
+  // Seule la hauteur s'adapte à la zone ; la largeur reste de COLS colonnes (pas de retour à la ligne).
+  resize = new ResizeObserver(() => {
+    height.value = Math.max(MIN_HEIGHT, Math.round(frame.value?.getBoundingClientRect().height ?? height.value));
+    fitRows();
+  });
+  if (frame.value) resize.observe(frame.value);
   term.onData(onData);
   if (!consoleLog.length) consoleLog.push(t("console.welcome"));
   for (const text of consoleLog) print(text, false);
@@ -143,7 +170,14 @@ async function openWhenLoaded() {
   await nextTick();
   if (state.loaded && !term) await open();
 }
+// Le thème change (choix de l'utilisateur ou réglage du système) : le terminal reprend les couleurs de la page.
+const media = matchMedia("(prefers-color-scheme: dark)");
+const retheme = () => void nextTick(() => term && (term.options.theme = colors()));
+watch(() => ui.theme, retheme);
+media.addEventListener("change", retheme);
 onBeforeUnmount(() => {
+  media.removeEventListener("change", retheme);
+  remember.set("nwasabi.consoleHeight", height.value);
   disposed = true;
   resize?.disconnect();
   term?.dispose();
@@ -174,7 +208,7 @@ const consoleHistory: string[] = [];
   <div class="console">
     <p v-if="!state.loaded" class="empty muted">{{ t("debug.noApp") }}</p>
     <template v-else>
-      <div ref="host" class="terminal" role="log" :aria-label="t('console.label')" data-keep-keys />
+      <div ref="frame" class="frame" :style="{ height: height + 'px' }"><div ref="host" class="terminal" role="log" :aria-label="t('console.label')" data-keep-keys /></div>
       <p class="muted small">{{ t("console.hint") }} <button class="link" @click="run('help')">{{ t("console.help") }}</button> · <button class="link" @click="clear">{{ t("console.clear") }}</button></p>
     </template>
   </div>
@@ -183,7 +217,9 @@ const consoleHistory: string[] = [];
 <style scoped>
 .console { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .empty { padding: 24px 8px; text-align: center; margin: 0; }
-.terminal { min-width: 0; padding: 4px; background: #000; border-radius: 8px; overflow: hidden; }
+/* La zone : sa hauteur se règle à la poignée en bas à droite ; plus large que l'écran, elle défile en travers (pas de retour à la ligne). */
+.frame { min-width: 0; min-height: 120px; resize: vertical; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); }
+.terminal { height: 100%; width: max-content; padding: 4px; }
 .small { margin: 0; font-size: 12px; }
 .link { border: none; background: none; padding: 0; color: var(--accent-strong); cursor: pointer; font: inherit; }
 .link:hover { text-decoration: underline; }
