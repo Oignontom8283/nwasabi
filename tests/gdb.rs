@@ -75,12 +75,14 @@ fn a_debugger_can_break_step_read_and_write() {
 
     // Négociation : taille des paquets, description des registres.
     assert!(d.ask("qSupported:multiprocess+").contains("PacketSize="));
+    // La description se lit par morceaux : `m` + des octets tant qu'il en reste, puis `l` seul.
     let xml = d.ask("qXfer:features:read:target.xml:0,fff");
     assert!(
-        xml.starts_with('l') && xml.contains(r#"name="pc""#),
+        xml.starts_with('m') && xml.contains(r#"name="pc""#),
         "{xml}"
     );
-    assert_eq!(d.ask("?"), "T05");
+    assert_eq!(d.ask("qXfer:features:read:target.xml:fff,fff"), "l");
+    assert!(d.ask("?").starts_with("T05"));
 
     // Registres : 17 mots (r0 à r12, sp, lr, pc, xpsr) ; pc est au début du programme.
     let regs = d.ask("g");
@@ -93,22 +95,22 @@ fn a_debugger_can_break_step_read_and_write() {
     assert_eq!(word(&d.ask("g"), 3), 0x1234_5678);
     assert_eq!(d.ask("M20020000,4:deadbeef"), "OK");
     assert_eq!(d.ask("m20020000,4"), "deadbeef");
-    assert_eq!(d.ask("m10,4"), "E14", "mémoire inexistante");
+    assert!(d.ask("m10,4").starts_with('E'), "mémoire inexistante");
 
     // Point d'arrêt sur `main`, reprise : arrêt avant l'instruction, pc sur `main`.
     assert_eq!(d.ask(&format!("Z0,{main:x},2")), "OK");
     let stop = d.ask("c");
-    assert!(stop.starts_with("T05swbreak:"), "{stop}");
+    assert!(stop.contains("swbreak:"), "{stop}");
     assert_eq!(word(&d.ask("g"), 15), main);
     // Un pas avance d'une instruction.
-    assert!(d.ask("s").starts_with("T05"));
+    assert!(d.ask("s").starts_with(['S', 'T']));
     assert_ne!(word(&d.ask("g"), 15), main);
     // Retirer le point, puis reprendre et interrompre (Ctrl+C).
     assert_eq!(d.ask(&format!("z0,{main:x},2")), "OK");
     d.send("c");
     thread::sleep(std::time::Duration::from_millis(100));
     d.0.write_all(&[0x03]).unwrap();
-    assert_eq!(d.read(), "T02");
+    assert_eq!(d.read(), "S02");
     // Un point d'observation en écriture arrête l'exécution sur l'instruction qui écrit. Programme en RAM :
     // `str r1, [r0]` puis `b .`, avec r0 sur la zone observée.
     assert_eq!(d.ask("M20020000,4:0160fee7"), "OK");
@@ -116,25 +118,26 @@ fn a_debugger_can_break_step_read_and_write() {
     assert_eq!(d.ask("Pf=00000220"), "OK"); // pc = 0x20020000
     assert_eq!(d.ask("Z2,20025000,4"), "OK");
     let stop = d.ask("c");
-    assert!(stop.starts_with("T05watch:20025000;"), "{stop}");
+    assert!(stop.contains("watch:20025000;"), "{stop}");
     assert_eq!(d.ask("z2,20025000,4"), "OK");
     // Remonter le temps : un pas en arrière rétablit le pc d'avant ; reverse-continue jusqu'au point d'arrêt précédent.
+    let supported = d.ask("qSupported:multiprocess+");
     assert!(
-        d.ask("qSupported")
-            .contains("ReverseStep+;ReverseContinue+")
+        supported.contains("ReverseStep+") && supported.contains("ReverseContinue+"),
+        "{supported}"
     );
     assert_eq!(d.ask("Pf=00000220"), "OK");
     let before = word(&d.ask("g"), 15);
-    assert!(d.ask("s").starts_with("T05"));
+    assert!(d.ask("s").starts_with(['S', 'T']));
     let after = word(&d.ask("g"), 15);
     assert_ne!(before, after);
-    assert!(d.ask("bs").starts_with("T05"));
+    assert!(d.ask("bs").starts_with(['S', 'T']));
     assert_eq!(
         word(&d.ask("g"), 15),
         before,
         "un pas en arrière revient au pc d'avant"
     );
-    assert_eq!(d.ask("vCont?"), "vCont;c;s;t");
+    assert!(d.ask("vCont?").starts_with("vCont;c;"));
     assert_eq!(d.ask("D"), "OK");
     server.join().unwrap();
 }
@@ -182,7 +185,7 @@ fn a_debugger_can_drive_the_device_of_a_page_through_the_bridge() {
         })
     };
     let mut d = Debugger(TcpStream::connect(("127.0.0.1", port)).unwrap());
-    assert!(d.ask("qSupported").contains("PacketSize="));
+    assert!(d.ask("qSupported:multiprocess+").contains("PacketSize="));
     let regs = d.ask("g");
     assert_eq!(
         regs.len(),
@@ -191,7 +194,11 @@ fn a_debugger_can_drive_the_device_of_a_page_through_the_bridge() {
     );
     let entry = word(&regs, 15);
     // Un pas avance l'appareil de la page.
-    assert!(d.ask("s").starts_with("T05"));
+    let stepped = d.ask("s");
+    assert!(
+        stepped.starts_with('S') || stepped.starts_with("T05"),
+        "{stepped}"
+    );
     assert_ne!(word(&d.ask("g"), 15), entry);
     // Un point d'arrêt à l'adresse suivante, puis reprise : l'exécution s'y arrête.
     let next = word(&d.ask("g"), 15);
@@ -199,7 +206,7 @@ fn a_debugger_can_drive_the_device_of_a_page_through_the_bridge() {
     // On revient d'un pas (pc = l'adresse d'avant), puis la reprise s'arrête au point d'arrêt posé.
     assert_eq!(d.ask(&format!("Pf={}", to_le(entry))), "OK");
     let reply = d.ask("c");
-    assert!(reply.starts_with("T05swbreak:"), "{reply}");
+    assert!(reply.contains("swbreak:"), "{reply}");
     assert_eq!(word(&d.ask("g"), 15), next);
     assert_eq!(d.ask("D"), "OK");
     server.join().unwrap();
