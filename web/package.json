@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
+    "lint": "biome lint",
     "typecheck": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "vue-i18n": "^11.4.16"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.5",
     "@vitejs/plugin-vue": "^6.0.10",

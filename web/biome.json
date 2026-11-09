@@ -1,0 +1,33 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "files": {
+    "includes": [
+      "src/**/*.ts",
+      "tests/**/*.ts"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": false,
+      "correctness": {
+        "recommended": true,
+        "noUnusedImports": "error",
+        "noUnusedVariables": "warn"
+      },
+      "suspicious": {
+        "noDebugger": "error",
+        "noDuplicateObjectKeys": "error",
+        "noDoubleEquals": "warn",
+        "noSelfCompare": "error",
+        "noRedeclare": "error"
+      }
+    }
+  }
+}

@@ -17,7 +17,6 @@ export function useEmulator() {
   let nextId = 1;
   const pending = new Map<number, { resolve: (result: unknown) => void; reject: (error: Error) => void }>();
   let canvas: HTMLCanvasElement | null = null;
-  let gestureTarget: HTMLElement | null = null;
   let detachPointer: (() => void) | null = null;
 
   // Les entrées : le mapping reste dans la page ; ce qui en sort part au Worker comme une touche de la calculatrice.
@@ -80,7 +79,6 @@ export function useEmulator() {
   function attach(element: HTMLCanvasElement, gestures: HTMLElement = element): void {
     canvas = element;
     if (state.ready) void player("draw"); // l'écran déjà dessiné par le Worker va dans ce canvas
-    gestureTarget = gestures;
     if (!detachPointer) detachPointer = input.attachPointer(gestures);
   }
 
