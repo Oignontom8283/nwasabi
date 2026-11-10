@@ -51,6 +51,57 @@ function go(address: number) {
   viewAt.value = aligned;
   focus.value = aligned;
 }
+/**
+ * Le défilement libre : l'utilisateur a fait défiler le tableau au-delà de la fenêtre lue autour de l'instruction en cours. Tant qu'il
+ * navigue ainsi, on ne remplace plus les lignes à chaque relevé ; la fenêtre se remet autour de l'instruction en cours dès que celle-ci
+ * change (un pas, une reprise), ou qu'on demande une adresse.
+ */
+let browsing = false;
+let loadingMore = false;
+let startReached = false;
+let endReached = false;
+/** Nombre maximal de lignes gardées : au-delà, on retire celles du bord opposé à celui qu'on étend. */
+const MAX_LINES = 900;
+const CHUNK_LINES = 64;
+function resetWindow() {
+  browsing = false;
+  startReached = false;
+  endReached = false;
+}
+/** Lit la suite ou ce qui précède le tableau, pour pouvoir se déplacer partout comme dans l'éditeur hexadécimal. */
+async function more(direction: "up" | "down") {
+  const list = lines.value;
+  if (loadingMore || !list.length || !state.loaded) return;
+  if (direction === "up" ? startReached : endReached) return;
+  loadingMore = true;
+  try {
+    if (direction === "down") {
+      const last = list[list.length - 1] as Line;
+      const d = await quiet({ cmd: "disasm", address: last.address + last.size, count: CHUNK_LINES });
+      const added = d.ok ? (d.lines as Line[]) : [];
+      if (!added.length) endReached = true;
+      else {
+        browsing = true;
+        const joined = [...list, ...added];
+        lines.value = joined.length > MAX_LINES ? joined.slice(joined.length - MAX_LINES) : joined;
+        if (joined.length > MAX_LINES) startReached = false;
+      }
+    } else {
+      const first = list[0] as Line;
+      const d = await quiet({ cmd: "disasm", address: first.address, count: 1, before: 32 });
+      const added = d.ok ? (d.lines as Line[]).filter((l) => l.address < first.address) : [];
+      if (!added.length) startReached = true;
+      else {
+        browsing = true;
+        const joined = [...added, ...list];
+        lines.value = joined.length > MAX_LINES ? joined.slice(0, MAX_LINES) : joined;
+        if (joined.length > MAX_LINES) endReached = false;
+      }
+    }
+  } finally {
+    loadingMore = false;
+  }
+}
 const gotoText = ref("");
 const message = ref("");
 /** Point d'arrêt provisoire de « jusqu'ici », « par-dessus » et « sortir » : retiré dès que l'exécution s'arrête. */
@@ -109,6 +160,7 @@ async function nopOut(line: Line) {
   const r = await quiet({ cmd: "memory_write", address: line.address, hex: bytes });
   message.value = r.ok ? "" : String(r.error);
   emulator.bump();
+  resetWindow();
   await refresh();
 }
 async function setPc(line: Line) {
@@ -205,6 +257,7 @@ async function refresh() {
   if (!c.ok) return;
   const next: Cpu = { r: c.r as number[], sp: c.sp as number, lr: c.lr as number, pc: c.pc as number, xpsr: c.xpsr as number };
   if (cpu.value && JSON.stringify(cpu.value) !== JSON.stringify(next)) previous.value = cpu.value;
+  if (cpu.value && cpu.value.pc !== next.pc) resetWindow();
   assignIfChanged(cpu, next);
   assignIfChanged(breaks, ((await quiet({ cmd: "breaks" })).breakpoints as number[] | undefined) ?? []);
   // Pendant l'exécution le code défile trop vite pour être lu : on ne le relit qu'à l'arrêt.
@@ -215,6 +268,7 @@ async function refresh() {
     assignIfChanged(frames, list);
     here.value = list[0]?.symbol ?? "";
   }
+  if (browsing) return; // l'utilisateur se déplace : ses lignes restent
   const follow = viewAt.value === null;
   // Une zone demandée : assez d'instructions pour la couvrir (deux octets au moins chacune), plus un peu de contexte.
   const count = zone.value && !follow ? Math.min(256, Math.ceil(zone.value.length / 2) + 6) : 28;
@@ -230,6 +284,7 @@ onBeforeUnmount(() => {
   stopPolling();
   removeEventListener("keydown", onKey);
 });
+watch(() => viewAt.value, resetWindow, { flush: "sync" });
 watch(() => [state.revision, viewAt.value], refresh);
 /** Plage d'octets à repérer dans le code (venue d'un lien « zone ») : ses instructions sont surlignées. */
 const zone = ref<{ address: number; length: number } | null>(null);
@@ -399,7 +454,7 @@ const flags = computed(() => {
         <span>{{ t("debug.zone", { address: hex0x(zone.address), n: zone.length }, zone.length) }}</span>
         <button class="link" @click="zone = null">{{ t("debug.zoneClear") }}</button>
       </p>
-      <AsmTable
+      <AsmTable @more="more"
         ref="table"
         :lines="lines"
         :pc="cpu?.pc ?? null"

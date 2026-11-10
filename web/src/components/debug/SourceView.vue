@@ -37,6 +37,8 @@ let stopPolling = () => {};
 let temporary: { file: number; line: number } | null = null;
 
 const paused = computed(() => state.loaded && !state.running);
+/** Le nom du fichier, sans le dossier : le chemin complet est celui de la machine où l'application a été compilée. */
+const nameOf = (path: string) => path.replace(/\\/g, "/").split("/").pop() || path;
 const lines = computed(() => sourceLines(source.current));
 const fileId = computed(() => source.files.find((f) => f.path === source.current)?.id ?? -1);
 const codeLines = computed(() => new Set(source.codeLines[source.current ?? ""] ?? []));
@@ -270,16 +272,16 @@ function tokens(line: string): Array<{ text: string; id: boolean }> {
       </div>
       <p v-if="message" class="error" role="alert">{{ message }}</p>
 
-      <div class="files">
-        <select v-model="source.current" :aria-label="t('source.file')">
-          <option v-for="f in source.files" :key="f.id" :value="f.path">{{ f.path }}{{ source.texts[f.path] === undefined ? " ⚠" : "" }}</option>
-        </select>
-        <button :title="t('source.loadHint')" @click="picker?.click()">{{ t("source.load") }}</button>
-        <input ref="picker" type="file" multiple hidden @change="(e: Event) => giveFiles((e.target as HTMLInputElement).files)" />
-      </div>
+      <div class="editor" :class="{ over: dragging }">
+        <div class="files">
+          <select v-model="source.current" :aria-label="t('source.file')" :title="source.current ?? ''">
+            <option v-for="f in source.files" :key="f.id" :value="f.path" :title="f.path">{{ nameOf(f.path) }}{{ source.texts[f.path] === undefined ? ` (${t("source.notLoaded")})` : "" }}</option>
+          </select>
+          <button :title="t('source.loadHint')" @click="picker?.click()">{{ t("source.load") }}</button>
+          <input ref="picker" type="file" multiple hidden @change="(e: Event) => giveFiles((e.target as HTMLInputElement).files)" />
+        </div>
 
-      <div ref="scroller" class="listing mono" :class="{ over: dragging }" role="region" :aria-label="t('source.code')" @mouseover="onOver" @mouseleave="onLeave">
-        <template v-if="lines">
+        <div v-if="lines" ref="scroller" class="listing mono" role="region" :aria-label="t('source.code')" @mouseover="onOver" @mouseleave="onLeave">
           <div v-for="(text, i) in lines" :key="i" class="line" :class="{ 'has-code': codeLines.has(i + 1), here: hereLine === i + 1, brk: breakLines.has(i + 1) }">
             <button class="gutter" :disabled="!codeLines.has(i + 1)" :aria-label="breakLines.has(i + 1) ? t('debug.removeBreak') : t('debug.addBreak')" :title="codeLines.has(i + 1) ? (breakLines.has(i + 1) ? t('debug.removeBreak') : t('debug.addBreak')) : ''" @click="toggleBreak(i + 1)">
               <span v-if="breakLines.has(i + 1)" class="bp" />
@@ -288,12 +290,12 @@ function tokens(line: string): Array<{ text: string; id: boolean }> {
             <span class="arrow" aria-hidden="true">{{ hereLine === i + 1 ? "▶" : "" }}</span>
             <span class="text"><template v-for="(tk, j) in tokens(text)" :key="j"><span v-if="tk.id" class="id">{{ tk.text }}</span><template v-else>{{ tk.text }}</template></template></span>
           </div>
-        </template>
-        <div v-else class="missing">
-          <p>{{ t("source.missing", { path: source.current ?? "" }) }}</p>
-          <p class="muted small">{{ t("source.missingHelp") }}</p>
-          <button class="primary" @click="picker?.click()">{{ t("source.load") }}</button>
         </div>
+        <div v-else class="missing" role="region" :aria-label="t('source.code')">
+          <p class="title">{{ t("source.missing", { name: nameOf(source.current ?? "") }) }}</p>
+          <p class="muted small">{{ t("source.missingHelp") }}</p>
+        </div>
+        <p v-if="source.current" class="recorded muted small mono" :title="t('source.recorded', { path: source.current })">{{ t("source.recorded", { path: source.current }) }}</p>
       </div>
       <p class="muted small">{{ t("source.hint") }}</p>
 
@@ -348,10 +350,13 @@ function tokens(line: string): Array<{ text: string; id: boolean }> {
 .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 kbd { font: 10.5px ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 2px; background: transparent; }
 button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; }
-.files { display: flex; gap: 6px; }
+/* Un seul cadre : la barre du fichier, le texte, puis le chemin noté dans l'application. */
+.editor { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.editor.over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.files { display: flex; gap: 6px; padding: 6px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
 .files select { flex: 1; min-width: 0; }
-.listing { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px; line-height: 1.55; tab-size: 4; }
-.listing.over { outline: 2px dashed var(--accent); }
+.listing { max-height: 340px; overflow: auto; font-size: 12.5px; line-height: 1.55; tab-size: 4; }
+.recorded { margin: 0; padding: 4px 8px; border-top: 1px solid var(--line); background: var(--surface-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .line { display: flex; white-space: pre; }
 .line.here { background: color-mix(in srgb, var(--warn) 22%, transparent); }
 .gutter { width: 18px; flex: none; border: none; background: none; padding: 0; cursor: pointer; display: grid; place-items: center; }
@@ -363,7 +368,9 @@ button.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; 
 .arrow { width: 1.5ch; flex: none; color: var(--warn); }
 .text { padding-right: 12px; }
 .id:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 2px; }
-.missing { padding: 16px; text-align: center; font-family: system-ui, sans-serif; }
+.missing { padding: 12px; display: grid; gap: 4px; }
+.missing p { margin: 0; }
+.missing .title { font-weight: 600; }
 section { display: grid; gap: 4px; }
 .small { margin: 0; font-size: 12px; }
 .frames { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; }

@@ -6,7 +6,7 @@
 // Il se charge de tout ce qui est propre au tableau : la sélection de lignes (clic, plage, rectangle, flèches), la flèche qui va d'un
 // saut à sa cible au survol, l'instruction qu'on vient de rejoindre, et les raccourcis. Ce qu'il faut faire d'une ligne (poser un point
 // d'arrêt, suivre un saut, ouvrir un menu…) revient au parent par des événements.
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRowSelection } from "../../composables/useRowSelection.js";
 import { jumpKind, tooltip } from "../../thumbDocs.js";
@@ -35,9 +35,12 @@ const emit = defineEmits<{
   menu: [at: { x: number; y: number }, line: AsmLine, chosen: AsmLine[]];
   copy: [chosen: AsmLine[]];
   focused: [];
+  /** Le défilement approche d'un bord : le parent charge la suite (`down`) ou ce qui précède (`up`). */
+  more: [direction: "up" | "down"];
 }>();
 const { t } = useI18n();
 
+const root = ref<HTMLElement | null>(null);
 const rows = ref<HTMLElement | null>(null);
 const sel = useRowSelection<number>({ container: rows, keys: () => props.lines.map((l) => l.address), attribute: "data-addr", parse: Number });
 const chosen = computed(() => props.lines.filter((l) => sel.selected.value.has(l.address)));
@@ -81,10 +84,22 @@ interface Arrow {
   label: string;
   /** Largeur de la marge au moment où la flèche est dessinée. */
   lane: number;
-  height: number;
+  /** Bords visibles de la liste (là où se pose la pointe d'une cible hors liste). */
+  top: number;
+  bottom: number;
 }
 const hovered = ref<number | null>(null);
 const arrow = ref<Arrow | null>(null);
+
+/** Les bords haut et bas de ce qu'on voit de la liste, dans le repère des lignes (sous l'en-tête collé en haut). */
+function visibleEdges(): { top: number; bottom: number } {
+  const scroller = root.value;
+  const area = rows.value;
+  if (!scroller || !area) return { top: 4, bottom: 4 };
+  const header = scroller.querySelector<HTMLElement>(".head")?.offsetHeight ?? 0;
+  const top = scroller.scrollTop - area.offsetTop + header;
+  return { top: top + 6, bottom: scroller.scrollTop + scroller.clientHeight - area.offsetTop - 6 };
+}
 
 const middleOf = (address: number): number | null => {
   const row = rowOf(address);
@@ -98,7 +113,7 @@ function drawArrow(line: AsmLine | undefined) {
   const from = middleOf(line.address);
   if (from === null) return void (arrow.value = null);
   const to = middleOf(line.target);
-  const lane = area.querySelector<HTMLElement>("[data-lane]")?.offsetWidth ?? 40;
+  const lane = area.querySelector<HTMLElement>("[data-lane]")?.offsetWidth ?? 30;
   const first = props.lines[0]?.address ?? 0;
   arrow.value = {
     kind,
@@ -107,28 +122,32 @@ function drawArrow(line: AsmLine | undefined) {
     edge: to === null ? (line.target < first ? "up" : "down") : null,
     label: line.target_symbol ?? `0x${hex(line.target)}`,
     lane,
-    height: area.scrollHeight,
+    ...visibleEdges(),
   };
 }
 // La flèche suit la souris ; sans souris sur une ligne, elle suit la ligne active du clavier.
 const arrowLine = computed(() => props.lines.find((l) => l.address === (hovered.value ?? sel.caret.value)));
 watch([arrowLine, () => props.lines], () => drawArrow(arrowLine.value), { flush: "post" });
 
-const ARROW_HEAD = 7;
+/** La pointe : un triangle isocèle, `HEAD` de long et `2 × HALF` de large. */
+const HEAD = 6;
+const HALF = 3.5;
+/** Pointe qui regarde vers la droite, sa pointe en (x, y). */
+const headRight = (x: number, y: number) => `${x},${y} ${x - HEAD},${y - HALF} ${x - HEAD},${y + HALF}`;
 const geometry = computed(() => {
   const a = arrow.value;
   if (!a) return null;
   const right = a.lane - 3; // où la flèche touche les lignes
-  const left = 9; // le trait vertical
+  const left = 6; // le trait vertical : le coude est tout près de la marge
   const start = { x: right, y: a.from };
   if (a.to === null) {
-    const y = a.edge === "up" ? 4 : a.height - 4;
-    const tip = a.edge === "up" ? y : y;
-    const base = a.edge === "up" ? y + ARROW_HEAD : y - ARROW_HEAD;
-    return { start, path: `M ${right} ${a.from} H ${left} V ${base}`, head: `${left},${tip} ${left - 4},${base} ${left + 4},${base}` };
+    // Cible hors de la liste : le trait file vers le bord visible, où une pointe verticale (même taille) le termine.
+    const tip = a.edge === "up" ? a.top : a.bottom;
+    const base = a.edge === "up" ? tip + HEAD : tip - HEAD;
+    return { start, path: `M ${right} ${a.from} H ${left} V ${base}`, head: `${left},${tip} ${left - HALF},${base} ${left + HALF},${base}` };
   }
-  if (a.to === a.from) return { start, path: "", head: `${right},${a.to} ${right - ARROW_HEAD},${a.to - 4} ${right - ARROW_HEAD},${a.to + 4}` };
-  return { start, path: `M ${right} ${a.from} H ${left} V ${a.to} H ${right - ARROW_HEAD}`, head: `${right},${a.to} ${right - ARROW_HEAD},${a.to - 4} ${right - ARROW_HEAD},${a.to + 4}` };
+  if (a.to === a.from) return { start, path: "", head: headRight(right, a.to) };
+  return { start, path: `M ${right} ${a.from} H ${left} V ${a.to} H ${right - HEAD}`, head: headRight(right, a.to) };
 });
 
 // ---- sélection, clavier ---------------------------------------------------------------------------------------------------------------
@@ -161,11 +180,66 @@ function onKey(event: KeyboardEvent) {
   event.preventDefault();
 }
 
+// ---- défilement libre : aux bords, le parent charge la suite ou ce qui précède ----------------------------------------------------
+const REACH = 160;
+let frame = 0;
+function onScroll() {
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    const scroller = root.value;
+    if (!scroller) return;
+    if (scroller.scrollTop < REACH) emit("more", "up");
+    else if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < REACH) emit("more", "down");
+    if (arrow.value?.edge) drawArrow(arrowLine.value); // la pointe d'une cible hors liste suit le bord visible
+  });
+}
+onBeforeUnmount(() => cancelAnimationFrame(frame));
+
+// Quand des lignes s'ajoutent au-dessus, ce qu'on regardait reste en place : on garde la même ligne au même endroit de la vue.
+let anchor: { address: number; offset: number } | null = null;
+watch(
+  () => props.lines,
+  () => {
+    const scroller = root.value;
+    const first = props.lines[0]?.address;
+    anchor = null;
+    if (!scroller || first === undefined) return;
+    const top = scroller.getBoundingClientRect().top;
+    const visible = [...scroller.querySelectorAll<HTMLElement>("[data-addr]")].find((r) => r.getBoundingClientRect().bottom > top + 30);
+    if (visible) anchor = { address: Number(visible.dataset.addr), offset: visible.getBoundingClientRect().top - top };
+  },
+  { flush: "pre" },
+);
+watch(
+  () => props.lines,
+  async () => {
+    await nextTick();
+    const scroller = root.value;
+    const kept = anchor;
+    if (!scroller || !kept) return;
+    const row = rowOf(kept.address);
+    if (!row) return;
+    const shift = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - kept.offset;
+    if (Math.abs(shift) > 0.5) scroller.scrollTop += shift;
+  },
+  { flush: "post" },
+);
+// Le tableau change de largeur (volet redimensionné, fenêtre) : la marge change, la flèche se redessine.
+let observer: ResizeObserver | null = null;
+onMounted(() => {
+  if (root.value) {
+    observer = new ResizeObserver(() => drawArrow(arrowLine.value));
+    observer.observe(root.value);
+  }
+});
+onBeforeUnmount(() => observer?.disconnect());
+
 defineExpose({ clearSelection: sel.clear });
 </script>
 
 <template>
-  <div class="asm mono" role="table" :aria-label="t('debug.code')">
+  <div ref="root" class="asm mono" role="table" :aria-label="t('debug.code')" @scroll.passive="onScroll">
     <div class="head muted" role="row">
       <span data-lane :title="t('debug.colJumpHint')" />
       <span class="c-center" :title="t('debug.colBreakHint')">
@@ -200,7 +274,7 @@ defineExpose({ clearSelection: sel.clear });
         <polygon :points="geometry.head" :class="['head-shape', arrow.kind]" />
         <circle :cx="geometry.start.x" :cy="geometry.start.y" r="2.2" :class="['origin', arrow.kind]" />
       </svg>
-      <span v-if="arrow?.edge" class="edge" :class="arrow.edge" :style="{ left: arrow.lane + 4 + 'px' }">{{ arrow.edge === "up" ? "↑" : "↓" }} {{ arrow.label }}</span>
+      <span v-if="arrow?.edge" class="edge" :style="{ left: arrow.lane + 4 + 'px', top: (arrow.edge === 'up' ? arrow.top : arrow.bottom - 18) + 'px' }">{{ arrow.edge === "up" ? "↑" : "↓" }} {{ arrow.label }}</span>
 
       <template v-for="line in lines" :key="line.address">
         <div v-if="line.label" class="label" role="presentation">{{ line.label }}:</div>
@@ -220,10 +294,13 @@ defineExpose({ clearSelection: sel.clear });
           </button>
           <span class="kind" :class="kindOf(line) ?? ''" :title="kindOf(line) ? t(`debug.jump.${kindOf(line) as JumpKind}`) : ''">
             <svg v-if="kindOf(line)" viewBox="0 0 12 12" width="14" height="14" aria-hidden="true">
-              <path v-if="kindOf(line) === 'jump' || kindOf(line) === 'branch'" :d="(line.target ?? 0) > line.address ? 'M6 1v8 M3 6.5l3 3 3-3' : 'M6 11V3 M3 5.5l3-3 3 3'" />
-              <path v-if="kindOf(line) === 'branch'" d="M1 6l1.5-1.5L4 6 2.5 7.5z" class="solid" />
+              <template v-if="kindOf(line) === 'jump' || kindOf(line) === 'branch'">
+                <!-- Une flèche vers le bas ou le haut, centrée ; la tige est en pointillés pour un saut conditionnel. -->
+                <path :class="{ dashed: kindOf(line) === 'branch' }" :d="(line.target ?? 0) > line.address ? 'M6 1.5V10' : 'M6 10.5V2'" />
+                <path :d="(line.target ?? 0) > line.address ? 'M3 7.5L6 10.5L9 7.5' : 'M3 4.5L6 1.5L9 4.5'" />
+              </template>
               <path v-else-if="kindOf(line) === 'call'" d="M3 2l6 4-6 4z" class="solid" />
-              <path v-else-if="kindOf(line) === 'return'" d="M10 2v4H3 M5.5 3.5L3 6l2.5 2.5" />
+              <path v-else-if="kindOf(line) === 'return'" d="M9.5 2.5V7H2.5 M5 4.5L2.5 7L5 9.5" />
               <path v-else-if="kindOf(line) === 'indirect'" d="M2 6h.01 M6 6h.01 M10 6h.01" />
             </svg>
           </span>
@@ -250,15 +327,15 @@ defineExpose({ clearSelection: sel.clear });
 <style scoped>
 /* Le tableau ne défile que de haut en bas : ses colonnes sont fixes, sauf les opérandes qui prennent le reste (et se coupent par « … »). */
 .asm {
-  --lane: 40px; --cols: var(--lane) 24px 20px 9ch 10ch 9ch minmax(0, 1fr) 64px;
+  --lane: 30px; --cols: var(--lane) 24px 20px 9ch 10ch 9ch minmax(0, 1fr) 64px;
   container: asm / inline-size;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px;
-  max-height: 440px; overflow-x: hidden; overflow-y: auto;
+  max-height: 440px; overflow-x: hidden; overflow-y: auto; overflow-anchor: none;
 }
 /* Étroit : les octets disparaissent, la marge des flèches se resserre. */
 @container asm (max-width: 560px) {
   /* Une requête de conteneur ne touche que l'intérieur du conteneur : la grille se redéfinit sur les lignes elles-mêmes. */
-  .head, .row, .label { --lane: 28px; --cols: var(--lane) 24px 20px 9ch 9ch minmax(0, 1fr) 64px; }
+  .head, .row, .label { --lane: 24px; --cols: var(--lane) 24px 20px 9ch 9ch minmax(0, 1fr) 64px; }
   .bytes { display: none; }
 }
 .head, .row { display: grid; grid-template-columns: var(--cols); column-gap: 6px; align-items: center; white-space: nowrap; }
@@ -291,6 +368,7 @@ defineExpose({ clearSelection: sel.clear });
 .kind { display: grid; place-items: center; }
 .kind svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .kind svg .solid { fill: currentColor; stroke: none; }
+.kind svg .dashed { stroke-dasharray: 1.7 1.9; stroke-linecap: butt; }
 .kind.jump { color: var(--accent-strong); }
 .kind.branch { color: var(--warn); }
 .kind.call { color: var(--ok); }
@@ -317,8 +395,6 @@ defineExpose({ clearSelection: sel.clear });
 .overlay .head-shape.call, .overlay .origin.call { fill: var(--ok); stroke: none; }
 .overlay .head-shape, .overlay .origin { stroke: none; }
 .edge { position: absolute; z-index: 2; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 11px; pointer-events: none; }
-.edge.up { top: 2px; }
-.edge.down { bottom: 2px; }
 .empty { padding: 10px; margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 </style>
