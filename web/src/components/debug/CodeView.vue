@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Le code de l'application : désassemblé autour de l'instruction en cours, avec les commandes d'exécution (reprendre, pas,
 // par-dessus, sortir), les points d'arrêt, la pile d'appels, les registres (modifiables en pause) et les registres de faute.
+import { useEventListener } from "@vueuse/core";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
@@ -276,14 +277,11 @@ async function refresh() {
   if (d.ok) assignIfChanged(lines, d.lines as Line[]);
 }
 
+useEventListener(window, "keydown", onKey);
 onMounted(() => {
   stopPolling = poll(refresh, 400);
-  addEventListener("keydown", onKey);
 });
-onBeforeUnmount(() => {
-  stopPolling();
-  removeEventListener("keydown", onKey);
-});
+onBeforeUnmount(() => stopPolling());
 watch(() => viewAt.value, resetWindow, { flush: "sync" });
 watch(() => [state.revision, viewAt.value], refresh);
 /** Plage d'octets à repérer dans le code (venue d'un lien « zone ») : ses instructions sont surlignées. */

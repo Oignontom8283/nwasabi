@@ -2,6 +2,7 @@
 // Le code source de l'application, comme dans un débogueur d'ordinateur : la ligne en cours, les points d'arrêt par ligne, la pile d'appels,
 // les variables locales et les expressions que l'on suit. Tout vient des informations DWARF de l'application (compilée avec `-g`) ;
 // le texte des fichiers source est donné par l'utilisateur (le navigateur ne lit pas le disque).
+import { useEventListener } from "@vueuse/core";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useEmu } from "../../emulator.js";
@@ -88,14 +89,11 @@ async function refreshBreakLines() {
   breakLines.value = current;
 }
 
+useEventListener(window, "keydown", onKey);
 onMounted(() => {
   stopPolling = poll(refresh, 400);
-  addEventListener("keydown", onKey);
 });
-onBeforeUnmount(() => {
-  stopPolling();
-  removeEventListener("keydown", onKey);
-});
+onBeforeUnmount(() => stopPolling());
 watch(() => [state.revision, source.frame, source.available], refresh);
 watch(() => points.breaks, refreshBreakLines);
 watch(

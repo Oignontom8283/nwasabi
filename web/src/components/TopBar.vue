@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -73,14 +74,8 @@ const act = (run: () => void) => () => {
   more.value = false;
   run();
 };
-onMounted(() => {
-  addEventListener("pointerdown", outside);
-  addEventListener("keydown", escape, true);
-});
-onBeforeUnmount(() => {
-  removeEventListener("pointerdown", outside);
-  removeEventListener("keydown", escape, true);
-});
+useEventListener(window, "pointerdown", outside);
+useEventListener(window, "keydown", escape, true);
 </script>
 
 <template>
