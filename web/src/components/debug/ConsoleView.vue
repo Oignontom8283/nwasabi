@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Console de commandes à la GDB : mêmes actions que les autres vues, au clavier, dans un terminal (xterm.js, avec son apparence par défaut).
 // xterm.js est chargé à l'ouverture de cette vue seulement : il ne pèse pas sur le démarrage de l'émulateur.
+import { useEventListener } from "@vueuse/core";
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { FitAddon } from "@xterm/addon-fit";
 import { useI18n } from "vue-i18n";
@@ -225,9 +226,8 @@ const retheme = () =>
     if (term) term.options.theme = colors();
   });
 watch(() => ui.theme, retheme);
-media.addEventListener("change", retheme);
+useEventListener(media, "change", retheme);
 onBeforeUnmount(() => {
-  media.removeEventListener("change", retheme);
   remember.set("nwasabi.consoleHeight", height.value);
   disposed = true;
   resize?.disconnect();

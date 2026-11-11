@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch as watchValue } from "vue";
 import { useI18n } from "vue-i18n";
 import { KeyMap } from "@nwasabi/js";
@@ -293,12 +294,13 @@ const onResize = () => {
   ui.winWidth = innerWidth;
   ui.winHeight = innerHeight;
 };
+// Les écouteurs de la page entière : `useEventListener` les retire tout seul quand le composant disparaît.
+useEventListener(window, "resize", onResize);
+useEventListener(window, "keydown", onKeyCapture, true);
+useEventListener(window, "keyup", onKeyCapture, true);
+useEventListener(document, "visibilitychange", onVisibility);
 onMounted(async () => {
   applyTheme();
-  addEventListener("resize", onResize);
-  addEventListener("keydown", onKeyCapture, true);
-  addEventListener("keyup", onKeyCapture, true);
-  document.addEventListener("visibilitychange", onVisibility);
   await emulator.init();
   attachPersistence(emulator);
   void refreshQuick();
@@ -317,10 +319,6 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
-  removeEventListener("resize", onResize);
-  removeEventListener("keydown", onKeyCapture, true);
-  removeEventListener("keyup", onKeyCapture, true);
-  document.removeEventListener("visibilitychange", onVisibility);
   detachKeyboard();
   stopWatching();
   emulator.stop();

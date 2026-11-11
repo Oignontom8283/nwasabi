@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import { useEmu } from "../emulator.js";
 import { computed, inject, nextTick, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -174,15 +175,12 @@ async function readWindow() {
 const REFRESH_MS = 120;
 const HIGHLIGHT_MS = 1200;
 let stopPolling = () => {};
+useEventListener(window, "resize", measure);
 onMounted(() => {
   measure();
   stopPolling = poll(readWindow, REFRESH_MS);
-  addEventListener("resize", measure);
 });
-onBeforeUnmount(() => {
-  stopPolling();
-  removeEventListener("resize", measure);
-});
+onBeforeUnmount(() => stopPolling());
 watch([baseAddress, regionIndex, () => state.revision, () => props.version], readWindow);
 watch(() => props.regions.length, () => {
   if (regionIndex.value >= props.regions.length) regionIndex.value = 0;
@@ -288,8 +286,7 @@ function pointerEnter(address: number) {
   if (dragging) cursor.value = address;
 }
 const stopDrag = () => (dragging = false);
-onMounted(() => addEventListener("pointerup", stopDrag));
-onBeforeUnmount(() => removeEventListener("pointerup", stopDrag));
+useEventListener(window, "pointerup", stopDrag);
 
 function move(delta: number, extend: boolean) {
   const r = region.value;

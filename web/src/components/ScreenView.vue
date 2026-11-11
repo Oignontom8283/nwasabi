@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import { useEmu } from "../emulator.js";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -22,9 +23,9 @@ let stopBrightness = () => {};
 const screenFilter = computed(() => (ui.backlight ? `brightness(${(0.2 + 0.8 * (brightness.value / 240)).toFixed(3)})` : "none"));
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
+useEventListener(document, "fullscreenchange", onChange);
 onMounted(() => {
   if (canvas.value && wrap.value) emulator.attach(canvas.value, wrap.value);
-  document.addEventListener("fullscreenchange", onChange);
   stopBrightness = poll(async () => {
     if (!state.loaded || !ui.backlight) return;
     const reply = await emulator.quiet({ cmd: "settings_get" });
@@ -38,7 +39,6 @@ onMounted(() => {
   screenApi.toggleVideo = toggleVideo;
 });
 onBeforeUnmount(() => {
-  document.removeEventListener("fullscreenchange", onChange);
   clearTimeout(hideTimer);
   stopBrightness();
   stopVideo(false);

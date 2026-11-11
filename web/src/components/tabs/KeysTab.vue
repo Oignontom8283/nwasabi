@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import { useEmu } from "../../emulator.js";
 import { computed, inject, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -37,13 +38,15 @@ const sources = computed(() => (selected.value && map.value ? map.value.sourcesO
 
 // ---- clavier ---------------------------------------------------------------------------------------
 
+let stopListening = () => {};
 function capture(chord: KeyName[]) {
   capturing.value = { chord };
-  addEventListener("keydown", onCaptured, true);
+  stopListening();
+  stopListening = useEventListener(window, "keydown", onCaptured, true);
 }
 function stopCapture() {
   capturing.value = null;
-  removeEventListener("keydown", onCaptured, true);
+  stopListening();
 }
 function onCaptured(event: KeyboardEvent) {
   event.preventDefault();
