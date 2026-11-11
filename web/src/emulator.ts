@@ -2,20 +2,21 @@
 // figer la page : ici on ne garde que l'état réactif (mis à jour par ce que le Worker envoie), le mapping des touches et
 // les entrées (clavier, souris, doigts), qui dépendent de la page. Parler au module est donc asynchrone.
 
+import * as Comlink from "comlink";
 import { inject, reactive } from "vue";
 import { InputMapper, KeyMap, Player } from "@nwasabi/js";
 import type { Firmware, KeyName, Model, PlayerState, Reply, Request, SpeedMode } from "@nwasabi/js";
 // Le module WebAssembly construit localement (voir vite.config.ts) : on n'utilise pas celui de @nwasabi/wasm.
 import wasmUrl from "nwasabi.wasm?url";
-import type { FromWorker, PlayerMethod, ToWorker } from "./worker-protocol.js";
+import type { PageApi, PlayerMethod, WorkerApi } from "./worker-protocol.js";
 
 export function useEmulator() {
   // `keymapVersion` change à chaque nouveau mapping des touches : les vues qui l'affichent le suivent.
   const state = reactive({ ...Player.initialState(), ready: false, deviceSeq: 0, keymapVersion: 0, mips: 0, slow: false });
 
   let worker: Worker | null = null;
-  let nextId = 1;
-  const pending = new Map<number, { resolve: (result: unknown) => void; reject: (error: Error) => void }>();
+  /** Les fonctions du Worker, appelées comme les nôtres (`comlink` envoie les messages et rend les réponses). */
+  let remote: Comlink.Remote<WorkerApi> | null = null;
   let canvas: HTMLCanvasElement | null = null;
   let detachPointer: (() => void) | null = null;
 
@@ -23,40 +24,26 @@ export function useEmulator() {
   const input = new InputMapper({ key: (name, down) => void player("key", name, down) }, KeyMap.default());
   state.keymapName = input.keymap.name;
 
-  function send(message: ToWorker, transfer: Transferable[] = []): void {
-    worker?.postMessage(message, transfer);
+  /** Le Worker, ou une erreur s'il n'est pas encore prêt. */
+  function rpc(): Comlink.Remote<WorkerApi> {
+    if (!remote) throw new Error("émulateur pas encore prêt");
+    return remote;
   }
 
-  function ask<T>(build: (id: number) => ToWorker, transfer: Transferable[] = []): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      if (!worker) return reject(new Error("émulateur pas encore prêt"));
-      const id = nextId++;
-      pending.set(id, { resolve: resolve as (result: unknown) => void, reject });
-      send(build(id), transfer);
-    });
-  }
-
-  function onMessage(event: MessageEvent<FromWorker>): void {
-    const message = event.data;
-    if (message.kind === "screen") {
-      canvas?.getContext("2d")?.drawImage(message.bitmap, 0, 0);
-      message.bitmap.close();
-      return;
-    }
-    if (message.kind === "state") {
-      Object.assign(state, message.patch);
-      return;
-    }
-    const waiting = pending.get(message.id);
-    if (!waiting) return;
-    pending.delete(message.id);
-    if (message.kind === "reply") waiting.resolve(message.result);
-    else waiting.reject(new Error(message.message));
-  }
+  /** Ce que le Worker appelle : les changements d'état et l'écran. */
+  const pageApi: PageApi = {
+    state(patch) {
+      Object.assign(state, patch);
+    },
+    screen(bitmap) {
+      canvas?.getContext("2d")?.drawImage(bitmap, 0, 0);
+      bitmap.close();
+    },
+  };
 
   /** Appelle une méthode du lecteur, dans le Worker. Les erreurs vont dans `state.error`. */
   function player<T = unknown>(method: PlayerMethod, ...args: unknown[]): Promise<T | undefined> {
-    return ask<T>((id) => ({ kind: "player", id, method, args })).catch((error: Error) => {
+    return (async () => (await rpc().player(method, args)) as T)().catch((error: Error) => {
       state.error = error.message;
       return undefined;
     });
@@ -65,12 +52,12 @@ export function useEmulator() {
   async function init(): Promise<void> {
     if (typeof Worker === "undefined") throw new Error("ce navigateur ne sait pas lancer de Worker");
     worker = new Worker(new URL("./emulator.worker.ts", import.meta.url), { type: "module" });
-    worker.onmessage = onMessage;
+    remote = Comlink.wrap<WorkerApi>(worker);
     worker.onerror = (event) => {
       state.error = event.message || "erreur de l'émulateur";
     };
     const wasm = new URL(wasmUrl, location.href).href;
-    await ask<boolean>((id) => ({ kind: "init", id, wasmUrl: wasm }));
+    await rpc().init(wasm, Comlink.proxy(pageApi));
     state.ready = true;
     if (canvas) void player("draw");
   }
@@ -92,7 +79,7 @@ export function useEmulator() {
   const WRITES = new Set(["fs_write", "fs_remove", "fs_rename", "fs_import"]);
 
   const call = (request: Request): Promise<Reply> =>
-    ask<Reply>((id) => ({ kind: "request", id, request, quiet: false })).then(
+    (async () => await rpc().request(request, false))().then(
       (reply) => {
         if (reply.ok && WRITES.has(String(request.cmd))) filesChanged();
         return reply;
@@ -102,7 +89,7 @@ export function useEmulator() {
 
   /** Comme `call`, mais une erreur n'est pas affichée : pour les lectures périodiques des vues. */
   const quiet = (request: Request): Promise<Reply> =>
-    ask<Reply>((id) => ({ kind: "request", id, request, quiet: true })).catch((error: Error) => ({ ok: false, error: error.message }));
+    (async () => await rpc().request(request, true))().catch((error: Error) => ({ ok: false, error: error.message }));
 
   /** Le mapping des touches en vigueur. */
   const keymap = (): KeyMap => input.keymap;
@@ -120,15 +107,15 @@ export function useEmulator() {
   const press = (name: KeyName, down: boolean): void => void player("key", name, down);
 
   /** Les fichiers à remettre dans chaque appareil neuf (ceux conservés dans le navigateur), ou `null`. */
-  const setKept = (document: unknown): void => send({ kind: "kept", document });
+  const setKept = (document: unknown): void => void remote?.kept(document);
 
   /** L'écran en image PNG (le Worker le dessine : la page n'a pas ses pixels). */
-  const capture = (): Promise<Blob | null> => ask<Blob | null>((id) => ({ kind: "capture", id })).catch(() => null);
+  const capture = (): Promise<Blob | null> => (async () => await rpc().capture())().catch(() => null);
 
   /** Commence l'enregistrement de l'écran en GIF ; `false` si c'est impossible. */
-  const startRecording = (): Promise<boolean> => ask<boolean>((id) => ({ kind: "record", id, action: "start" })).catch(() => false);
+  const startRecording = (): Promise<boolean> => (async () => (await rpc().record("start")) as boolean)().catch(() => false);
   /** Termine l'enregistrement et rend le fichier GIF (`null` s'il est vide). */
-  const stopRecording = (): Promise<Uint8Array | null> => ask<Uint8Array | null>((id) => ({ kind: "record", id, action: "stop" })).catch(() => null);
+  const stopRecording = (): Promise<Uint8Array | null> => (async () => (await rpc().record("stop")) as Uint8Array | null)().catch(() => null);
 
   return {
     state,

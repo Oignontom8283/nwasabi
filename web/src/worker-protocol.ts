@@ -30,24 +30,28 @@ export type PlayerMethod =
   | "dump"
   | "restore";
 
-/** Ce que la page envoie. */
-export type ToWorker =
-  | { kind: "init"; id: number; wasmUrl: string }
-  | { kind: "player"; id: number; method: PlayerMethod; args: unknown[] }
-  | { kind: "request"; id: number; request: Request; quiet: boolean }
-  /** Les fichiers à remettre dans chaque appareil neuf (`.nfs`), ou `null`. */
-  | { kind: "kept"; document: unknown | null }
-  | { kind: "capture"; id: number }
-  /** Enregistrement de l'écran en GIF : `start` le commence, `stop` le termine et rend le fichier (`Uint8Array`). */
-  | { kind: "record"; id: number; action: "start" | "stop" };
+/** Ce que la page offre au Worker : il l'appelle pour lui donner les changements d'état et l'écran. */
+export interface PageApi {
+  /** Les champs de l'état du lecteur qui ont changé depuis le dernier appel. */
+  state(patch: StatePatch): void;
+  /** L'écran, à dessiner dans le canvas de la page (le Worker le transfère : la page doit le fermer). */
+  screen(bitmap: ImageBitmap): void;
+}
 
-/** Ce que le Worker répond. */
-export type FromWorker =
-  | { kind: "reply"; id: number; result: unknown }
-  | { kind: "failure"; id: number; message: string }
-  /** Les champs de l'état du lecteur qui ont changé depuis le dernier message. */
-  | { kind: "state"; patch: StatePatch }
-  /** L'écran, à dessiner dans le canvas de la page. */
-  | { kind: "screen"; bitmap: ImageBitmap };
+/** Ce que le Worker offre à la page : des fonctions qu'elle appelle comme les siennes (`comlink` s'occupe des messages). */
+export interface WorkerApi {
+  /** Charge le module WebAssembly et prépare le lecteur ; `page` reçoit ensuite l'état et l'écran. */
+  init(wasmUrl: string, page: PageApi): Promise<true>;
+  /** Appelle une méthode du lecteur. */
+  player(method: PlayerMethod, args: unknown[]): unknown;
+  /** Envoie une requête au module ; `quiet` : une erreur n'est pas affichée par le lecteur. */
+  request(request: Request, quiet: boolean): Reply;
+  /** Les fichiers à remettre dans chaque appareil neuf (`.nfs`), ou `null`. */
+  kept(document: unknown | null): void;
+  /** L'écran en image PNG. */
+  capture(): Promise<Blob | null>;
+  /** Enregistrement de l'écran en GIF : `start` le commence (rend `false` si c'est impossible), `stop` le termine et rend le fichier. */
+  record(action: "start" | "stop"): boolean | Uint8Array | null;
+}
 
 export type { Reply };

@@ -1,23 +1,23 @@
 ---
 title: "La page web"
-description: "L'émulateur web : Worker qui porte l'émulation, protocole de messages, cadence, écran envoyé image par image, GIF, conservation des fichiers et pont GDB."
+description: "L'émulateur web : Worker qui porte l'émulation, appels typés entre la page et le Worker, cadence, écran envoyé image par image, GIF, conservation des fichiers et pont GDB."
 ---
 
 # La page web
 
 ::: tip En bref
-L'émulation tourne dans un **Worker** pour ne pas figer la page. Elle envoie son écran **image par image** et ses changements d'état par messages.
+L'émulation tourne dans un **Worker** pour ne pas figer la page. Elle envoie son écran **image par image** et ses changements d'état ; la page appelle ses fonctions comme les siennes (la bibliothèque `comlink` fait passer les messages).
 :::
 
 
 `web/` est une application **Vue 3** construite par Vite. L'émulation occupe un processeur presque entier quand l'application calcule sans attendre : sur le fil de la page, elle figerait toute l'interface. Elle tourne donc dans un **Worker**
-(`emulator.worker.ts`) ; la page lui parle par des messages typés (`worker-protocol.ts`) et reçoit en retour les changements d'état du lecteur.
+(`emulator.worker.ts`) ; la page appelle ses fonctions typées (`WorkerApi`, dans `worker-protocol.ts`) et reçoit en retour les changements d'état du lecteur (`PageApi`).
 
 ```mermaid
 flowchart TB
   subgraph page["Page (fil principal)"]
     ui["Interface Vue<br/>composants, App.vue"]
-    em["emulator.ts<br/>ask(...) : requêtes → promesses<br/>state : état réactif"]
+    em["emulator.ts<br/>appels du Worker (comlink)<br/>state : état réactif"]
     inp["InputMapper<br/>clavier, gestes → touches"]
     cv["Canvas de la page"]
   end
@@ -28,29 +28,34 @@ flowchart TB
   end
   ui --> em
   inp --> em
-  em -- "messages : init, player, request" --> pl
+  em -- "appels : init, player, request" --> pl
   pl --> wasm
   wasm --> pl
-  pl -- "state { patch }" --> em
+  pl -- "state(patch)" --> em
   pl --> oc
-  oc -- "screen { ImageBitmap }" --> cv
+  oc -- "screen(ImageBitmap)" --> cv
 ```
 
-## Messages
+## Les appels
 
-| Page → Worker | Rôle |
-|---|---|
-| `init { wasmUrl }` | charge le module et crée le `Player` |
-| `player { method, args }` | `load`, `restart`, `stepFrame`, `runWithoutData`, `changeModel`, `setSpeed`, `setCustomMhz`, `start`, `stop`, `key`, `bump`, `draw`, `dump`, `restore` |
-| `request { request, quiet }` | une [requête de session](../../reference/protocole-session.md) ; `quiet` : une erreur n'est pas affichée (lectures périodiques) |
-| `kept { document }` | les fichiers de la calculatrice à remettre dans chaque appareil neuf |
-| `capture`, `record` | capture PNG, GIF |
+Les fonctions que la page appelle dans le Worker ([`WorkerApi`](code:web/src/worker-protocol.ts#WorkerApi)) :
 
-| Worker → page | Rôle |
+| Fonction | Rôle |
 |---|---|
-| `reply { id, result }`, `failure { id, message }` | réponse à une demande |
-| `state { patch }` | les champs de `PlayerState` qui ont changé, plus `mips` (millions d'instructions par seconde, mesurés sur la dernière demi-seconde) et `slow` |
-| `screen { bitmap }` | l'écran, à dessiner dans le canvas de la page |
+| `init(wasmUrl, page)` | charge le module, crée le `Player` et donne au Worker les fonctions de la page |
+| `player(method, args)` | `load`, `restart`, `stepFrame`, `runWithoutData`, `changeModel`, `setSpeed`, `setCustomMhz`, `start`, `stop`, `key`, `bump`, `draw`, `dump`, `restore` |
+| `request(request, quiet)` | une [requête de session](../../reference/protocole-session.md) ; `quiet` : une erreur n'est pas affichée (lectures périodiques) |
+| `kept(document)` | les fichiers de la calculatrice à remettre dans chaque appareil neuf |
+| `capture()`, `record(action)` | capture PNG, GIF |
+
+Les fonctions que le Worker appelle dans la page ([`PageApi`](code:web/src/worker-protocol.ts#PageApi)) :
+
+| Fonction | Rôle |
+|---|---|
+| `state(patch)` | les champs de `PlayerState` qui ont changé, plus `mips` (millions d'instructions par seconde, mesurés sur la dernière demi-seconde) et `slow` |
+| `screen(bitmap)` | l'écran, à dessiner dans le canvas de la page (l'image est transférée sans copie) |
+
+Une erreur levée dans le Worker rejette la promesse côté page, avec son message.
 
 ## Cadence
 
@@ -82,9 +87,9 @@ le site de documentation à `/emulator/`.
 
 | Où | Quoi |
 |---|---|
-| [`emulator.ts`](code:web/src/emulator.ts) | côté page : [`useEmulator`](code:web/src/emulator.ts#useEmulator), [`ask`](code:web/src/emulator.ts#ask), [`onMessage`](code:web/src/emulator.ts#onMessage), [`attach`](code:web/src/emulator.ts#attach) |
-| [`emulator.worker.ts`](code:web/src/emulator.worker.ts) | côté Worker : [`handle`](code:web/src/emulator.worker.ts#handle), [`show`](code:web/src/emulator.worker.ts#show), [`flush`](code:web/src/emulator.worker.ts#flush), [`carryFiles`](code:web/src/emulator.worker.ts#carryFiles) |
-| [`worker-protocol.ts`](code:web/src/worker-protocol.ts) | les types des messages : [`ToWorker`](code:web/src/worker-protocol.ts#ToWorker), [`FromWorker`](code:web/src/worker-protocol.ts#FromWorker) |
+| [`emulator.ts`](code:web/src/emulator.ts) | côté page : [`useEmulator`](code:web/src/emulator.ts#useEmulator), [`rpc`](code:web/src/emulator.ts#rpc), [`pageApi`](code:web/src/emulator.ts#pageApi), [`attach`](code:web/src/emulator.ts#attach) |
+| [`emulator.worker.ts`](code:web/src/emulator.worker.ts) | côté Worker : [`api`](code:web/src/emulator.worker.ts#api), [`show`](code:web/src/emulator.worker.ts#show), [`flush`](code:web/src/emulator.worker.ts#flush), [`carryFiles`](code:web/src/emulator.worker.ts#carryFiles) |
+| [`worker-protocol.ts`](code:web/src/worker-protocol.ts) | les types des deux côtés : [`WorkerApi`](code:web/src/worker-protocol.ts#WorkerApi), [`PageApi`](code:web/src/worker-protocol.ts#PageApi) |
 | [`components/`](code:web/src/components/) | les composants Vue |
 | [`persist.ts`](code:web/src/persist.ts), [`idb.ts`](code:web/src/idb.ts) | conservation des fichiers |
 | [`serverLink.ts`](code:web/src/serverLink.ts) | rechargement par le serveur |
@@ -92,15 +97,15 @@ le site de documentation à `/emulator/`.
 | [`locales/`](code:web/src/locales/) | traductions françaises et anglaises |
 | [`vite.config.ts`](code:web/vite.config.ts) | la construction |
 
-## Pourquoi un Worker, et pourquoi ces messages
+## Pourquoi un Worker, et pourquoi des appels typés
 
-Dans un navigateur, tout ce qui s'exécute sur le fil principal **fige l'interface** s'il dure plus de quelques millisecondes ; une application qui calcule sans attendre occupe un processeur entier. Le Worker isole l'émulation, et la page lui parle par messages **typés** : chaque requête a un identifiant (`ask` rend une promesse), chaque changement d'état est un **correctif** (`state { patch }`) qui ne contient que les champs modifiés, pour ne pas inonder la page.
+Dans un navigateur, tout ce qui s'exécute sur le fil principal **fige l'interface** s'il dure plus de quelques millisecondes ; une application qui calcule sans attendre occupe un processeur entier. Le Worker isole l'émulation. La page l'appelle par des **fonctions typées** : `comlink` envoie les messages et rend une promesse, donc une faute de nom ou de paramètre est vue à la compilation, et personne n'a à maintenir une table de requêtes en attente.
 
 Le Worker envoie ses images **une par une** : voir [L'écran, image par image](#l-ecran-image-par-image) pour la raison.
 
 ## Pour modifier
 
-- **Un nouveau message** : l'ajouter à [`ToWorker`](code:web/src/worker-protocol.ts#ToWorker) ou [`FromWorker`](code:web/src/worker-protocol.ts#FromWorker) (le compilateur signale alors les `switch` incomplets), le traiter dans [`handle`](code:web/src/emulator.worker.ts#handle) et l'émettre côté page.
+- **Une fonction de plus** : l'ajouter à [`WorkerApi`](code:web/src/worker-protocol.ts#WorkerApi) (ou [`PageApi`](code:web/src/worker-protocol.ts#PageApi) pour ce que le Worker appelle dans la page), l'écrire dans [`api`](code:web/src/emulator.worker.ts#api) ; le compilateur signale ce qui manque.
 - **Un nouveau champ d'état partagé** : [`StatePatch`](code:web/src/worker-protocol.ts#StatePatch) puis [`flush`](code:web/src/emulator.worker.ts#flush) (qui le compare à `sent`).
 - **Un texte de l'interface** : ajouter la clé dans `fr.json` **et** `en.json` ; [`locales.mjs`](code:tests/web/locales.mjs) échoue si l'une manque ou si une clé n'est plus utilisée.
 - **Types et construction** : `just typecheck-web`, `just build-emulator`.

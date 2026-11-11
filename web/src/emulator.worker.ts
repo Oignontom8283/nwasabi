@@ -1,15 +1,11 @@
 // Le Worker qui fait tourner l'émulation (voir `worker-protocol.ts`). Il possède le lecteur de @nwasabi/js, le module
 // WebAssembly et l'écran (un OffscreenCanvas) ; la page ne voit de lui que ses réponses et les changements d'état.
 
+import * as Comlink from "comlink";
 import { GifRecorder } from "./gif.js";
 import { Player } from "@nwasabi/js";
 import type { Scheduler } from "@nwasabi/js";
-import type { FromWorker, PlayerMethod, StatePatch, ToWorker } from "./worker-protocol.js";
-
-const scope = self as unknown as {
-  postMessage(message: FromWorker, transfer?: Transferable[]): void;
-  onmessage: ((event: MessageEvent<ToWorker>) => void) | null;
-};
+import type { PageApi, PlayerMethod, StatePatch, WorkerApi } from "./worker-protocol.js";
 
 const FRAME_MS = 1000 / 60;
 /** Instructions au plus par tranche : entre deux tranches, le Worker traite les messages de la page (touches, requêtes). */
@@ -46,6 +42,8 @@ const scheduler: Scheduler = {
   },
 };
 
+/** La page, pour lui donner l'état et l'écran. */
+let page: Comlink.Remote<PageApi> | null = null;
 let player: Player | null = null;
 let canvas: OffscreenCanvas | null = null;
 let kept: unknown = null;
@@ -70,7 +68,7 @@ function show(): void {
   }
   showing = true;
   createImageBitmap(canvas)
-    .then((bitmap) => scope.postMessage({ kind: "screen", bitmap }, [bitmap]))
+    .then((bitmap) => page?.screen(Comlink.transfer(bitmap, [bitmap])))
     .catch(() => {})
     .finally(() => {
       showing = false;
@@ -140,7 +138,7 @@ function flush(): void {
   if (Object.keys(patch).length === 0) return;
   if (counters) counterSentAt = performance.now();
   sent = { ...sent, ...patch };
-  scope.postMessage({ kind: "state", patch: patch as StatePatch });
+  void page?.state(patch as StatePatch);
 }
 
 /**
@@ -187,87 +185,84 @@ function restoreBreakpoints(): void {
 
 const NEW_DEVICE: ReadonlySet<PlayerMethod> = new Set(["load", "restart", "runWithoutData", "changeModel"]);
 
-async function handle(message: ToWorker): Promise<void> {
-  switch (message.kind) {
-    case "init": {
-      try {
-        const wasm = await fetch(message.wasmUrl);
-        // L'écran : le lecteur dessine dans un canvas du Worker, dont chaque image part ensuite à la page (voir `show`).
-        canvas = new OffscreenCanvas(320, 240);
-        player = await Player.create(wasm, { scheduler, slice: SLICE, maxWallMs: FRAME_MS });
-        player.attach(canvas as never);
-        restoreFiles();
-        player.onFrame(() => {
-          record();
-          show();
-          flush();
-        });
-        setInterval(flush, 250); // le temps de l'application continue de défiler même sans nouvelle image
-        flush();
-        scope.postMessage({ kind: "reply", id: message.id, result: true });
-      } catch (error) {
-        scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });
-      }
-      return;
-    }
-    case "kept":
-      kept = message.document;
-      // La première fois (au démarrage), les fichiers conservés vont dans l'appareil déjà là ; ensuite, changer le réglage ne doit pas
-      // écraser les fichiers de l'appareil en cours avec une copie plus ancienne.
-      if (!keptApplied) restoreFiles();
-      keptApplied = true;
-      flush();
-      return;
-    case "request": {
-      if (!player) return void scope.postMessage({ kind: "failure", id: message.id, message: "émulateur pas encore prêt" });
-      const result = message.quiet ? player.nwasabi.request(message.request) : player.call(message.request);
-      if (BREAK_COMMANDS.has(String(message.request.cmd))) noteBreakpoints();
-      scope.postMessage({ kind: "reply", id: message.id, result });
-      flush();
-      return;
-    }
-    case "player": {
-      if (!player) return void scope.postMessage({ kind: "failure", id: message.id, message: "émulateur pas encore prêt" });
-      try {
-        const method = (player as unknown as Record<string, (...args: unknown[]) => unknown>)[message.method];
-        if (NEW_DEVICE.has(message.method)) carryFiles();
-        if (message.method === "load") {
-          // Une autre application : ses points d'arrêt ne sont pas ceux de la précédente.
-          const name = String(message.args[1] ?? "");
-          if (name !== breakpointsApp) breakpoints = [];
-          breakpointsApp = name;
-        }
-        const result = method?.apply(player, message.args);
-        if (NEW_DEVICE.has(message.method)) {
-          restoreFiles();
-          restoreBreakpoints();
-        }
-        scope.postMessage({ kind: "reply", id: message.id, result });
-        show();
-      } catch (error) {
-        scope.postMessage({ kind: "failure", id: message.id, message: (error as Error).message });
-      }
-      flush();
-      return;
-    }
-    case "record": {
-      if (message.action === "start") {
-        recorder = canvas ? new GifRecorder(canvas.width, canvas.height) : null;
-        record();
-        scope.postMessage({ kind: "reply", id: message.id, result: recorder !== null });
-      } else {
-        const gif = recorder && recorder.frames > 0 ? recorder.finish() : null;
-        recorder = null;
-        scope.postMessage({ kind: "reply", id: message.id, result: gif });
-      }
-      return;
-    }
-    case "capture": {
-      const blob = canvas ? await canvas.convertToBlob({ type: "image/png" }).catch(() => null) : null;
-      scope.postMessage({ kind: "reply", id: message.id, result: blob });
-      return;
-    }
-  }
-}
+const NOT_READY = "émulateur pas encore prêt";
 
-scope.onmessage = (event) => void handle(event.data);
+const api: WorkerApi = {
+  async init(wasmUrl, remote) {
+    page = remote as unknown as Comlink.Remote<PageApi>; // ce que la page a donné à `Comlink.proxy` : ses fonctions deviennent asynchrones ici
+    const wasm = await fetch(wasmUrl);
+    // L'écran : le lecteur dessine dans un canvas du Worker, dont chaque image part ensuite à la page (voir `show`).
+    canvas = new OffscreenCanvas(320, 240);
+    player = await Player.create(wasm, { scheduler, slice: SLICE, maxWallMs: FRAME_MS });
+    player.attach(canvas as never);
+    restoreFiles();
+    player.onFrame(() => {
+      record();
+      show();
+      flush();
+    });
+    setInterval(flush, 250); // le temps de l'application continue de défiler même sans nouvelle image
+    flush();
+    return true;
+  },
+
+  kept(document) {
+    kept = document;
+    // La première fois (au démarrage), les fichiers conservés vont dans l'appareil déjà là ; ensuite, changer le réglage ne doit pas
+    // écraser les fichiers de l'appareil en cours avec une copie plus ancienne.
+    if (!keptApplied) restoreFiles();
+    keptApplied = true;
+    flush();
+  },
+
+  request(request, quiet) {
+    if (!player) throw new Error(NOT_READY);
+    try {
+      const result = quiet ? player.nwasabi.request(request) : player.call(request);
+      if (BREAK_COMMANDS.has(String(request.cmd))) noteBreakpoints();
+      return result;
+    } finally {
+      flush();
+    }
+  },
+
+  player(name, args) {
+    if (!player) throw new Error(NOT_READY);
+    try {
+      const method = (player as unknown as Record<string, (...args: unknown[]) => unknown>)[name];
+      if (NEW_DEVICE.has(name)) carryFiles();
+      if (name === "load") {
+        // Une autre application : ses points d'arrêt ne sont pas ceux de la précédente.
+        const appName = String(args[1] ?? "");
+        if (appName !== breakpointsApp) breakpoints = [];
+        breakpointsApp = appName;
+      }
+      const result = method?.apply(player, args);
+      if (NEW_DEVICE.has(name)) {
+        restoreFiles();
+        restoreBreakpoints();
+      }
+      show();
+      return result;
+    } finally {
+      flush();
+    }
+  },
+
+  record(action) {
+    if (action === "start") {
+      recorder = canvas ? new GifRecorder(canvas.width, canvas.height) : null;
+      record();
+      return recorder !== null;
+    }
+    const gif = recorder && recorder.frames > 0 ? recorder.finish() : null;
+    recorder = null;
+    return gif;
+  },
+
+  async capture() {
+    return canvas ? await canvas.convertToBlob({ type: "image/png" }).catch(() => null) : null;
+  },
+};
+
+Comlink.expose(api);
