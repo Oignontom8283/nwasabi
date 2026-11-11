@@ -60,6 +60,15 @@ par `ObjectWriter`), `cli`, `server`, `gdb`, `debugger` (23 tests : expressions,
 **`gdb_real`** lance un **vrai GDB** (`gdb-multiarch` ou `arm-none-eabi-gdb`, variable `NWASABI_GDB`) contre `nwasabi --gdb-headless` avec l'ELF de l'application : point d'arrêt sur une fonction, pile, variables, lignes de source, `finish`, `watch`. Il est ignoré sans GDB. Trois projets de test
 (C, C++, Rust), compilés à la main, ont servi à valider l'ensemble des expressions et des commandes contre un vrai GDB.
 
+### Les références enregistrées
+
+Quatre fichiers de [`tests/golden/`](code:tests/golden/) gardent une **transcription complète** d'un comportement, pour qu'un remaniement du code soit prouvé sans effet : [`protocol.snap`](code:tests/golden/protocol.snap) (le protocole de session : chaque commande avec sa réponse exacte), [`gdb.snap`](code:tests/golden/gdb.snap) (une session GDB), [`disasm.snap`](code:tests/golden/disasm.snap) (le désassembleur sur tous les encodages Thumb) et [`errors.snap`](code:tests/golden/errors.snap) (le message de chaque erreur de la bibliothèque). Ils sont gérés par la bibliothèque [`insta`](https://crates.io/crates/insta) : un test qui échoue montre la **différence**, et `INSTA_UPDATE=always cargo test --test <nom>` réécrit le fichier après un changement voulu.
+
+### Valeurs tirées au hasard et vitesse
+
+[`proptests.rs`](code:src/cpu/proptests.rs) compare l'arithmétique, les indicateurs, les décalages, la multiplication et la division du processeur à un calcul de référence sur des valeurs tirées au hasard (avec les valeurs limites). Peu de cas par propriété : la suite reste rapide.
+La **vitesse réelle** du processeur se mesure avec [`benches/cpu.rs`](code:benches/cpu.rs) (`cargo bench --bench cpu`, bibliothèque `divan`), qui n'est jamais lancé par `cargo test`.
+
 ## 5. Native contre WebAssembly
 
 `tests/wasm/*.mjs` (sous Node.js, `just test-wasm`) exécutent le **module WebAssembly** : `parity.mjs` rejoue les mêmes requêtes qu'en natif et compare les sommes de contrôle de l'écran, du nombre d'instructions et des arrêts ; `player.mjs` et `speed.mjs` vérifient la cadence du `Player` ;
@@ -68,7 +77,7 @@ par `ObjectWriter`), `cli`, `server`, `gdb`, `debugger` (23 tests : expressions,
 ## 6. Le site et l'interface
 
 `tests/web/*.mjs` : logique pure sous Node.js (console GDB, sélection, GIF, instantanés, recherche de valeurs, registres de faute, descriptions d'instructions, lancement), plus `locales.mjs`, qui vérifie que **chaque clé de traduction utilisée existe** dans les deux langues, et qu'aucune clé n'est inutilisée.
-`just typecheck-web` (`vue-tsc`) vérifie les types ; `just build-docs` construit le site entier (VitePress, émulateur, schémas) et échoue sur un lien mort.
+`web/tests/` utilise `vitest` dans un DOM simulé (aucun navigateur) : la **structure HTML** d'un composant est enregistrée (`structure.test.ts`) pour que l'interface reste identique pendant un remaniement, et la logique de la palette de commandes est testée ; `just test-web` lance aussi `biome` sur le TypeScript. `just typecheck-web` (`vue-tsc`) vérifie les types ; `just build-docs` construit le site entier (VitePress, émulateur, schémas) et échoue sur un lien mort.
 
 ## Les commandes
 
@@ -81,7 +90,7 @@ par `ObjectWriter`), `cli`, `server`, `gdb`, `debugger` (23 tests : expressions,
 ## Ce qui n'est pas vérifié
 
 Il n'y a pas de test **contre une vraie calculatrice** : la fidélité d'un comportement du système (par exemple l'ordre des événements d'un appui long, ou la valeur d'un appel d'information) vient de relevés. Le **temps** est un modèle (un cycle par instruction) : une comparaison de vitesse avec la vraie
-puce n'a pas de sens. L'interface graphique n'a pas de test automatique de bout en bout.
+puce n'a pas de sens. L'interface graphique n'a pas de test de bout en bout dans un navigateur : ils sont trop lourds pour la suite.
 
 ## Dans le code
 
@@ -89,7 +98,8 @@ puce n'a pas de sens. L'interface graphique n'a pas de test automatique de bout 
 |---|---|
 | [`tests/cpu/generate_vectors.py`](code:tests/cpu/generate_vectors.py) | le générateur de lots pour QEMU |
 | [`tests/cpu_vectors.rs`](code:tests/cpu_vectors.rs), [`tests/cpu_independence.rs`](code:tests/cpu_independence.rs) | rejeu des lots, indépendance du processeur |
-| [`tests/golden/`](code:tests/golden/) | références : vecteurs, écrans, images liées |
+| [`tests/golden/`](code:tests/golden/) | références : vecteurs, écrans, images liées, transcriptions (`.snap`) |
+| [`tests/protocol_golden.rs`](code:tests/protocol_golden.rs), [`tests/gdb_golden.rs`](code:tests/gdb_golden.rs), [`tests/disasm_golden.rs`](code:tests/disasm_golden.rs), [`tests/error_texts_golden.rs`](code:tests/error_texts_golden.rs) | les transcriptions |
 | [`tests/apps/`](code:tests/apps/) | applications de test en C, sources et `.nwa` |
 | [`tests/support/mod.rs`](code:tests/support/mod.rs) | aides communes |
 | [`tests/session.rs`](code:tests/session.rs), [`tests/debugger.rs`](code:tests/debugger.rs), [`tests/gdb.rs`](code:tests/gdb.rs), [`tests/gdb_real.rs`](code:tests/gdb_real.rs) | session, débogueur, GDB |
@@ -108,5 +118,5 @@ Les **références** (`golden`) sont versionnées avec le code : changer un comp
 
 - **Un nouveau test d'instruction** : un `cases_*` dans [`generate_vectors.py`](code:tests/cpu/generate_vectors.py) ; relancer avec QEMU (`python3 tests/cpu/generate_vectors.py`), relire le diff des fichiers `.expected` (il ne doit montrer que les cas nouveaux).
 - **Une nouvelle application de test** : un `.c` dans [`tests/apps/src/`](code:tests/apps/src/) avec la macro `CHECK`, `just build-test-apps`, et un cas dans [`emulator_apps.rs`](code:tests/emulator_apps.rs).
-- **Une référence qui change** : `just update-golden <dossier>`, puis **vérifier** que la différence est celle voulue.
+- **Une référence qui change** : `just update-golden <dossier>` (images liées et écrans), ou `INSTA_UPDATE=always cargo test --test <nom>` (transcriptions) ; puis **vérifier** que la différence est celle voulue.
 - **Avant de proposer un changement** : `just ci` ; avant de fusionner, `just check-all`.
